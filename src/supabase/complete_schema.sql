@@ -212,10 +212,12 @@ BEGIN
     COALESCE(NEW.raw_user_meta_data->>'full_name', ''),
     COALESCE(NEW.raw_user_meta_data->>'role', 'admin')
   )
-  ON CONFLICT (id) DO NOTHING;
+  ON CONFLICT (id) DO UPDATE SET
+    email = EXCLUDED.email,
+    full_name = CASE WHEN profiles.full_name = '' THEN EXCLUDED.full_name ELSE profiles.full_name END;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
@@ -227,15 +229,16 @@ CREATE TRIGGER on_auth_user_created
 -- Helper: Get current user role
 CREATE OR REPLACE FUNCTION get_my_role() RETURNS TEXT AS $$
   SELECT role FROM public.profiles WHERE id = auth.uid();
-$$ LANGUAGE sql SECURITY DEFINER;
+$$ LANGUAGE sql SECURITY DEFINER SET search_path = public;
 
 -- Profiles: Users can see their own profile
 CREATE POLICY "Profiles: view own" ON profiles FOR SELECT USING (auth.uid() = id);
-CREATE POLICY "Profiles: update own" ON profiles FOR UPDATE USING (auth.uid() = id);
+CREATE POLICY "Profiles: update own" ON profiles FOR UPDATE USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
+CREATE POLICY "Profiles: self insert" ON profiles FOR INSERT WITH CHECK (auth.uid() = id);
 CREATE POLICY "Profiles: admin view all" ON profiles FOR SELECT USING (get_my_role() = 'admin');
 
 -- Restaurants: Owner can do everything
-CREATE POLICY "Restaurants: owner manage" ON restaurants FOR ALL USING (org_id = (SELECT email FROM auth.users WHERE id = auth.uid()));
+CREATE POLICY "Restaurants: owner manage" ON restaurants FOR ALL USING (org_id = (auth.jwt() ->> 'email')) WITH CHECK (org_id = (auth.jwt() ->> 'email'));
 CREATE POLICY "Restaurants: staff view" ON restaurants FOR SELECT USING (id IN (SELECT restaurant_id FROM profiles WHERE id = auth.uid()));
 
 -- General pattern for other tables:
@@ -244,7 +247,7 @@ CREATE POLICY "Restaurants: staff view" ON restaurants FOR SELECT USING (id IN (
 -- Cashier/Waiter: View and specific create/update access
 
 -- Example for Orders:
-CREATE POLICY "Orders: owner manage all" ON orders FOR ALL USING (branch_id IN (SELECT id FROM branches WHERE restaurant_id IN (SELECT id FROM restaurants WHERE org_id = (SELECT email FROM auth.users WHERE id = auth.uid()))));
+CREATE POLICY "Orders: owner manage all" ON orders FOR ALL USING (branch_id IN (SELECT id FROM branches WHERE restaurant_id IN (SELECT id FROM restaurants WHERE org_id = (auth.jwt() ->> 'email')))) WITH CHECK (branch_id IN (SELECT id FROM branches WHERE restaurant_id IN (SELECT id FROM restaurants WHERE org_id = (auth.jwt() ->> 'email'))));
 CREATE POLICY "Orders: manager manage branch" ON orders FOR ALL USING (branch_id IN (SELECT id FROM branches WHERE id = (SELECT branch::uuid FROM profiles WHERE id = auth.uid() AND role = 'manager')));
 CREATE POLICY "Orders: staff view branch" ON orders FOR SELECT USING (branch_id IN (SELECT id FROM branches WHERE id = (SELECT branch::uuid FROM profiles WHERE id = auth.uid())));
 CREATE POLICY "Orders: waiter/cashier create" ON orders FOR INSERT WITH CHECK (get_my_role() IN ('waiter', 'cashier'));
