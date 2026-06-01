@@ -260,10 +260,12 @@ BEGIN
     COALESCE(NEW.raw_user_meta_data->>'full_name', ''),
     COALESCE(NEW.raw_user_meta_data->>'role', 'admin')
   )
-  ON CONFLICT (id) DO NOTHING;
+  ON CONFLICT (id) DO UPDATE SET
+    email = EXCLUDED.email,
+    full_name = CASE WHEN profiles.full_name = '' THEN EXCLUDED.full_name ELSE profiles.full_name END;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
@@ -275,54 +277,55 @@ CREATE TRIGGER on_auth_user_created
 -- Helper: Get current user role
 CREATE OR REPLACE FUNCTION get_my_role() RETURNS TEXT AS $$
   SELECT role FROM public.profiles WHERE id = auth.uid();
-$$ LANGUAGE sql SECURITY DEFINER;
+$$ LANGUAGE sql SECURITY DEFINER SET search_path = public;
 
 -- Profiles: Users can see their own profile
 CREATE POLICY "Profiles: view own" ON profiles FOR SELECT USING (auth.uid() = id);
-CREATE POLICY "Profiles: update own" ON profiles FOR UPDATE USING (auth.uid() = id);
+CREATE POLICY "Profiles: update own" ON profiles FOR UPDATE USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
+CREATE POLICY "Profiles: self insert" ON profiles FOR INSERT WITH CHECK (auth.uid() = id);
 CREATE POLICY "Profiles: admin view all" ON profiles FOR SELECT USING (get_my_role() = 'admin');
 
 -- Restaurants: Owner can do everything
-CREATE POLICY "Restaurants: owner manage" ON restaurants FOR ALL USING (org_id = (SELECT email FROM auth.users WHERE id = auth.uid()));
+CREATE POLICY "Restaurants: owner manage" ON restaurants FOR ALL USING (org_id = (auth.jwt() ->> 'email')) WITH CHECK (org_id = (auth.jwt() ->> 'email'));
 CREATE POLICY "Restaurants: staff view" ON restaurants FOR SELECT USING (id IN (SELECT restaurant_id FROM profiles WHERE id = auth.uid()));
 
 -- Orders: Owner manage all
-CREATE POLICY "Orders: owner manage all" ON orders FOR ALL USING (restaurant_id IN (SELECT id FROM restaurants WHERE org_id = (SELECT email FROM auth.users WHERE id = auth.uid())));
+CREATE POLICY "Orders: owner manage all" ON orders FOR ALL USING (restaurant_id IN (SELECT id FROM restaurants WHERE org_id = (auth.jwt() ->> 'email'))) WITH CHECK (restaurant_id IN (SELECT id FROM restaurants WHERE org_id = (auth.jwt() ->> 'email')));
 CREATE POLICY "Orders: manager manage branch" ON orders FOR ALL USING (branch_key = (SELECT branch FROM profiles WHERE id = auth.uid() AND role = 'manager'));
 CREATE POLICY "Orders: staff view branch" ON orders FOR SELECT USING (branch_key = (SELECT branch FROM profiles WHERE id = auth.uid()));
 CREATE POLICY "Orders: waiter/cashier create" ON orders FOR INSERT WITH CHECK (get_my_role() IN ('waiter', 'cashier', 'admin', 'manager'));
 
 -- Inventory: Owner manage all
-CREATE POLICY "Inventory: owner manage all" ON inventory FOR ALL USING (created_by = (SELECT email FROM auth.users WHERE id = auth.uid()));
+CREATE POLICY "Inventory: owner manage all" ON inventory FOR ALL USING (created_by = (auth.jwt() ->> 'email')) WITH CHECK (created_by = (auth.jwt() ->> 'email'));
 CREATE POLICY "Inventory: manager manage branch" ON inventory FOR ALL USING (branch = (SELECT branch FROM profiles WHERE id = auth.uid() AND role = 'manager'));
 CREATE POLICY "Inventory: staff view branch" ON inventory FOR SELECT USING (branch = (SELECT branch FROM profiles WHERE id = auth.uid()));
 
 -- Daily Sales: Owner manage all
-CREATE POLICY "Daily Sales: owner manage all" ON daily_sales FOR ALL USING (created_by = (SELECT email FROM auth.users WHERE id = auth.uid()));
+CREATE POLICY "Daily Sales: owner manage all" ON daily_sales FOR ALL USING (created_by = (auth.jwt() ->> 'email')) WITH CHECK (created_by = (auth.jwt() ->> 'email'));
 CREATE POLICY "Daily Sales: staff view branch" ON daily_sales FOR SELECT USING (branch = (SELECT branch FROM profiles WHERE id = auth.uid()));
 
 -- Products: Owner manage all
-CREATE POLICY "Products: owner manage all" ON products FOR ALL USING (restaurant_id IN (SELECT id FROM restaurants WHERE org_id = (SELECT email FROM auth.users WHERE id = auth.uid())));
+CREATE POLICY "Products: owner manage all" ON products FOR ALL USING (restaurant_id IN (SELECT id FROM restaurants WHERE org_id = (auth.jwt() ->> 'email'))) WITH CHECK (restaurant_id IN (SELECT id FROM restaurants WHERE org_id = (auth.jwt() ->> 'email')));
 CREATE POLICY "Products: staff view" ON products FOR SELECT USING (restaurant_id IN (SELECT restaurant_id FROM profiles WHERE id = auth.uid()));
 
 -- Customers: Owner manage all
-CREATE POLICY "Customers: owner manage all" ON customers FOR ALL USING (restaurant_id IN (SELECT id FROM restaurants WHERE org_id = (SELECT email FROM auth.users WHERE id = auth.uid())));
+CREATE POLICY "Customers: owner manage all" ON customers FOR ALL USING (restaurant_id IN (SELECT id FROM restaurants WHERE org_id = (auth.jwt() ->> 'email'))) WITH CHECK (restaurant_id IN (SELECT id FROM restaurants WHERE org_id = (auth.jwt() ->> 'email')));
 CREATE POLICY "Customers: staff view" ON customers FOR SELECT USING (restaurant_id IN (SELECT restaurant_id FROM profiles WHERE id = auth.uid()));
 
 -- Suppliers: Owner manage all
-CREATE POLICY "Suppliers: owner manage all" ON suppliers FOR ALL USING (restaurant_id IN (SELECT id FROM restaurants WHERE org_id = (SELECT email FROM auth.users WHERE id = auth.uid())));
+CREATE POLICY "Suppliers: owner manage all" ON suppliers FOR ALL USING (restaurant_id IN (SELECT id FROM restaurants WHERE org_id = (auth.jwt() ->> 'email'))) WITH CHECK (restaurant_id IN (SELECT id FROM restaurants WHERE org_id = (auth.jwt() ->> 'email')));
 CREATE POLICY "Suppliers: staff view" ON suppliers FOR SELECT USING (restaurant_id IN (SELECT restaurant_id FROM profiles WHERE id = auth.uid()));
 
 -- Expenses: Owner manage all
-CREATE POLICY "Expenses: owner manage all" ON expenses FOR ALL USING (restaurant_id IN (SELECT id FROM restaurants WHERE org_id = (SELECT email FROM auth.users WHERE id = auth.uid())));
+CREATE POLICY "Expenses: owner manage all" ON expenses FOR ALL USING (restaurant_id IN (SELECT id FROM restaurants WHERE org_id = (auth.jwt() ->> 'email'))) WITH CHECK (restaurant_id IN (SELECT id FROM restaurants WHERE org_id = (auth.jwt() ->> 'email')));
 CREATE POLICY "Expenses: manager manage branch" ON expenses FOR ALL USING (branch_key = (SELECT branch FROM profiles WHERE id = auth.uid() AND role = 'manager'));
 CREATE POLICY "Expenses: staff view branch" ON expenses FOR SELECT USING (branch_key = (SELECT branch FROM profiles WHERE id = auth.uid()));
 
 -- Payments: Owner manage all
-CREATE POLICY "Payments: owner manage all" ON payments FOR ALL USING (order_id IN (SELECT id FROM orders WHERE restaurant_id IN (SELECT id FROM restaurants WHERE org_id = (SELECT email FROM auth.users WHERE id = auth.uid()))));
+CREATE POLICY "Payments: owner manage all" ON payments FOR ALL USING (order_id IN (SELECT id FROM orders WHERE restaurant_id IN (SELECT id FROM restaurants WHERE org_id = (auth.jwt() ->> 'email')))) WITH CHECK (order_id IN (SELECT id FROM orders WHERE restaurant_id IN (SELECT id FROM restaurants WHERE org_id = (auth.jwt() ->> 'email'))));
 CREATE POLICY "Payments: staff view branch" ON payments FOR SELECT USING (order_id IN (SELECT id FROM orders WHERE branch_key = (SELECT branch FROM profiles WHERE id = auth.uid())));
 
 -- Reservations: Owner manage all
-CREATE POLICY "Reservations: owner manage all" ON reservations FOR ALL USING (restaurant_id IN (SELECT id FROM restaurants WHERE org_id = (SELECT email FROM auth.users WHERE id = auth.uid())));
+CREATE POLICY "Reservations: owner manage all" ON reservations FOR ALL USING (restaurant_id IN (SELECT id FROM restaurants WHERE org_id = (auth.jwt() ->> 'email'))) WITH CHECK (restaurant_id IN (SELECT id FROM restaurants WHERE org_id = (auth.jwt() ->> 'email')));
 CREATE POLICY "Reservations: manager manage branch" ON reservations FOR ALL USING (branch_key = (SELECT branch FROM profiles WHERE id = auth.uid() AND role = 'manager'));
 CREATE POLICY "Reservations: staff view branch" ON reservations FOR SELECT USING (branch_key = (SELECT branch FROM profiles WHERE id = auth.uid()));
