@@ -273,6 +273,10 @@ const entities = {
   DeductionRule: createEntity('deduction_rules'), SalaryAdvance: createEntity('salary_advances'),
   EmployeeBonus: createEntity('employee_bonuses'), ApprovalPolicy: createEntity('approval_policies'),
   User: createEntity('profiles'),
+  Branch: createEntity('branches'), Category: createEntity('categories'),
+  Customer: createEntity('customers'), Order: createEntity('orders'),
+  OrderItem: createEntity('order_items'), Reservation: createEntity('reservations'),
+  Payment: createEntity('payments'),
 };
 
 console.log('[supabaseClient] Entity registry ready ✓');
