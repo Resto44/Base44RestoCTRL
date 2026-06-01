@@ -1,0 +1,105 @@
+{
+  "name": "DeliveryOrder",
+  "type": "object",
+  "properties": {
+    "order_number": {
+      "type": "string",
+      "description": "Auto-generated order number e.g. ORD-0001"
+    },
+    "branch": {
+      "type": "string",
+      "description": "Branch key"
+    },
+    "driver_id": {
+      "type": "string",
+      "description": "Employee id of assigned driver"
+    },
+    "driver_name": {
+      "type": "string",
+      "description": "Driver name snapshot"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "preparing",
+        "ready",
+        "out_for_delivery",
+        "delivered",
+        "cancelled"
+      ],
+      "default": "pending"
+    },
+    "customer_name": {
+      "type": "string"
+    },
+    "customer_phone": {
+      "type": "string"
+    },
+    "customer_address": {
+      "type": "string"
+    },
+    "items_json": {
+      "type": "string",
+      "description": "JSON array of {product_id, name, qty, unit_price, total}"
+    },
+    "subtotal": {
+      "type": "number",
+      "default": 0
+    },
+    "delivery_fee": {
+      "type": "number",
+      "default": 0
+    },
+    "discount": {
+      "type": "number",
+      "default": 0
+    },
+    "total_amount": {
+      "type": "number",
+      "default": 0
+    },
+    "payment_method": {
+      "type": "string",
+      "enum": [
+        "cash",
+        "network",
+        "credit"
+      ],
+      "default": "cash"
+    },
+    "payment_collected": {
+      "type": "boolean",
+      "default": false
+    },
+    "collected_at": {
+      "type": "string",
+      "description": "ISO timestamp when payment collected"
+    },
+    "shift_id": {
+      "type": "string",
+      "description": "Reference to DriverShift id"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "cancelled_reason": {
+      "type": "string"
+    },
+    "delivered_at": {
+      "type": "string",
+      "description": "ISO timestamp"
+    }
+  },
+  "required": [
+    "branch",
+    "driver_id",
+    "total_amount"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

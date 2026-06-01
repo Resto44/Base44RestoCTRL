@@ -1,0 +1,101 @@
+{
+  "name": "OwnerPersonalFinance",
+  "type": "object",
+  "properties": {
+    "record_type": {
+      "type": "string",
+      "enum": [
+        "expense",
+        "income",
+        "withdrawal"
+      ],
+      "description": "expense = personal spending, income = personal income, withdrawal = taken from business treasury"
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "amount": {
+      "type": "number",
+      "default": 0
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "family",
+        "travel",
+        "transfers",
+        "vehicles",
+        "investments",
+        "loans",
+        "housing",
+        "personal_shopping",
+        "external_business",
+        "miscellaneous"
+      ]
+    },
+    "source": {
+      "type": "string",
+      "description": "Income source (for income records)"
+    },
+    "payment_method": {
+      "type": "string",
+      "enum": [
+        "cash",
+        "network",
+        "bank_transfer"
+      ],
+      "default": "cash"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "proof_url": {
+      "type": "string",
+      "description": "Attachment / receipt image URL"
+    },
+    "wallet_source": {
+      "type": "string",
+      "enum": [
+        "owner_cash",
+        "owner_network",
+        "external"
+      ],
+      "default": "owner_cash",
+      "description": "Which wallet was used (for withdrawals)"
+    },
+    "recorded_by": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "record_type",
+    "date",
+    "amount"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "owner"
+      }
+    },
+    "read": {
+      "data.created_by": "{{user.email}}",
+      "user_condition": {
+        "role": "owner"
+      }
+    },
+    "update": {
+      "data.created_by": "{{user.email}}",
+      "user_condition": {
+        "role": "owner"
+      }
+    },
+    "delete": {
+      "data.created_by": "{{user.email}}",
+      "user_condition": {
+        "role": "owner"
+      }
+    }
+  }
+}

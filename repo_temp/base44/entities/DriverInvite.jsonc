@@ -1,0 +1,78 @@
+{
+  "name": "DriverInvite",
+  "type": "object",
+  "properties": {
+    "email": {
+      "type": "string",
+      "description": "Invited driver email"
+    },
+    "driver_name": {
+      "type": "string",
+      "description": "Driver full name (for display)"
+    },
+    "phone": {
+      "type": "string",
+      "description": "Driver phone number"
+    },
+    "branch_key": {
+      "type": "string",
+      "description": "Branch the driver is assigned to"
+    },
+    "branch_label": {
+      "type": "string",
+      "description": "Branch display name"
+    },
+    "restaurant_name": {
+      "type": "string",
+      "description": "Restaurant name snapshot"
+    },
+    "restaurant_id": {
+      "type": "string"
+    },
+    "owner_email": {
+      "type": "string",
+      "description": "Owner/manager who created the invite"
+    },
+    "invite_token": {
+      "type": "string",
+      "description": "Secure random token (48-char hex)"
+    },
+    "token_expires_at": {
+      "type": "string",
+      "description": "ISO timestamp \u2014 expires in 72h"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "accepted",
+        "revoked",
+        "expired"
+      ],
+      "default": "pending"
+    },
+    "employee_id": {
+      "type": "string",
+      "description": "Linked Employee record id (set after accept)"
+    },
+    "whatsapp_sent": {
+      "type": "boolean",
+      "default": false
+    },
+    "email_sent": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": [
+    "email",
+    "branch_key",
+    "owner_email"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

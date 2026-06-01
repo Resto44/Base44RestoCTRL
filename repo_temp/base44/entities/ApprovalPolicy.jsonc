@@ -1,0 +1,92 @@
+{
+  "name": "ApprovalPolicy",
+  "type": "object",
+  "properties": {
+    "expense_type": {
+      "type": "string",
+      "description": "Expense type or 'all' for global rule",
+      "enum": [
+        "all",
+        "MANAGER_TO_SPONSOR",
+        "SPONSOR_TO_OWNER",
+        "OWNER_TO_BRANCH",
+        "settlement",
+        "personal_expense"
+      ]
+    },
+    "branch": {
+      "type": "string",
+      "description": "Branch key, or 'all' for org-wide"
+    },
+    "manager_email": {
+      "type": "string",
+      "description": "Specific manager email, or blank for all"
+    },
+    "auto_approve_limit": {
+      "type": "number",
+      "default": 0,
+      "description": "Amounts at or below this are auto-approved"
+    },
+    "require_accountant_verification": {
+      "type": "boolean",
+      "default": false,
+      "description": "Require Accountant 'verified' status before owner approval"
+    },
+    "require_dual_signature_above": {
+      "type": "number",
+      "description": "Amounts above this require both sponsor + owner signatures"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true
+    },
+    "created_by": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "expense_type"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "owner"
+      }
+    },
+    "read": {
+      "$or": [
+        {
+          "data.created_by": "{{user.email}}",
+          "user_condition": {
+            "role": "owner"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "manager"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "sponsor"
+          }
+        }
+      ]
+    },
+    "update": {
+      "data.created_by": "{{user.email}}",
+      "user_condition": {
+        "role": "owner"
+      }
+    },
+    "delete": {
+      "data.created_by": "{{user.email}}",
+      "user_condition": {
+        "role": "owner"
+      }
+    }
+  }
+}

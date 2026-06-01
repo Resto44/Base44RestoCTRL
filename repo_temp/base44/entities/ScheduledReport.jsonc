@@ -1,0 +1,107 @@
+{
+  "name": "ScheduledReport",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Report name"
+    },
+    "report_type": {
+      "type": "string",
+      "enum": [
+        "sales",
+        "pl",
+        "cashflow",
+        "full"
+      ],
+      "default": "sales",
+      "description": "Type of report to generate"
+    },
+    "branch": {
+      "type": "string",
+      "description": "Target branch key, or 'all'"
+    },
+    "frequency": {
+      "type": "string",
+      "enum": [
+        "daily",
+        "weekly",
+        "monthly"
+      ],
+      "default": "weekly"
+    },
+    "day_of_week": {
+      "type": "string",
+      "enum": [
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday",
+        "saturday",
+        "sunday"
+      ],
+      "default": "monday"
+    },
+    "email_to": {
+      "type": "string",
+      "description": "Recipient email(s), comma-separated"
+    },
+    "range_type": {
+      "type": "string",
+      "enum": [
+        "day",
+        "week",
+        "month"
+      ],
+      "default": "week"
+    },
+    "include_inventory": {
+      "type": "boolean",
+      "default": true
+    },
+    "include_suppliers": {
+      "type": "boolean",
+      "default": true
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true
+    },
+    "last_sent": {
+      "type": "string",
+      "format": "date",
+      "description": "Last sent date"
+    }
+  },
+  "required": [
+    "name",
+    "email_to",
+    "frequency"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "owner"
+      }
+    },
+    "read": {
+      "data.created_by": "{{user.email}}",
+      "user_condition": {
+        "role": "owner"
+      }
+    },
+    "update": {
+      "data.created_by": "{{user.email}}",
+      "user_condition": {
+        "role": "owner"
+      }
+    },
+    "delete": {
+      "data.created_by": "{{user.email}}",
+      "user_condition": {
+        "role": "owner"
+      }
+    }
+  }
+}

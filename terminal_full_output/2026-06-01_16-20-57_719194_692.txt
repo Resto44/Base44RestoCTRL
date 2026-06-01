@@ -1,0 +1,158 @@
+# Terminal Full Output
+# Terminal: main
+# Command: ls -R
+# PID: 692
+# Timestamp: 2026-06-01_16-20-57.719194
+# Original Length: 10972 characters
+# ----------------------------------------
+
+[32mubuntu@sandbox:~$ [0mls -R
+.:
+DEPLOYMENT.md  Downloads  README.md  SUPABASE_SETUP.md	base44	components.json  eslint.config.js  index.html  jsconfig.json  package-lock.json  package.json  postcss.config.js  public  sandbox.txt  skills  src  tailwind.config.js	upload	vercel.json  vite.config.js
+./Downloads:
+./base44:
+config.jsonc  entities	functions
+./base44/entities:
+Announcement.jsonc    Attendance.jsonc	   BrandSettings.jsonc	   DailySales.jsonc   DeductionRule.jsonc  DriverInvite.jsonc	   DriverShift.jsonc	EmployeeInvite.jsonc   Inventory.jsonc		ManagerInvite.jsonc   NetworkImportBatch.jsonc	  PayrollRun.jsonc  PurchaseCategory.jsonc  Restaurant.jsonc	   SettlementRecord.jsonc    StaffRoster.jsonc	 SupplierInvoice.jsonc	TenantProfile.jsonc  WalletTransaction.jsonc
+AppSettings.jsonc     AuditLog.jsonc	   CollectionAction.jsonc  DebtPayment.jsonc  DeliveryOrder.jsonc  DriverSalesEntry.jsonc  Employee.jsonc	Expense.jsonc	       InventoryTransfer.jsonc	MenuProduct.jsonc     Notification.jsonc	  Product.jsonc     PurchaseOrder.jsonc     SalaryAdvance.jsonc    SponsorTransaction.jsonc  Subscription.jsonc  SupportTicket.jsonc	UsageLog.jsonc
+ApprovalPolicy.jsonc  BatchDocument.jsonc  CreditCollection.jsonc  DebtRecord.jsonc   DriverDebt.jsonc	   DriverSettlement.jsonc  EmployeeBonus.jsonc	ExpenseCategory.jsonc  InventoryWaste.jsonc	NetworkAccount.jsonc  OwnerPersonalFinance.jsonc  Purchase.jsonc    Recipe.jsonc	    ScheduledReport.jsonc  StaffAttendance.jsonc     Supplier.jsonc	 Task.jsonc		User.jsonc
+./base44/functions:
+acceptDriverInvite  acceptEmployeeInvite  acceptInvite	inviteDriver  inviteEmployee  inviteManager  onManagerLogin
+./base44/functions/acceptDriverInvite:
+entry.ts
+./base44/functions/acceptEmployeeInvite:
+entry.ts
+./base44/functions/acceptInvite:
+entry.ts
+./base44/functions/inviteDriver:
+entry.ts
+./base44/functions/inviteEmployee:
+entry.ts
+./base44/functions/inviteManager:
+entry.ts
+./base44/functions/onManagerLogin:
+entry.ts
+./public:
+manifest.json  sw.js
+./skills:
+automation-and-scheduling  imagegen  manus-api	manus-config  music-prompter  persistent-computing  skill-creator
+./skills/automation-and-scheduling:
+SKILL.md  references
+./skills/automation-and-scheduling/references:
+implementation-patterns.md
+./skills/imagegen:
+LICENSE.txt  SKILL.md  references
+./skills/imagegen/references:
+prompt-recipes.md  quality-checklist.md  scene-decision-matrix.md
+./skills/manus-api:
+SKILL.md  docs
+./skills/manus-api/docs:
+v1  v2
+./skills/manus-api/docs/v1:
+api-overview.mdx  connectors  create-file.mdx  create-project.mdx  create-task.mdx  create-webhook.mdx	data-integrations  delete-file.mdx  delete-task.mdx  delete-webhook.mdx  get-file.mdx  get-task.mdx  get-tasks.mdx  integrations  list-files.mdx  list-projects.mdx  openai-compatibility  openapi.json  overview.mdx  quickstart.mdx  update-task.mdx	webhooks  webhooks.mdx
+./skills/manus-api/docs/v1/connectors:
+gmail.mdx  google-calendar.mdx	notion.mdx  overview.mdx
+./skills/manus-api/docs/v1/data-integrations:
+overview.mdx  similarweb.mdx
+./skills/manus-api/docs/v1/integrations:
+overview.mdx  slack.mdx
+./skills/manus-api/docs/v1/openai-compatibility:
+overview.mdx
+./skills/manus-api/docs/v1/webhooks:
+overview.mdx  security.mdx
+./skills/manus-api/docs/v2:
+agent.detail.mdx  agents-overview.mdx	  connector.list.mdx		  data-integrations-similarweb.mdx  file.upload.mdx	       introduction.mdx  project.create.mdx  skill.list.mdx	    task.confirmAction.mdx  task.detail.mdx	   task.sendMessage.mdx  usage.list.mdx		  webhook.create.mdx  webhook.publicKey.mdx  website.listCheckpoints.mdx  website.status.mdx
+agent.list.mdx	  authentication.mdx	  connectors.mdx		  file.delete.mdx		    integrations-overview.mdx  oauth.mdx	 project.list.mdx    structured-output.mdx  task.create.mdx	    task.list.mdx	   task.stop.mdx	 usage.teamLog.mdx	  webhook.delete.mdx  webhooks-overview.mdx  website.mdx		  website.update.mdx
+agent.update.mdx  browser.onlineList.mdx  data-integrations-overview.mdx  file.detail.mdx		    integrations-slack.mdx     openapi_v2.json	 rate-limits.mdx     task-lifecycle.mdx     task.delete.mdx	    task.listMessages.mdx  task.update.mdx	 usage.teamStatistic.mdx  webhook.list.mdx    webhooks-security.mdx  website.publish.mdx
+./skills/manus-config:
+SKILL.md
+./skills/music-prompter:
+SKILL.md
+./skills/persistent-computing:
+SKILL.md  references
+./skills/persistent-computing/references:
+cloud-computer-reference.md  work-with-connectors.md
+./skills/skill-creator:
+LICENSE.txt  SKILL.md  references  scripts
+./skills/skill-creator/references:
+output-patterns.md  progressive-disclosure-patterns.md	workflows.md
+./skills/skill-creator/scripts:
+init_skill.py  quick_validate.py
+./src:
+App.jsx  api  components  hooks  index.css  lib  main.jsx  pages  supabase  utils
+./src/api:
+base44Client.js  supabaseClient.js
+./src/components:
+ProtectedRoute.jsx  UserNotRegisteredError.jsx	attendance  dashboard  debts  delivery	driver	employee  expenses  inventory  layout  network	notifications  payroll	products  purchase-orders  purchases  pwa  rbac  reports  sales  settlement  shared  staff  subscription  suppliers  support  treasury	ui  waste
+./src/components/attendance:
+AttendanceAnalytics.jsx  AttendanceAnalyticsPanel.jsx  AttendanceLiveBoard.jsx	EmployeeQRCard.jsx  KioskPINPad.jsx  LaborReport.jsx  LiveActivityFeed.jsx  QRScanner.jsx
+./src/components/dashboard:
+AccountsPayableWidget.jsx  BranchHealthDashboard.jsx  DashboardCharts.jsx  DashboardChartsTab.jsx  DashboardFilters.jsx  ExecutiveSummaryBar.jsx  LowStockWidget.jsx  ManagerWorkspace.jsx  PaymentMixCharts.jsx  QuickPurchaseModal.jsx  QuickSalesModal.jsx  RealDailyProfit.jsx  SalesTrendsChart.jsx  SmartInsights.jsx  WelcomeDashboard.jsx
+./src/components/debts:
+DebtCard.jsx  DebtDashboard.jsx  DebtDetailSheet.jsx  DebtForm.jsx  LiquidityForecast.jsx  PaymentForm.jsx  ReminderSettings.jsx
+./src/components/delivery:
+DeliveryAnalytics.jsx  DriverWallets.jsx  KitchenDisplay.jsx  NewOrderForm.jsx	OrderBoard.jsx
+./src/components/driver:
+DriverHistory.jsx  DriverHome.jsx  DriverInvitePanel.jsx  DriverLocationMap.jsx  DriverManagementPanel.jsx  DriverOrderCard.jsx  DriverShiftPanel.jsx  DriverWalletView.jsx
+./src/components/employee:
+EmployeeInvitePanel.jsx
+./src/components/expenses:
+ExpenseAnalytics.jsx  ExpenseCategoryManager.jsx  ReceiptScanner.jsx
+./src/components/inventory:
+AIRestockAlerts.jsx  ForecastReorderPanel.jsx
+./src/components/layout:
+AppHeader.jsx  AppLayout.jsx  BottomNav.jsx  LogoutButton.jsx  RestaurantSwitcher.jsx
+./src/components/network:
+NetworkAccountSelect.jsx
+./src/components/notifications:
+LiveOperationsCenter.jsx  NotificationBell.jsx	NotificationList.jsx  NotificationPopups.jsx  SoundSettings.jsx
+./src/components/payroll:
+AttendanceAnalytics.jsx  AttendanceTab.jsx  BonusDeductionTab.jsx  DeductionRulesSettings.jsx  PayrollDashboard.jsx  PayrollReport.jsx
+./src/components/products:
+ProductForm.jsx
+./src/components/purchase-orders:
+GenerateFromLowStock.jsx  PurchaseOrderDetail.jsx  PurchaseOrderForm.jsx  ReceiveOrderDialog.jsx
+./src/components/purchases:
+PurchaseForm.jsx  PurchaseListItem.jsx
+./src/components/pwa:
+PWAInstallBanner.jsx  PWAInstallModal.jsx
+./src/components/rbac:
+RoleGuard.jsx
+./src/components/reports:
+AsyncPDFButton.jsx  ScheduleForm.jsx  UltimatePDFButton.jsx
+./src/components/sales:
+DeliverySummaryPanel.jsx  DriverAnalytics.jsx  MultiDriverForm.jsx  SalesFilterSidebar.jsx  SalesForm.jsx  SalesListItem.jsx
+./src/components/settlement:
+BranchBalanceTracker.jsx  ManagerSubmitPanel.jsx  ReviewPanel.jsx  SettlementAuditLog.jsx  SponsorLedger.jsx
+./src/components/shared:
+BranchSelect.jsx  EmptyState.jsx  ExportDialog.jsx  KPICard.jsx  PageHeader.jsx  RiskBadge.jsx	SmartUploadZone.jsx
+./src/components/staff:
+RosterCard.jsx	RosterForm.jsx	ShiftAudit.jsx	StaffPerformanceDashboard.jsx  WeeklyRosterView.jsx
+./src/components/subscription:
+PaywallScreen.jsx
+./src/components/suppliers:
+SupplierContractTab.jsx  SupplierDetail.jsx  SupplierInvoices.jsx  SupplierPaymentManager.jsx  SupplierPriceComparison.jsx  SupplierPriceTracker.jsx  SupplierStatement.jsx
+./src/components/support:
+SupportTicketForm.jsx
+./src/components/treasury:
+BranchSettlementLedger.jsx  CashflowProjection.jsx  OwnerPersonalFinance.jsx  ReconciliationDashboard.jsx
+./src/components/ui:
+accordion.jsx	  alert.jsx	    avatar.jsx	breadcrumb.jsx	calendar.jsx  carousel.jsx  checkbox.jsx     command.jsx       dialog.jsx  dropdown-menu.jsx  hover-card.jsx  input.jsx  menubar.jsx	      pagination.jsx  progress.jsx     resizable.jsx	select.jsx     sheet.jsx    skeleton.jsx  sonner.jsx  table.jsx  textarea.jsx  toaster.jsx	 toggle.jsx   use-toast.jsx
+alert-dialog.jsx  aspect-ratio.jsx  badge.jsx	button.jsx	card.jsx      chart.jsx     collapsible.jsx  context-menu.jsx  drawer.jsx  form.jsx	      input-otp.jsx   label.jsx  navigation-menu.jsx  popover.jsx     radio-group.jsx  scroll-area.jsx	separator.jsx  sidebar.jsx  slider.jsx	  switch.jsx  tabs.jsx	 toast.jsx     toggle-group.jsx  tooltip.jsx
+./src/components/waste:
+AIWasteAnalysis.jsx  WasteCostReport.jsx
+./src/hooks:
+use-mobile.jsx	useDriverLocation.js  useNetworkSettlement.js  useOcrExtract.js  usePWAInstall.js  usePurchaseCategories.js
+./src/lib:
+AuthContext.jsx  LanguageContext.jsx  NotificationContext.jsx  PageNotFound.jsx  RoleContext.jsx  SubscriptionContext.jsx  TenantContext.jsx  app-params.js  auditLogger.js  cashflowEngine.js	debtI18n.js  employeeNotificationEngine.js  exportUtils.js  helpers.js	i18n.js  notificationEngine.js	payrollEngine.js  pdfGenerator.js  pdfReportService.js	purchaseForecasting.js	query-client.js  smartAnalytics.js  soundEngine.js  stockEngine.js  supabaseHelpers.js	useNotify.js  utils.js
+./src/pages:
+ActivityLogs.jsx    AuthPage.jsx	  BrandSettings.jsx    CustomerDashboard.jsx  DeliveryOrders.jsx    DriverSettlements.jsx   EmployeeInvitePage.jsx  Expenses.jsx	   InventoryTransfer.jsx  KitchenDashboard.jsx	 NetworkAccounts.jsx	 Onboarding.jsx		Products.jsx	    Purchases.jsx  RestaurantManager.jsx  ScheduledReports.jsx	SponsorTreasury.jsx  SuperAdmin.jsx  Tasks.jsx
+Alerts.jsx	    Billing.jsx		  CashFlow.jsx	       Dashboard.jsx	      DriverInvitePage.jsx  EmployeeAttendance.jsx  EmployeePortal.jsx	    Inventory.jsx	   InventoryWaste.jsx	  KitchenInvitePage.jsx  NetworkAnalytics.jsx	 Payroll.jsx		ProfitLoss.jsx	    Recipes.jsx    Sales.jsx		  SettingsPage.jsx	StaffAttendance.jsx  Suppliers.jsx   Treasury.jsx
+ApprovalPolicy.jsx  BranchManagement.jsx  CategoryManager.jsx  DebtManagement.jsx     DriverPortal.jsx	    EmployeeControl.jsx     Employees.jsx	    InventoryForecast.jsx  InvitePage.jsx	  MenuProducts.jsx	 NotificationCenter.jsx  PriceOptimization.jsx	PurchaseOrders.jsx  Reports.jsx    SalesDashboard.jsx	  SponsorDashboard.jsx	StaffUpload.jsx      Support.jsx
+./src/supabase:
+complete_schema.sql  final_schema.sql  schema.sql
+./src/utils:
+index.ts
+./upload:
+HowtoAuthorizeandDeployonVercel.zip
+[32mubuntu@sandbox:~$ [0m

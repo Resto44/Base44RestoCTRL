@@ -1,0 +1,27 @@
+{
+  "name": "AppSettings",
+  "type": "object",
+  "properties": {
+    "key": {
+      "type": "string",
+      "description": "Setting key"
+    },
+    "value": {
+      "type": "string",
+      "description": "Setting value (JSON or plain)"
+    },
+    "description": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "key",
+    "value"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

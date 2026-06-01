@@ -1,0 +1,65 @@
+{
+  "name": "Attendance",
+  "type": "object",
+  "properties": {
+    "employee_id": {
+      "type": "string",
+      "description": "Reference to Employee"
+    },
+    "employee_name": {
+      "type": "string",
+      "description": "Employee name snapshot"
+    },
+    "branch": {
+      "type": "string",
+      "description": "Branch key"
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "check_in": {
+      "type": "string",
+      "description": "Check-in time HH:MM"
+    },
+    "check_out": {
+      "type": "string",
+      "description": "Check-out time HH:MM"
+    },
+    "hours_worked": {
+      "type": "number",
+      "default": 0
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "present",
+        "late",
+        "absent",
+        "half_day",
+        "vacation"
+      ],
+      "default": "present"
+    },
+    "late_minutes": {
+      "type": "number",
+      "default": 0,
+      "description": "Minutes late beyond scheduled start"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "employee_id",
+    "branch",
+    "date",
+    "status"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

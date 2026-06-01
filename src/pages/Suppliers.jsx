@@ -39,7 +39,7 @@ export default function Suppliers() {
   const { data: suppliers = [] } = useQuery({ queryKey: ['suppliers', ownerFilter], queryFn: () => base44.entities.Supplier.filter(ownerFilter, 'name', 500), enabled: !!ownerFilter.created_by });
 
   const saveMutation = useMutation({
-    mutationFn: (data) => editing ? base44.entities.Supplier.update(editing.id, data) : base44.entities.Supplier.create(data),
+    mutationFn: (data) => editing ? base44.entities.Supplier.update(editing.id, data) : base44.entities.Supplier.create({ ...data, ...ownerFilter }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['suppliers'] }); closeForm(); },
   });
   const deleteMutation = useMutation({

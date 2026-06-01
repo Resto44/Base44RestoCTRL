@@ -1,0 +1,51 @@
+{
+  "name": "PurchaseCategory",
+  "type": "object",
+  "properties": {
+    "name_en": {
+      "type": "string",
+      "description": "Category name in English"
+    },
+    "name_ar": {
+      "type": "string",
+      "description": "Category name in Arabic"
+    },
+    "name_fa": {
+      "type": "string",
+      "description": "Category name in Persian/Farsi"
+    },
+    "icon": {
+      "type": "string",
+      "description": "Emoji icon for the category"
+    },
+    "color": {
+      "type": "string",
+      "description": "Hex color code"
+    },
+    "type": {
+      "type": "string",
+      "description": "Category type classification"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true
+    },
+    "is_favorite": {
+      "type": "boolean",
+      "default": false
+    },
+    "sort_order": {
+      "type": "number",
+      "default": 0
+    }
+  },
+  "required": [
+    "name_en"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

@@ -1,0 +1,296 @@
+/**
+ * Supabase client + Base44-compatible entity/auth wrapper.
+ * CRASH-PROOF: every initialization step is guarded.
+ * The module ALWAYS exports valid objects even if Supabase is unavailable.
+ */
+
+console.log('[supabaseClient] bootstrap start');
+
+import { createClient } from '@supabase/supabase-js';
+import { createClient as createBase44Client } from '@base44/sdk';
+import { appParams } from '@/lib/app-params';
+
+// ── Supabase client — safe init ────────────────────────────────────────────
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+let supabase;
+try {
+  if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+    supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: { persistSession: true, autoRefreshToken: true },
+    });
+    console.log('[supabaseClient] Supabase client initialized ✓', SUPABASE_URL);
+  } else {
+    console.warn('[supabaseClient] VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY not set — using stub client');
+    supabase = null;
+  }
+} catch (e) {
+  console.error('[supabaseClient] Supabase init failed:', e.message);
+  supabase = null;
+}
+
+// ── Stub Supabase for when it's unavailable ────────────────────────────────
+const stubAuth = {
+  getUser: async () => ({ data: { user: null }, error: null }),
+  getSession: async () => ({ data: { session: null }, error: null }),
+  signInWithPassword: async () => ({ data: null, error: { message: 'Supabase not configured' } }),
+  signUp: async () => ({ data: null, error: { message: 'Supabase not configured' } }),
+  signOut: async () => ({ error: null }),
+  resetPasswordForEmail: async () => ({ error: { message: 'Supabase not configured' } }),
+  onAuthStateChange: (cb) => {
+    // Fire with no session so AuthContext resolves immediately
+    setTimeout(() => cb('INITIAL_SESSION', null), 0);
+    return { data: { subscription: { unsubscribe: () => {} } } };
+  },
+};
+
+const stubFrom = () => ({
+  select: () => stubFrom(),
+  insert: () => stubFrom(),
+  update: () => stubFrom(),
+  upsert: () => stubFrom(),
+  delete: () => stubFrom(),
+  eq: () => stubFrom(),
+  or: () => stubFrom(),
+  order: () => stubFrom(),
+  limit: () => stubFrom(),
+  single: async () => ({ data: null, error: null }),
+  then: (resolve) => resolve({ data: [], error: null }),
+});
+
+if (!supabase) {
+  supabase = {
+    auth: stubAuth,
+    from: () => stubFrom(),
+    channel: () => ({
+      on: function() { return this; },
+      subscribe: function() { return this; },
+    }),
+    removeChannel: () => {},
+  };
+}
+
+export { supabase };
+console.log('[supabaseClient] Supabase export ready ✓');
+
+// ── Base44 SDK — safe init (for functions/integrations) ────────────────────
+let _b44 = null;
+try {
+  _b44 = createBase44Client({
+    appId: appParams.appId,
+    token: appParams.token,
+    functionsVersion: appParams.functionsVersion,
+    serverUrl: '',
+    requiresAuth: false,
+    appBaseUrl: appParams.appBaseUrl,
+  });
+  console.log('[supabaseClient] Base44 SDK initialized ✓');
+} catch (e) {
+  console.warn('[supabaseClient] Base44 SDK init failed (functions/integrations unavailable):', e.message);
+}
+
+const stubFn = { invoke: async () => ({ data: null }) };
+const stubIntegrations = { Core: { InvokeLLM: async () => ({}), UploadFile: async () => ({ file_url: '' }), SendEmail: async () => ({}), GenerateImage: async () => ({ url: '' }) } };
+const stubAgents = { createConversation: async () => ({}), listConversations: async () => [], getConversation: async () => ({}), addMessage: async () => ({}), subscribeToConversation: () => () => {}, getWhatsAppConnectURL: () => '#', getTelegramConnectURL: () => '#' };
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function parseSortParam(sort) {
+  if (!sort) return { column: 'created_date', ascending: false };
+  const s = Array.isArray(sort) ? sort[0] : sort;
+  if (typeof s === 'string' && s.startsWith('-')) return { column: s.slice(1), ascending: false };
+  return { column: s || 'created_date', ascending: true };
+}
+
+function applyFilter(q, filter) {
+  if (!filter || typeof filter !== 'object') return q;
+  for (const [key, val] of Object.entries(filter)) {
+    if (key === '$or' && Array.isArray(val)) {
+      const parts = val
+        .map(c => Object.entries(c).filter(([k]) => !k.startsWith('$') && !k.startsWith('user_')).map(([k, v]) => `${k}.eq.${v}`).join(','))
+        .filter(Boolean);
+      if (parts.length) q = q.or(parts.join(','));
+    } else if (key === '$and' && Array.isArray(val)) {
+      val.forEach(c => { q = applyFilter(q, c); });
+    } else if (!key.startsWith('$') && key !== 'user_condition' && !key.startsWith('user_') && val !== null && val !== undefined) {
+      q = q.eq(key, val);
+    }
+  }
+  return q;
+}
+
+async function getCurrentUserEmail() {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    return user?.email || '';
+  } catch { return ''; }
+}
+
+// ── Entity wrapper factory ─────────────────────────────────────────────────
+function createEntity(tableName) {
+  return {
+    async list(sortParam = '-created_date', limit = 100) {
+      const { column, ascending } = parseSortParam(sortParam);
+      const { data, error } = await supabase.from(tableName).select('*').order(column, { ascending }).limit(limit);
+      if (error) { console.warn(`[entity:${tableName}] list error:`, error.message); return []; }
+      return data || [];
+    },
+
+    async filter(filterObj = {}, sortParam = '-created_date', limit = 100) {
+      const { column, ascending } = parseSortParam(sortParam);
+      let q = supabase.from(tableName).select('*');
+      q = applyFilter(q, filterObj);
+      q = q.order(column, { ascending }).limit(limit);
+      const { data, error } = await q;
+      if (error) { console.warn(`[entity:${tableName}] filter error:`, error.message); return []; }
+      return data || [];
+    },
+
+    async get(id) {
+      const { data, error } = await supabase.from(tableName).select('*').eq('id', id).single();
+      if (error) throw error;
+      return data;
+    },
+
+    async create(record) {
+      const email = await getCurrentUserEmail();
+      const now = new Date().toISOString();
+      const { data, error } = await supabase.from(tableName).insert({ ...record, created_by: email, created_date: now, updated_date: now }).select().single();
+      if (error) throw error;
+      return data;
+    },
+
+    async bulkCreate(records) {
+      const email = await getCurrentUserEmail();
+      const now = new Date().toISOString();
+      const { data, error } = await supabase.from(tableName).insert(records.map(r => ({ ...r, created_by: email, created_date: now, updated_date: now }))).select();
+      if (error) throw error;
+      return data || [];
+    },
+
+    async update(id, changes) {
+      const { data, error } = await supabase.from(tableName).update({ ...changes, updated_date: new Date().toISOString() }).eq('id', id).select().single();
+      if (error) throw error;
+      return data;
+    },
+
+    async delete(id) {
+      const { error } = await supabase.from(tableName).delete().eq('id', id);
+      if (error) throw error;
+      return { success: true };
+    },
+
+    schema() { return {}; },
+
+    subscribe(callback) {
+      try {
+        const channel = supabase
+          .channel(`rt-${tableName}-${Date.now()}`)
+          .on('postgres_changes', { event: '*', schema: 'public', table: tableName }, payload => {
+            const typeMap = { INSERT: 'create', UPDATE: 'update', DELETE: 'delete' };
+            callback({ type: typeMap[payload.eventType] || payload.eventType, id: payload.new?.id || payload.old?.id, data: payload.new || null });
+          })
+          .subscribe();
+        return () => supabase.removeChannel(channel);
+      } catch { return () => {}; }
+    },
+  };
+}
+
+// ── Auth helpers ───────────────────────────────────────────────────────────
+const auth = {
+  async me() {
+    try {
+      const { data: { user }, error } = await supabase.auth.getUser();
+      if (error || !user) return null;
+      const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+      return {
+        id: user.id,
+        email: user.email,
+        full_name: profile?.full_name || user.user_metadata?.full_name || '',
+        role: profile?.role || user.user_metadata?.role || null,
+        branch: profile?.branch || null,
+        ...profile,
+      };
+    } catch (e) {
+      console.warn('[auth.me] error:', e.message);
+      return null;
+    }
+  },
+
+  async isAuthenticated() {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      return !!session;
+    } catch { return false; }
+  },
+
+  async updateMe(updates) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+    const { error } = await supabase.from('profiles').upsert({ id: user.id, email: user.email, ...updates, updated_date: new Date().toISOString() });
+    if (error) throw error;
+    return auth.me();
+  },
+
+  logout(redirectUrl) {
+    supabase.auth.signOut().then(() => { window.location.href = redirectUrl || '/auth'; });
+  },
+
+  redirectToLogin(nextUrl) {
+    const next = nextUrl ? `?next=${encodeURIComponent(nextUrl)}` : '';
+    window.location.href = `/auth${next}`;
+  },
+};
+
+// ── Entity registry ────────────────────────────────────────────────────────
+const entities = {
+  Employee: createEntity('employees'), DriverInvite: createEntity('driver_invites'),
+  ManagerInvite: createEntity('manager_invites'), EmployeeInvite: createEntity('employee_invites'),
+  DeliveryOrder: createEntity('delivery_orders'), DriverSettlement: createEntity('driver_settlements'),
+  DriverShift: createEntity('driver_shifts'), DriverDebt: createEntity('driver_debts'),
+  DriverSalesEntry: createEntity('driver_sales_entries'), Attendance: createEntity('attendance'),
+  Inventory: createEntity('inventory'), Product: createEntity('products'),
+  MenuProduct: createEntity('menu_products'), PayrollRun: createEntity('payroll_runs'),
+  Expense: createEntity('expenses'), ExpenseCategory: createEntity('expense_categories'),
+  PurchaseOrder: createEntity('purchase_orders'), Purchase: createEntity('purchases'),
+  PurchaseCategory: createEntity('purchase_categories'), Notification: createEntity('notifications'),
+  DailySales: createEntity('daily_sales'), DebtRecord: createEntity('debt_records'),
+  DebtPayment: createEntity('debt_payments'), CreditCollection: createEntity('credit_collections'),
+  CollectionAction: createEntity('collection_actions'), Restaurant: createEntity('restaurants'),
+  NetworkAccount: createEntity('network_accounts'), SettlementRecord: createEntity('settlement_records'),
+  Subscription: createEntity('subscriptions'), WalletTransaction: createEntity('wallet_transactions'),
+  Supplier: createEntity('suppliers'), SupplierInvoice: createEntity('supplier_invoices'),
+  SupportTicket: createEntity('support_tickets'), AuditLog: createEntity('audit_logs'),
+  Task: createEntity('tasks'), StaffRoster: createEntity('staff_rosters'),
+  StaffAttendance: createEntity('staff_attendance'), BrandSettings: createEntity('brand_settings'),
+  AppSettings: createEntity('app_settings'), TenantProfile: createEntity('tenant_profiles'),
+  Announcement: createEntity('announcements'), SponsorTransaction: createEntity('sponsor_transactions'),
+  OwnerPersonalFinance: createEntity('owner_personal_finance'), InventoryWaste: createEntity('inventory_waste'),
+  InventoryTransfer: createEntity('inventory_transfers'), Recipe: createEntity('recipes'),
+  NetworkImportBatch: createEntity('network_import_batches'), BatchDocument: createEntity('batch_documents'),
+  UsageLog: createEntity('usage_logs'), ScheduledReport: createEntity('scheduled_reports'),
+  DeductionRule: createEntity('deduction_rules'), SalaryAdvance: createEntity('salary_advances'),
+  EmployeeBonus: createEntity('employee_bonuses'), ApprovalPolicy: createEntity('approval_policies'),
+  User: createEntity('profiles'),
+  Branch: createEntity('branches'), Category: createEntity('categories'),
+  Customer: createEntity('customers'), Order: createEntity('orders'),
+  OrderItem: createEntity('order_items'), Reservation: createEntity('reservations'),
+  Payment: createEntity('payments'),
+};
+
+console.log('[supabaseClient] Entity registry ready ✓');
+
+// ── Main export ────────────────────────────────────────────────────────────
+export const base44 = {
+  entities,
+  auth,
+  users: { inviteUser: async (email, role) => console.warn('[users.inviteUser] use Supabase Admin API:', email, role) },
+  analytics: { track: () => {} },
+  connectors: { connectAppUser: async () => '#', disconnectAppUser: async () => {} },
+  functions:    _b44?.functions    || stubFn,
+  integrations: _b44?.integrations || stubIntegrations,
+  agents:       _b44?.agents       || stubAgents,
+};
+
+console.log('[supabaseClient] base44 export ready ✓');

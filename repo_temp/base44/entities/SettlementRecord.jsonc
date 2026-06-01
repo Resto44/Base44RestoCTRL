@@ -1,0 +1,195 @@
+{
+  "name": "SettlementRecord",
+  "type": "object",
+  "properties": {
+    "flow_type": {
+      "type": "string",
+      "enum": [
+        "MANAGER_TO_SPONSOR",
+        "SPONSOR_TO_OWNER",
+        "OWNER_TO_BRANCH"
+      ],
+      "description": "Which leg of the 3-party settlement this record represents"
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "amount": {
+      "type": "number",
+      "default": 0
+    },
+    "branch": {
+      "type": "string",
+      "description": "Branch key"
+    },
+    "network_account_id": {
+      "type": "string",
+      "description": "Reference to NetworkAccount id"
+    },
+    "submitted_by": {
+      "type": "string",
+      "description": "Email of who submitted"
+    },
+    "submitted_by_name": {
+      "type": "string"
+    },
+    "proof_url": {
+      "type": "string",
+      "description": "Transfer proof image/PDF URL"
+    },
+    "proof_uploaded_at": {
+      "type": "string",
+      "description": "ISO timestamp of upload"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "verified",
+        "approved",
+        "rejected"
+      ],
+      "default": "pending"
+    },
+    "verified_by": {
+      "type": "string",
+      "description": "Email of accountant who verified"
+    },
+    "verified_at": {
+      "type": "string"
+    },
+    "reviewed_by": {
+      "type": "string",
+      "description": "Email of approver/rejecter"
+    },
+    "reviewed_at": {
+      "type": "string"
+    },
+    "rejection_reason": {
+      "type": "string"
+    },
+    "reference_id": {
+      "type": "string",
+      "description": "Optional reference / bank ref"
+    },
+    "parent_settlement_id": {
+      "type": "string",
+      "description": "Links SPONSOR_TO_OWNER or OWNER_TO_BRANCH back to originating MANAGER_TO_SPONSOR id"
+    },
+    "is_locked": {
+      "type": "boolean",
+      "default": false
+    },
+    "ocr_vendor": {
+      "type": "string",
+      "description": "Vendor name extracted by OCR"
+    }
+  },
+  "required": [
+    "flow_type",
+    "date",
+    "amount"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "owner"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "manager"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "sponsor"
+          }
+        }
+      ]
+    },
+    "read": {
+      "$or": [
+        {
+          "data.created_by": "{{user.email}}",
+          "user_condition": {
+            "role": "owner"
+          }
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "manager"
+              }
+            },
+            {
+              "data.branch": "{{user.branch}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "sponsor"
+              }
+            },
+            {
+              "data.branch": "{{user.branch}}"
+            }
+          ]
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "data.created_by": "{{user.email}}",
+          "user_condition": {
+            "role": "owner"
+          }
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "manager"
+              }
+            },
+            {
+              "data.branch": "{{user.branch}}"
+            },
+            {
+              "data.status": "pending"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "sponsor"
+              }
+            },
+            {
+              "data.branch": "{{user.branch}}"
+            }
+          ]
+        }
+      ]
+    },
+    "delete": {
+      "data.created_by": "{{user.email}}",
+      "user_condition": {
+        "role": "owner"
+      }
+    }
+  }
+}

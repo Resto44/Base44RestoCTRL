@@ -1,0 +1,48 @@
+{
+  "name": "Inventory",
+  "type": "object",
+  "properties": {
+    "product_id": {
+      "type": "string",
+      "description": "Reference to Product"
+    },
+    "product_name": {
+      "type": "string",
+      "description": "Product name snapshot"
+    },
+    "branch": {
+      "type": "string",
+      "description": "Branch key"
+    },
+    "unit": {
+      "type": "string",
+      "description": "Unit of measurement"
+    },
+    "opening_stock": {
+      "type": "number",
+      "description": "Opening stock quantity",
+      "default": 0
+    },
+    "low_stock_threshold": {
+      "type": "number",
+      "description": "Alert when stock falls below this",
+      "default": 5
+    },
+    "date": {
+      "type": "string",
+      "format": "date",
+      "description": "Record date"
+    }
+  },
+  "required": [
+    "product_id",
+    "branch",
+    "date"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { useLanguage } from '@/lib/LanguageContext';
+import { useTenant } from '@/lib/TenantContext';
 import PageHeader from '@/components/shared/PageHeader';
 import ProductForm from '@/components/products/ProductForm';
 import EmptyState from '@/components/shared/EmptyState';
@@ -14,6 +15,7 @@ import { Input } from '@/components/ui/input';
 
 export default function Products() {
   const { t, currency } = useLanguage();
+  const { activeRestaurant } = useTenant();
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -26,7 +28,7 @@ export default function Products() {
   });
 
   const createMut = useMutation({
-    mutationFn: (data) => base44.entities.Product.create(data),
+    mutationFn: (data) => base44.entities.Product.create({ ...data, restaurant_id: activeRestaurant?.id }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['products'] }); setShowForm(false); },
   });
 

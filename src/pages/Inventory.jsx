@@ -43,7 +43,7 @@ export default function Inventory() {
   const { data: wastage = [] } = useQuery({ queryKey: ['inventory_waste', ownerFilter], queryFn: () => base44.entities.InventoryWaste.filter(ownerFilter, '-date', 5000), enabled: !!ownerFilter?.created_by });
 
   const saveMutation = useMutation({
-    mutationFn: async (data) => editing ? base44.entities.Inventory.update(editing.id, data) : base44.entities.Inventory.create(data),
+    mutationFn: async (data) => editing ? base44.entities.Inventory.update(editing.id, data) : base44.entities.Inventory.create({ ...data, ...ownerFilter }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['inventory'] }); closeForm(); },
   });
 

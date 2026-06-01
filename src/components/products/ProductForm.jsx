@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { useLanguage } from '@/lib/LanguageContext';
+import { useTenant } from '@/lib/TenantContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 export default function ProductForm({ initial, onSubmit, onCancel }) {
+  const { activeRestaurant } = useTenant();
   const { t } = useLanguage();
   const [form, setForm] = useState({
     product_id: '',
@@ -13,6 +15,7 @@ export default function ProductForm({ initial, onSubmit, onCancel }) {
     unit: '',
     default_price: '',
     default_cost: '',
+    restaurant_id: activeRestaurant?.id,
     ...initial,
   });
 

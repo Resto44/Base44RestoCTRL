@@ -1,0 +1,114 @@
+{
+  "name": "TenantProfile",
+  "type": "object",
+  "properties": {
+    "owner_email": {
+      "type": "string",
+      "description": "Primary owner email \u2014 tenant root key"
+    },
+    "business_name": {
+      "type": "string",
+      "description": "Display name of the business / restaurant chain"
+    },
+    "plan": {
+      "type": "string",
+      "enum": [
+        "starter",
+        "pro",
+        "enterprise"
+      ],
+      "default": "starter"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "trial",
+        "active",
+        "suspended",
+        "canceled"
+      ],
+      "default": "trial"
+    },
+    "trial_end": {
+      "type": "string",
+      "format": "date"
+    },
+    "current_period_end": {
+      "type": "string",
+      "format": "date"
+    },
+    "max_restaurants": {
+      "type": "number",
+      "default": 1
+    },
+    "max_branches": {
+      "type": "number",
+      "default": 3
+    },
+    "max_employees": {
+      "type": "number",
+      "default": 20
+    },
+    "max_ocr_scans": {
+      "type": "number",
+      "default": 100
+    },
+    "max_pdf_exports": {
+      "type": "number",
+      "default": 50
+    },
+    "used_ocr_scans": {
+      "type": "number",
+      "default": 0
+    },
+    "used_pdf_exports": {
+      "type": "number",
+      "default": 0
+    },
+    "monthly_revenue": {
+      "type": "number",
+      "default": 0,
+      "description": "Monthly plan price in USD"
+    },
+    "phone": {
+      "type": "string"
+    },
+    "country": {
+      "type": "string"
+    },
+    "is_suspended": {
+      "type": "boolean",
+      "default": false
+    },
+    "suspension_reason": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "last_login": {
+      "type": "string",
+      "description": "ISO timestamp of last login"
+    },
+    "restaurant_count": {
+      "type": "number",
+      "default": 0
+    },
+    "branch_count": {
+      "type": "number",
+      "default": 0
+    }
+  },
+  "required": [
+    "owner_email",
+    "business_name",
+    "plan",
+    "status"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

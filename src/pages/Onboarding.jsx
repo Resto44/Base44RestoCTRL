@@ -123,6 +123,20 @@ export default function Onboarding({ onComplete }) {
       document.documentElement.setAttribute('dir', dir);
       document.documentElement.setAttribute('lang', lang);
 
+      // Ensure profile is fully hydrated before redirecting
+      try {
+        const profile = await base44.auth.me();
+        if (!profile) {
+          throw new Error('Profile not found after onboarding');
+        }
+      } catch (e) {
+        console.error('[Onboarding] Profile hydration failed:', e);
+        setError('Failed to complete profile setup. Please refresh and try again.');
+        toast.error('Profile setup failed — please refresh and try again.');
+        setSaving(false);
+        return;
+      }
+
       // Clear all cached queries then hard-redirect
       qc.clear();
 

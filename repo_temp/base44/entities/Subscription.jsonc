@@ -1,0 +1,144 @@
+{
+  "name": "Subscription",
+  "type": "object",
+  "properties": {
+    "org_key": {
+      "type": "string",
+      "description": "Organization identifier (owner email)"
+    },
+    "plan": {
+      "type": "string",
+      "enum": [
+        "starter",
+        "pro",
+        "enterprise"
+      ],
+      "default": "starter"
+    },
+    "subscription_status": {
+      "type": "string",
+      "enum": [
+        "trial",
+        "active",
+        "past_due",
+        "canceled",
+        "suspended"
+      ],
+      "default": "trial"
+    },
+    "current_period_end": {
+      "type": "string",
+      "format": "date",
+      "description": "Subscription renewal/expiry date"
+    },
+    "trial_end": {
+      "type": "string",
+      "format": "date",
+      "description": "Trial end date"
+    },
+    "payment_provider": {
+      "type": "string",
+      "enum": [
+        "stripe",
+        "manual",
+        "none"
+      ],
+      "default": "none"
+    },
+    "stripe_customer_id": {
+      "type": "string"
+    },
+    "stripe_subscription_id": {
+      "type": "string"
+    },
+    "monthly_price": {
+      "type": "number",
+      "default": 0,
+      "description": "Monthly price in USD"
+    },
+    "max_restaurants": {
+      "type": "number",
+      "default": 1
+    },
+    "max_branches": {
+      "type": "number",
+      "default": 3
+    },
+    "max_employees": {
+      "type": "number",
+      "default": 20
+    },
+    "max_ocr_scans": {
+      "type": "number",
+      "default": 100
+    },
+    "max_pdf_exports": {
+      "type": "number",
+      "default": 50
+    },
+    "used_ocr_scans": {
+      "type": "number",
+      "default": 0
+    },
+    "used_pdf_exports": {
+      "type": "number",
+      "default": 0
+    }
+  },
+  "required": [
+    "org_key",
+    "plan",
+    "subscription_status"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "owner"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "read": {
+      "$or": [
+        {
+          "data.org_key": "{{user.email}}",
+          "user_condition": {
+            "role": "owner"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "data.org_key": "{{user.email}}",
+          "user_condition": {
+            "role": "owner"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

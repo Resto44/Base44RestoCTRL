@@ -1,0 +1,188 @@
+{
+  "name": "DebtRecord",
+  "type": "object",
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": [
+        "receivable",
+        "liability"
+      ],
+      "description": "receivable = money owed TO us; liability = money we owe"
+    },
+    "party_type": {
+      "type": "string",
+      "enum": [
+        "customer",
+        "company",
+        "supplier",
+        "loan",
+        "branch",
+        "owner_personal"
+      ],
+      "description": "Who is the counterparty"
+    },
+    "party_name": {
+      "type": "string",
+      "description": "Customer / company / supplier / lender name"
+    },
+    "party_phone": {
+      "type": "string"
+    },
+    "party_email": {
+      "type": "string"
+    },
+    "branch": {
+      "type": "string",
+      "description": "Branch key"
+    },
+    "invoice_number": {
+      "type": "string"
+    },
+    "date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date of original debt"
+    },
+    "due_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "total_amount": {
+      "type": "number",
+      "default": 0
+    },
+    "paid_amount": {
+      "type": "number",
+      "default": 0
+    },
+    "remaining_amount": {
+      "type": "number",
+      "default": 0
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "open",
+        "partial",
+        "paid",
+        "overdue",
+        "written_off"
+      ],
+      "default": "open"
+    },
+    "risk_score": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "default": "low"
+    },
+    "description": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "interest_rate": {
+      "type": "number",
+      "default": 0,
+      "description": "Annual interest % (for loans)"
+    },
+    "installment_amount": {
+      "type": "number",
+      "default": 0
+    },
+    "installment_frequency": {
+      "type": "string",
+      "enum": [
+        "weekly",
+        "biweekly",
+        "monthly"
+      ],
+      "default": "monthly"
+    },
+    "proof_url": {
+      "type": "string"
+    },
+    "is_locked": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": [
+    "type",
+    "party_type",
+    "party_name",
+    "date",
+    "total_amount"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "owner"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "manager"
+          }
+        }
+      ]
+    },
+    "read": {
+      "$or": [
+        {
+          "data.created_by": "{{user.email}}",
+          "user_condition": {
+            "role": "owner"
+          }
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "manager"
+              }
+            },
+            {
+              "data.branch": "{{user.branch}}"
+            }
+          ]
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "data.created_by": "{{user.email}}",
+          "user_condition": {
+            "role": "owner"
+          }
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "manager"
+              }
+            },
+            {
+              "data.branch": "{{user.branch}}"
+            }
+          ]
+        }
+      ]
+    },
+    "delete": {
+      "data.created_by": "{{user.email}}",
+      "user_condition": {
+        "role": "owner"
+      }
+    }
+  }
+}
