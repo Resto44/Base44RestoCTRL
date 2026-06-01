@@ -291,6 +291,15 @@ const AuthenticatedApp = () => {
   // isLoadingPublicSettings always resolves together with isLoadingAuth — one gate is enough
   const isLoading = isLoadingAuth;
 
+  // If we're not loading but have no user and no error, we should probably redirect to login
+  // though AuthContext should have set an authError.type === 'auth_required'
+  const noUser = !isLoading && !useAuth().user && !useAuth().authError;
+
+  if (noUser) {
+    navigateToLogin();
+    return null;
+  }
+
   if (isLoading && timedOut) {
     return (
       <div className="fixed inset-0 flex flex-col items-center justify-center gap-4 p-8 text-center">

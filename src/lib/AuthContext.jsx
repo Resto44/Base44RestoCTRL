@@ -74,6 +74,7 @@ export const AuthProvider = ({ children }) => {
           setIsAuthenticated(true);
         } else {
           setIsAuthenticated(false);
+          setAuthError({ type: 'auth_required', message: 'Authentication required' });
         }
       } catch (e) {
         if (!mounted.current) return;
@@ -123,9 +124,7 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       if (!mounted.current) return;
       setIsAuthenticated(false);
-      if (error.status === 401 || error.status === 403) {
-        setAuthError({ type: 'auth_required', message: 'Authentication required' });
-      }
+      setAuthError({ type: 'auth_required', message: 'Authentication required' });
     } finally {
       if (mounted.current) {
         setIsLoadingAuth(false);
