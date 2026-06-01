@@ -1,0 +1,43 @@
+{
+  "name": "Expense",
+  "type": "object",
+  "properties": {
+    "date": {
+      "type": "string",
+      "format": "date",
+      "description": "Expense date"
+    },
+    "branch": {
+      "type": "string",
+      "description": "Branch key or 'all'"
+    },
+    "category": {
+      "type": "string",
+      "description": "Expense category: rent, salaries, utilities, other"
+    },
+    "description": {
+      "type": "string",
+      "description": "Description"
+    },
+    "amount": {
+      "type": "number",
+      "description": "Amount"
+    },
+    "payment_method": {
+      "type": "string",
+      "description": "cash or network"
+    }
+  },
+  "required": [
+    "date",
+    "branch",
+    "category",
+    "amount"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

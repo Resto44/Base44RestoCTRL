@@ -1,0 +1,81 @@
+{
+  "name": "DriverDebt",
+  "type": "object",
+  "properties": {
+    "branch": {
+      "type": "string"
+    },
+    "driver_id": {
+      "type": "string"
+    },
+    "driver_name": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "fuel_advance",
+        "salary_advance",
+        "shortage",
+        "penalty",
+        "equipment_damage",
+        "operational_loan",
+        "emergency_cash"
+      ],
+      "default": "salary_advance"
+    },
+    "amount": {
+      "type": "number",
+      "default": 0
+    },
+    "paid_amount": {
+      "type": "number",
+      "default": 0
+    },
+    "remaining_amount": {
+      "type": "number",
+      "default": 0
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "open",
+        "partial",
+        "paid",
+        "written_off"
+      ],
+      "default": "open"
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "due_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "deduct_from_salary": {
+      "type": "boolean",
+      "default": false
+    },
+    "notes": {
+      "type": "string"
+    },
+    "issued_by": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "branch",
+    "driver_id",
+    "type",
+    "amount",
+    "date"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

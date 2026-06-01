@@ -1,0 +1,90 @@
+{
+  "name": "DriverSettlement",
+  "type": "object",
+  "properties": {
+    "branch": {
+      "type": "string"
+    },
+    "driver_id": {
+      "type": "string"
+    },
+    "driver_name": {
+      "type": "string"
+    },
+    "shift_id": {
+      "type": "string",
+      "description": "Reference to DriverShift"
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "cash_collected": {
+      "type": "number",
+      "default": 0
+    },
+    "network_collected": {
+      "type": "number",
+      "default": 0
+    },
+    "credit_collected": {
+      "type": "number",
+      "default": 0
+    },
+    "total_collected": {
+      "type": "number",
+      "default": 0
+    },
+    "debt_deducted": {
+      "type": "number",
+      "default": 0
+    },
+    "cash_handed_over": {
+      "type": "number",
+      "default": 0,
+      "description": "Physical cash given to manager"
+    },
+    "network_verified": {
+      "type": "number",
+      "default": 0
+    },
+    "variance_cash": {
+      "type": "number",
+      "default": 0,
+      "description": "Difference between expected and actual"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "approved",
+        "disputed",
+        "rejected"
+      ],
+      "default": "pending"
+    },
+    "approved_by": {
+      "type": "string"
+    },
+    "approved_at": {
+      "type": "string"
+    },
+    "manager_notes": {
+      "type": "string"
+    },
+    "proof_url": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "branch",
+    "driver_id",
+    "date"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

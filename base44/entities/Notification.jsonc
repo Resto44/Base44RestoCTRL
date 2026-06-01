@@ -1,0 +1,158 @@
+{
+  "name": "Notification",
+  "type": "object",
+  "properties": {
+    "org_id": {
+      "type": "string",
+      "description": "Tenant org id (owner email)"
+    },
+    "restaurant_id": {
+      "type": "string"
+    },
+    "branch": {
+      "type": "string",
+      "description": "Branch key if branch-specific"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "sale_recorded",
+        "purchase_recorded",
+        "expense_recorded",
+        "salary_advance",
+        "salary_payment",
+        "inventory_update",
+        "low_stock",
+        "credit_collection",
+        "branch_to_owner",
+        "owner_to_branch",
+        "price_change",
+        "profit_drop",
+        "pdf_export",
+        "login_alert",
+        "suspicious_activity",
+        "expense_spike",
+        "credit_high",
+        "waste_high",
+        "transfer",
+        "info"
+      ],
+      "default": "info"
+    },
+    "title": {
+      "type": "string"
+    },
+    "message": {
+      "type": "string"
+    },
+    "amount": {
+      "type": "number",
+      "description": "Related amount if financial"
+    },
+    "actor_email": {
+      "type": "string",
+      "description": "Who triggered this notification"
+    },
+    "actor_name": {
+      "type": "string"
+    },
+    "target_role": {
+      "type": "string",
+      "enum": [
+        "all",
+        "owner",
+        "manager"
+      ],
+      "default": "all",
+      "description": "Who should receive this notification"
+    },
+    "is_read": {
+      "type": "boolean",
+      "default": false
+    },
+    "severity": {
+      "type": "string",
+      "enum": [
+        "info",
+        "warning",
+        "critical"
+      ],
+      "default": "info"
+    },
+    "metadata": {
+      "type": "string",
+      "description": "JSON extra data"
+    }
+  },
+  "required": [
+    "org_id",
+    "type",
+    "title",
+    "message"
+  ],
+  "rls": {
+    "create": {},
+    "read": {
+      "$or": [
+        {
+          "data.org_id": "{{user.email}}",
+          "user_condition": {
+            "role": "owner"
+          }
+        },
+        {
+          "$and": [
+            {
+              "data.org_id": "{{user.email}}"
+            },
+            {
+              "$or": [
+                {
+                  "data.target_role": "all"
+                },
+                {
+                  "data.target_role": "{{user.role}}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "data.actor_email": "{{user.email}}"
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "data.org_id": "{{user.email}}",
+          "user_condition": {
+            "role": "owner"
+          }
+        },
+        {
+          "$and": [
+            {
+              "data.actor_email": "{{user.email}}"
+            },
+            {
+              "id": "{{record.id}}"
+            }
+          ]
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "owner"
+          }
+        },
+        {
+          "data.actor_email": "{{user.email}}"
+        }
+      ]
+    }
+  }
+}

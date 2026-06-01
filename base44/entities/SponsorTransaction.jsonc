@@ -1,0 +1,155 @@
+{
+  "name": "SponsorTransaction",
+  "type": "object",
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": [
+        "NETWORK_TO_SPONSOR",
+        "SPONSOR_TO_OWNER_SETTLEMENT",
+        "SPONSOR_FEE_OR_ADJUSTMENT",
+        "OWNER_TO_MANAGER_ADVANCE",
+        "MANAGER_TO_OWNER_RETURN",
+        "MANAGER_EXPENSE",
+        "SUPPLIER_PAYMENT_BY_MANAGER"
+      ]
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "amount": {
+      "type": "number",
+      "default": 0
+    },
+    "reference_id": {
+      "type": "string",
+      "description": "Unique reference / transaction ID"
+    },
+    "batch_id": {
+      "type": "string",
+      "description": "Related NetworkImportBatch id"
+    },
+    "branch": {
+      "type": "string"
+    },
+    "manager_name": {
+      "type": "string",
+      "description": "Manager involved"
+    },
+    "manager_email": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "document_url": {
+      "type": "string",
+      "description": "Primary document/receipt URL"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "confirmed",
+        "disputed"
+      ],
+      "default": "pending"
+    },
+    "fee_reason": {
+      "type": "string",
+      "description": "Required when type=SPONSOR_FEE_OR_ADJUSTMENT"
+    },
+    "recorded_by": {
+      "type": "string"
+    },
+    "is_locked": {
+      "type": "boolean",
+      "default": false,
+      "description": "Locked after batch approval"
+    }
+  },
+  "required": [
+    "type",
+    "date",
+    "amount"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "owner"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "sponsor"
+          }
+        }
+      ]
+    },
+    "read": {
+      "$or": [
+        {
+          "data.created_by": "{{user.email}}",
+          "user_condition": {
+            "role": "owner"
+          }
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "sponsor"
+              }
+            },
+            {
+              "data.branch": "{{user.branch}}"
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "manager"
+              }
+            },
+            {
+              "data.branch": "{{user.branch}}"
+            }
+          ]
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "data.created_by": "{{user.email}}",
+          "user_condition": {
+            "role": "owner"
+          }
+        },
+        {
+          "$and": [
+            {
+              "user_condition": {
+                "role": "sponsor"
+              }
+            },
+            {
+              "data.branch": "{{user.branch}}"
+            }
+          ]
+        }
+      ]
+    },
+    "delete": {
+      "data.created_by": "{{user.email}}",
+      "user_condition": {
+        "role": "owner"
+      }
+    }
+  }
+}

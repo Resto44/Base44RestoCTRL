@@ -1,0 +1,60 @@
+{
+  "name": "CollectionAction",
+  "type": "object",
+  "properties": {
+    "debt_id": {
+      "type": "string",
+      "description": "Reference to DebtRecord id"
+    },
+    "party_name": {
+      "type": "string"
+    },
+    "action_type": {
+      "type": "string",
+      "enum": [
+        "call",
+        "message",
+        "visit",
+        "promise",
+        "legal",
+        "settlement_offer",
+        "written_off"
+      ],
+      "default": "call"
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "outcome": {
+      "type": "string",
+      "description": "What happened / was agreed"
+    },
+    "next_follow_up": {
+      "type": "string",
+      "format": "date"
+    },
+    "promise_amount": {
+      "type": "number",
+      "default": 0
+    },
+    "promise_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "recorded_by": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "debt_id",
+    "action_type",
+    "date"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

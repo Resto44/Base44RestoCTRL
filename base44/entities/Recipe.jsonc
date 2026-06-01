@@ -1,0 +1,89 @@
+{
+  "name": "Recipe",
+  "type": "object",
+  "properties": {
+    "menu_item": {
+      "type": "string",
+      "description": "Menu item / dish name"
+    },
+    "product_id": {
+      "type": "string",
+      "description": "If linked to a Product entity"
+    },
+    "category": {
+      "type": "string",
+      "description": "Menu category (e.g. main, appetizer)"
+    },
+    "selling_price": {
+      "type": "number",
+      "description": "Selling price per serving"
+    },
+    "ingredients": {
+      "type": "string",
+      "description": "JSON: [{product_id, product_name, qty, unit, cost_per_unit}]"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Preparation notes"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "menu_item"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "owner"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "manager"
+          }
+        }
+      ]
+    },
+    "read": {
+      "$or": [
+        {
+          "data.created_by": "{{user.email}}",
+          "user_condition": {
+            "role": "owner"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "manager"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "data.created_by": "{{user.email}}",
+          "user_condition": {
+            "role": "owner"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "manager"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "data.created_by": "{{user.email}}",
+      "user_condition": {
+        "role": "owner"
+      }
+    }
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "name": "Announcement",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Announcement title"
+    },
+    "body": {
+      "type": "string",
+      "description": "Announcement content"
+    },
+    "branch_key": {
+      "type": "string",
+      "description": "Target branch key \u2014 empty/null means all branches"
+    },
+    "target_roles": {
+      "type": "string",
+      "description": "JSON array of target roles e.g. [\"employee\",\"driver\"]"
+    },
+    "priority": {
+      "type": "string",
+      "enum": [
+        "normal",
+        "important",
+        "urgent"
+      ],
+      "default": "normal"
+    },
+    "posted_by": {
+      "type": "string",
+      "description": "Poster email"
+    },
+    "posted_by_name": {
+      "type": "string"
+    },
+    "expires_at": {
+      "type": "string",
+      "description": "ISO timestamp when announcement expires (optional)"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "title",
+    "body"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

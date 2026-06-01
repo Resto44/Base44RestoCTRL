@@ -1,0 +1,68 @@
+{
+  "name": "AuditLog",
+  "type": "object",
+  "properties": {
+    "org_id": {
+      "type": "string",
+      "description": "Tenant org id (owner email)"
+    },
+    "user_email": {
+      "type": "string",
+      "description": "User who performed the action"
+    },
+    "user_name": {
+      "type": "string",
+      "description": "Display name of the user"
+    },
+    "action": {
+      "type": "string",
+      "enum": [
+        "delete",
+        "update",
+        "create",
+        "branch_change",
+        "price_change",
+        "settings_change",
+        "export"
+      ],
+      "description": "Type of action"
+    },
+    "entity": {
+      "type": "string",
+      "description": "Entity type affected"
+    },
+    "entity_id": {
+      "type": "string",
+      "description": "ID of the affected record"
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable description of the action"
+    },
+    "before": {
+      "type": "string",
+      "description": "JSON snapshot of data before the change"
+    },
+    "after": {
+      "type": "string",
+      "description": "JSON snapshot of data after the change"
+    },
+    "branch": {
+      "type": "string",
+      "description": "Branch scope if applicable"
+    }
+  },
+  "required": [
+    "org_id",
+    "user_email",
+    "action",
+    "entity",
+    "description"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}
