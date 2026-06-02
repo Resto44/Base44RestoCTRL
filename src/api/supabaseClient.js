@@ -251,7 +251,8 @@ const entities = {
   DriverShift: createEntity('driver_shifts'), DriverDebt: createEntity('driver_debts'),
   DriverSalesEntry: createEntity('driver_sales_entries'), Attendance: createEntity('attendance'),
   Inventory: createEntity('inventory'), Product: createEntity('products'),
-  MenuProduct: createEntity('menu_products'), PayrollRun: createEntity('payroll_runs'),
+  MenuProduct: createEntity('products'), // fix: menu_products table does not exist in DB; remapped to products
+  PayrollRun: createEntity('payroll_runs'),
   Expense: createEntity('expenses'), ExpenseCategory: createEntity('expense_categories'),
   PurchaseOrder: createEntity('purchase_orders'), Purchase: createEntity('purchases'),
   PurchaseCategory: createEntity('purchase_categories'), Notification: createEntity('notifications'),

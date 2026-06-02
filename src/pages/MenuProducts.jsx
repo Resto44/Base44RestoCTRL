@@ -10,7 +10,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { toast } from 'sonner';
 import { Plus, Pencil, Trash2, ToggleLeft, ToggleRight } from 'lucide-react';
 
-const EMPTY = { name: '', name_ar: '', category: '', price: '', description: '', branch: 'all', sort_order: 0, is_available: true };
+// fix: MenuProduct is remapped to the `products` table.
+// Field mapping: price → default_price, is_available → is_active, sort_order removed (not in products table)
+const EMPTY = { name: '', name_ar: '', category: '', default_price: '', description: '', unit: '', is_active: true };
 
 export default function MenuProducts() {
   const qc = useQueryClient();
@@ -22,17 +24,18 @@ export default function MenuProducts() {
 
   const { data: products = [], isLoading } = useQuery({
     queryKey: ['menu-products-all'],
-    queryFn: () => base44.entities.MenuProduct.list('sort_order', 500),
+    queryFn: () => base44.entities.MenuProduct.list('name', 500),
   });
 
   const saveMutation = useMutation({
     mutationFn: () => editing
-      ? base44.entities.MenuProduct.update(editing, { ...form, price: Number(form.price), sort_order: Number(form.sort_order) })
-      : base44.entities.MenuProduct.create({ ...form, price: Number(form.price), sort_order: Number(form.sort_order) }),
+      ? base44.entities.MenuProduct.update(editing, { ...form, default_price: Number(form.default_price) })
+      : base44.entities.MenuProduct.create({ ...form, default_price: Number(form.default_price) }),
     onSuccess: () => {
       toast.success(editing ? 'Updated' : 'Created');
       qc.invalidateQueries({ queryKey: ['menu-products'] });
       qc.invalidateQueries({ queryKey: ['menu-products-all'] });
+      qc.invalidateQueries({ queryKey: ['products'] });
       setShowForm(false); setEditing(null); setForm(EMPTY);
     },
     onError: (e) => toast.error(e.message),
@@ -40,18 +43,22 @@ export default function MenuProducts() {
 
   const deleteMutation = useMutation({
     mutationFn: (id) => base44.entities.MenuProduct.delete(id),
-    onSuccess: () => { toast.success('Deleted'); qc.invalidateQueries({ queryKey: ['menu-products-all'] }); },
+    onSuccess: () => {
+      toast.success('Deleted');
+      qc.invalidateQueries({ queryKey: ['menu-products-all'] });
+      qc.invalidateQueries({ queryKey: ['products'] });
+    },
   });
 
   const toggleAvailable = useMutation({
-    mutationFn: (p) => base44.entities.MenuProduct.update(p.id, { is_available: !p.is_available }),
+    mutationFn: (p) => base44.entities.MenuProduct.update(p.id, { is_active: !p.is_active }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['menu-products-all'] }),
   });
 
   const categories = ['all', ...new Set(products.map(p => p.category || 'Other').filter(Boolean))];
   const filtered = filterCat === 'all' ? products : products.filter(p => (p.category || 'Other') === filterCat);
 
-  const openEdit = (p) => { setForm({ ...p, price: String(p.price || '') }); setEditing(p.id); setShowForm(true); };
+  const openEdit = (p) => { setForm({ ...p, default_price: String(p.default_price || '') }); setEditing(p.id); setShowForm(true); };
   const openNew = () => { setForm(EMPTY); setEditing(null); setShowForm(true); };
 
   return (
@@ -74,23 +81,23 @@ export default function MenuProducts() {
 
       <div className="space-y-2">
         {filtered.map(p => (
-          <Card key={p.id} className={`${!p.is_available ? 'opacity-60' : ''}`}>
+          <Card key={p.id} className={`${!p.is_active ? 'opacity-60' : ''}`}>
             <CardContent className="p-3 flex items-center gap-3">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="font-semibold text-sm">{p.name}</span>
                   {p.name_ar && <span className="text-sm text-muted-foreground">{p.name_ar}</span>}
                   {p.category && <Badge variant="outline" className="text-[10px]">{p.category}</Badge>}
-                  {!p.is_available && <Badge className="bg-red-100 text-red-600 text-[10px]">Unavailable</Badge>}
+                  {!p.is_active && <Badge className="bg-red-100 text-red-600 text-[10px]">Inactive</Badge>}
                 </div>
                 {p.description && <p className="text-xs text-muted-foreground mt-0.5 truncate">{p.description}</p>}
               </div>
               <div className="text-right shrink-0">
-                <div className="font-bold text-primary">{p.price} SAR</div>
+                <div className="font-bold text-primary">{p.default_price} SAR</div>
               </div>
               <div className="flex items-center gap-1 shrink-0">
                 <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => toggleAvailable.mutate(p)}>
-                  {p.is_available ? <ToggleRight className="w-4 h-4 text-green-600" /> : <ToggleLeft className="w-4 h-4 text-muted-foreground" />}
+                  {p.is_active ? <ToggleRight className="w-4 h-4 text-green-600" /> : <ToggleLeft className="w-4 h-4 text-muted-foreground" />}
                 </Button>
                 <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(p)}>
                   <Pencil className="w-3.5 h-3.5" />
@@ -120,15 +127,14 @@ export default function MenuProducts() {
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div><Label className="text-xs">Category</Label><Input value={form.category} onChange={e => set('category', e.target.value)} placeholder="e.g. Chicken" /></div>
-              <div><Label className="text-xs">Price (SAR) *</Label><Input type="number" value={form.price} onChange={e => set('price', e.target.value)} /></div>
+              <div><Label className="text-xs">Price (SAR) *</Label><Input type="number" value={form.default_price} onChange={e => set('default_price', e.target.value)} /></div>
             </div>
-            <div><Label className="text-xs">Description</Label><Input value={form.description} onChange={e => set('description', e.target.value)} /></div>
             <div className="grid grid-cols-2 gap-2">
-              <div><Label className="text-xs">Branch (or "all")</Label><Input value={form.branch} onChange={e => set('branch', e.target.value)} /></div>
-              <div><Label className="text-xs">Sort Order</Label><Input type="number" value={form.sort_order} onChange={e => set('sort_order', e.target.value)} /></div>
+              <div><Label className="text-xs">Description</Label><Input value={form.description} onChange={e => set('description', e.target.value)} /></div>
+              <div><Label className="text-xs">Unit</Label><Input value={form.unit} onChange={e => set('unit', e.target.value)} placeholder="e.g. piece" /></div>
             </div>
             <div className="flex gap-2 pt-1">
-              <Button className="flex-1" onClick={() => saveMutation.mutate()} disabled={!form.name || !form.price || saveMutation.isPending}>Save</Button>
+              <Button className="flex-1" onClick={() => saveMutation.mutate()} disabled={!form.name || !form.default_price || saveMutation.isPending}>Save</Button>
               <Button variant="outline" className="flex-1" onClick={() => { setShowForm(false); setEditing(null); }}>Cancel</Button>
             </div>
           </div>

@@ -60,7 +60,7 @@ export default function DeliveryOrders() {
 
   const { data: menuProducts = [] } = useQuery({
     queryKey: ['menu-products', selectedBranch],
-    queryFn: () => base44.entities.MenuProduct.filter({ is_available: true }, 'sort_order', 200),
+    queryFn: () => base44.entities.MenuProduct.filter({ is_active: true }, 'name', 200),
     staleTime: 60000,
   });
 

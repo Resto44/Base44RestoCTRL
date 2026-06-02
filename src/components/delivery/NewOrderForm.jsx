@@ -37,7 +37,7 @@ export default function NewOrderForm({ branch, drivers, menuProducts, openShifts
     setCart(prev => {
       const ex = prev.find(i => i.product_id === product.id);
       if (ex) return prev.map(i => i.product_id === product.id ? { ...i, qty: i.qty + 1, total: (i.qty + 1) * i.unit_price } : i);
-      return [...prev, { product_id: product.id, name: product.name, qty: 1, unit_price: product.price, total: product.price }];
+      return [...prev, { product_id: product.id, name: product.name, qty: 1, unit_price: product.default_price, total: product.default_price }];
     });
   };
 
@@ -122,7 +122,7 @@ export default function NewOrderForm({ branch, drivers, menuProducts, openShifts
                 <button key={p.id} onClick={() => addItem(p)}
                   className="text-left p-2 border rounded-lg hover:bg-accent/10 transition-colors active:scale-95">
                   <div className="text-sm font-medium leading-tight">{p.name}</div>
-                  <div className="text-xs text-primary font-bold mt-0.5">{p.price} SAR</div>
+                  <div className="text-xs text-primary font-bold mt-0.5">{p.default_price} SAR</div>
                 </button>
               ))}
             </div>

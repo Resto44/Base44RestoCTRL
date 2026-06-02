@@ -61,7 +61,7 @@ export default function CustomerDashboard() {
   // Menu products
   const { data: products = [], isLoading } = useQuery({
     queryKey: ['customer-menu'],
-    queryFn: () => base44.entities.MenuProduct.filter({ is_available: true }, 'sort_order', 300),
+    queryFn: () => base44.entities.MenuProduct.filter({ is_active: true }, 'name', 300),
   });
 
   // My orders
@@ -88,7 +88,7 @@ export default function CustomerDashboard() {
     setCart(prev => {
       const existing = prev.find(i => i.product_id === product.id);
       if (existing) return prev.map(i => i.product_id === product.id ? { ...i, qty: i.qty + 1, total: (i.qty + 1) * i.unit_price } : i);
-      return [...prev, { product_id: product.id, name: product.name, qty: 1, unit_price: product.price, total: product.price }];
+      return [...prev, { product_id: product.id, name: product.name, qty: 1, unit_price: product.default_price, total: product.default_price }];
     });
   };
 
@@ -249,7 +249,7 @@ export default function CustomerDashboard() {
                         <p className="font-bold text-sm">{p.name}</p>
                         {p.name_ar && <p className="text-xs text-muted-foreground" dir="rtl">{p.name_ar}</p>}
                         {p.description && <p className="text-xs text-muted-foreground line-clamp-1">{p.description}</p>}
-                        <p className="text-primary font-black text-base mt-1">{p.price} SAR</p>
+                        <p className="text-primary font-black text-base mt-1">{p.default_price} SAR</p>
                       </div>
                       <div className="shrink-0">
                         {qty === 0 ? (
