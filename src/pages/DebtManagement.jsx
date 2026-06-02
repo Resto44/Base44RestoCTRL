@@ -41,7 +41,7 @@ export default function DebtManagement() {
 
   const { data: debts = [], isLoading } = useQuery({
     queryKey: ['debts', ownerFilter],
-    queryFn: () => base44.entities.DebtRecord.filter(ownerFilter, '-date', 200),
+    queryFn: () => base44.entities.DebtRecord.filter(ownerFilter || {}, '-date', 200),
     enabled: !!ownerFilter?.created_by,
   });
 

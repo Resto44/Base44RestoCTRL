@@ -21,23 +21,23 @@ export default function NetworkAnalytics() {
 
   const { data: accounts = [] } = useQuery({
     queryKey: ['network_accounts', ownerFilter],
-    queryFn: () => base44.entities.NetworkAccount.filter(ownerFilter, '-created_date', 500),
+    queryFn: () => base44.entities.NetworkAccount.filter(ownerFilter || {}, '-created_date', 500),
     staleTime: 30000,
-    enabled: !!ownerFilter.created_by,
+    enabled: !!ownerFilter?.created_by,
   });
 
   const { data: sales = [] } = useQuery({
     queryKey: ['sales', ownerFilter],
-    queryFn: () => base44.entities.DailySales.filter(ownerFilter, '-date', 10000),
+    queryFn: () => base44.entities.DailySales.filter(ownerFilter || {}, '-date', 10000),
     staleTime: 30000,
-    enabled: !!ownerFilter.created_by,
+    enabled: !!ownerFilter?.created_by,
   });
 
   const { data: settlements = [] } = useQuery({
     queryKey: ['settlements_all', ownerFilter],
     queryFn: () => base44.entities.SettlementRecord.filter({ ...ownerFilter, flow_type: 'MANAGER_TO_SPONSOR' }, '-date', 500),
     staleTime: 30000,
-    enabled: !!ownerFilter.created_by,
+    enabled: !!ownerFilter?.created_by,
   });
 
   const accountMap = useMemo(() => Object.fromEntries(accounts.map(a => [a.id, a])), [accounts]);

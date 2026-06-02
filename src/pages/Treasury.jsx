@@ -86,27 +86,27 @@ export default function Treasury() {
 
   const { data: transactions = [], isLoading } = useQuery({
     queryKey: ['wallet_transactions', ownerFilter],
-    queryFn: () => base44.entities.WalletTransaction.filter(ownerFilter, '-date', 2000),
+    queryFn: () => base44.entities.WalletTransaction.filter(ownerFilter || {}, '-date', 2000),
     staleTime: 60000,
-    enabled: !!ownerFilter.created_by,
+    enabled: !!ownerFilter?.created_by,
   });
   const { data: employees = [] } = useQuery({
     queryKey: ['employees', ownerFilter],
-    queryFn: () => base44.entities.Employee.filter(ownerFilter, 'full_name', 500),
-    enabled: !!ownerFilter.created_by,
+    queryFn: () => base44.entities.Employee.filter(ownerFilter || {}, 'full_name', 500),
+    enabled: !!ownerFilter?.created_by,
   });
   const { data: allSales = [] } = useQuery({
     queryKey: ['sales', ownerFilter],
-    queryFn: () => base44.entities.DailySales.filter(ownerFilter, '-date', 2000),
+    queryFn: () => base44.entities.DailySales.filter(ownerFilter || {}, '-date', 2000),
     staleTime: 60000,
-    enabled: !!ownerFilter.created_by,
+    enabled: !!ownerFilter?.created_by,
   });
 
   const { data: settlements = [] } = useQuery({
     queryKey: ['settlements_all', ownerFilter],
-    queryFn: () => base44.entities.SettlementRecord.filter(ownerFilter, '-date', 500),
+    queryFn: () => base44.entities.SettlementRecord.filter(ownerFilter || {}, '-date', 500),
     staleTime: 30000,
-    enabled: !!ownerFilter.created_by,
+    enabled: !!ownerFilter?.created_by,
   });
 
   // Sponsor ledger summary for overview

@@ -30,9 +30,9 @@ export default function NetworkAccounts() {
 
   const { data: accounts = [], isLoading } = useQuery({
     queryKey: ['network_accounts', ownerFilter],
-    queryFn: () => base44.entities.NetworkAccount.filter(ownerFilter, '-created_date', 500),
+    queryFn: () => base44.entities.NetworkAccount.filter(ownerFilter || {}, '-created_date', 500),
     staleTime: 30000,
-    enabled: !!ownerFilter.created_by,
+    enabled: !!ownerFilter?.created_by,
   });
 
   const createMut = useMutation({

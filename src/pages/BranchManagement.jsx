@@ -244,25 +244,25 @@ export default function BranchManagement() {
 
   const { data: sales = [] } = useQuery({
     queryKey: ['bm_sales', ownerFilter],
-    queryFn: () => base44.entities.DailySales.filter(ownerFilter, '-date', 1000),
+    queryFn: () => base44.entities.DailySales.filter(ownerFilter || {}, '-date', 1000),
     staleTime: 120000,
     enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
   });
   const { data: expenses = [] } = useQuery({
     queryKey: ['bm_expenses', ownerFilter],
-    queryFn: () => base44.entities.Expense.filter(ownerFilter, '-date', 500),
+    queryFn: () => base44.entities.Expense.filter(ownerFilter || {}, '-date', 500),
     staleTime: 120000,
     enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
   });
   const { data: purchases = [] } = useQuery({
     queryKey: ['bm_purchases', ownerFilter],
-    queryFn: () => base44.entities.Purchase.filter(ownerFilter, '-date', 500),
+    queryFn: () => base44.entities.Purchase.filter(ownerFilter || {}, '-date', 500),
     staleTime: 120000,
     enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
   });
   const { data: employees = [] } = useQuery({
     queryKey: ['bm_employees', ownerFilter],
-    queryFn: () => base44.entities.Employee.filter(ownerFilter, 'full_name', 200),
+    queryFn: () => base44.entities.Employee.filter(ownerFilter || {}, 'full_name', 200),
     staleTime: 120000,
     enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
   });

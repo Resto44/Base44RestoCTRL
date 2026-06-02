@@ -51,45 +51,45 @@ export default function Dashboard() {
 
   const { data: allSales = [], isLoading: loadingSales } = useQuery({
     queryKey: ['sales', ownerFilter],
-    queryFn: () => base44.entities.DailySales.filter(ownerFilter, '-date', 1000),
+    queryFn: () => base44.entities.DailySales.filter(ownerFilter || {}, '-date', 1000),
     staleTime: 120000,
-    enabled: !!ownerFilter.created_by,
+    enabled: !!ownerFilter?.created_by,
   });
   const { data: allPurchases = [], isLoading: loadingPurchases } = useQuery({
     queryKey: ['purchases', ownerFilter],
-    queryFn: () => base44.entities.Purchase.filter(ownerFilter, '-date', 1000),
+    queryFn: () => base44.entities.Purchase.filter(ownerFilter || {}, '-date', 1000),
     staleTime: 120000,
-    enabled: !!ownerFilter.created_by,
+    enabled: !!ownerFilter?.created_by,
   });
   const { data: allExpenses = [] } = useQuery({
     queryKey: ['expenses', ownerFilter],
-    queryFn: () => base44.entities.Expense.filter(ownerFilter, '-date', 1000),
+    queryFn: () => base44.entities.Expense.filter(ownerFilter || {}, '-date', 1000),
     staleTime: 120000,
-    enabled: !!ownerFilter.created_by,
+    enabled: !!ownerFilter?.created_by,
   });
   const { data: allWaste = [] } = useQuery({
     queryKey: ['inventory_waste', ownerFilter],
-    queryFn: () => base44.entities.InventoryWaste.filter(ownerFilter, '-date', 500),
+    queryFn: () => base44.entities.InventoryWaste.filter(ownerFilter || {}, '-date', 500),
     staleTime: 120000,
-    enabled: !!ownerFilter.created_by,
+    enabled: !!ownerFilter?.created_by,
   });
   const { data: walletTx = [] } = useQuery({
     queryKey: ['wallet_transactions', ownerFilter],
-    queryFn: () => base44.entities.WalletTransaction.filter(ownerFilter, '-date', 500),
+    queryFn: () => base44.entities.WalletTransaction.filter(ownerFilter || {}, '-date', 500),
     staleTime: 120000,
-    enabled: !!ownerFilter.created_by,
+    enabled: !!ownerFilter?.created_by,
   });
   const { data: inventory = [] } = useQuery({
     queryKey: ['inventory_dashboard', ownerFilter],
-    queryFn: () => base44.entities.Inventory.filter(ownerFilter, 'product_name', 500),
+    queryFn: () => base44.entities.Inventory.filter(ownerFilter || {}, 'product_name', 500),
     staleTime: 300000,
-    enabled: !!ownerFilter.created_by,
+    enabled: !!ownerFilter?.created_by,
   });
   const { data: allPayroll = [] } = useQuery({
     queryKey: ['payroll_runs', ownerFilter],
-    queryFn: () => base44.entities.PayrollRun.filter(ownerFilter, '-paid_date', 500),
+    queryFn: () => base44.entities.PayrollRun.filter(ownerFilter || {}, '-paid_date', 500),
     staleTime: 300000,
-    enabled: !!ownerFilter.created_by,
+    enabled: !!ownerFilter?.created_by,
   });
 
   // ── Period-scoped data ────────────────────────────────────────────────

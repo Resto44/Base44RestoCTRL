@@ -31,7 +31,7 @@ export default function Purchases() {
 
   const { data: purchases = [], isLoading } = useQuery({
     queryKey: ['purchases', ownerFilter],
-    queryFn: () => base44.entities.Purchase.filter(ownerFilter, '-date', 10000),
+    queryFn: () => base44.entities.Purchase.filter(ownerFilter || {}, '-date', 10000),
     enabled: !!ownerFilter?.created_by,
   });
 

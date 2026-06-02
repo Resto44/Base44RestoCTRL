@@ -41,7 +41,7 @@ export default function Employees() {
 
   const { data: employees = [], isLoading } = useQuery({
     queryKey: ['employees', ownerFilter],
-    queryFn: () => base44.entities.Employee.filter(ownerFilter, 'full_name', 500),
+    queryFn: () => base44.entities.Employee.filter(ownerFilter || {}, 'full_name', 500),
     enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
   });
 

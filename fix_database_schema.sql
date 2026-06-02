@@ -1,5 +1,5 @@
 -- ============================================================
--- Base44RestoCTRL — Database Fix Migration
+-- Base44RestoCTRL — Comprehensive Database Fix Migration
 -- This script ensures all tables required by the application exist
 -- and match the expected schema in the frontend.
 -- ============================================================
@@ -23,7 +23,6 @@ CREATE TABLE IF NOT EXISTS menu_products (
 );
 
 -- 2. Fix products table columns to match Products.jsx
--- Adding columns if they don't exist
 DO $$ 
 BEGIN 
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='products' AND column_name='product_id') THEN
@@ -121,32 +120,68 @@ CREATE TABLE IF NOT EXISTS payments (
   created_date TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 4. Apply RLS Policies for new tables
--- Enable RLS
-ALTER TABLE menu_products ENABLE ROW LEVEL SECURITY;
-ALTER TABLE branches ENABLE ROW LEVEL SECURITY;
-ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
-ALTER TABLE customers ENABLE ROW LEVEL SECURITY;
-ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
-ALTER TABLE order_items ENABLE ROW LEVEL SECURITY;
-ALTER TABLE reservations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
+CREATE TABLE IF NOT EXISTS suppliers (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name         TEXT NOT NULL,
+  contact_info TEXT,
+  created_by   TEXT,
+  created_date TIMESTAMPTZ DEFAULT NOW(),
+  updated_date TIMESTAMPTZ DEFAULT NOW()
+);
 
--- Create generic policies (owner-based isolation)
--- Using the pattern: created_by = auth.jwt() ->> 'email'
+CREATE TABLE IF NOT EXISTS expenses (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  amount        NUMERIC NOT NULL,
+  description   TEXT,
+  date          DATE DEFAULT CURRENT_DATE,
+  created_by    TEXT,
+  created_date  TIMESTAMPTZ DEFAULT NOW(),
+  updated_date  TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS inventory (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  product_id       UUID,
+  quantity         NUMERIC DEFAULT 0,
+  min_stock_level  NUMERIC DEFAULT 0,
+  created_by       TEXT,
+  created_date     TIMESTAMPTZ DEFAULT NOW(),
+  updated_date     TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS tasks (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title        TEXT NOT NULL,
+  status       TEXT DEFAULT 'pending',
+  due_date     TIMESTAMPTZ,
+  created_by   TEXT,
+  created_date TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS notifications (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id      UUID REFERENCES profiles(id),
+  title        TEXT,
+  message      TEXT,
+  is_read      BOOLEAN DEFAULT FALSE,
+  created_by   TEXT,
+  created_date TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 4. Apply RLS Policies for all tables
 DO $$ 
 DECLARE 
     t TEXT;
 BEGIN 
-    FOR t IN SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('menu_products', 'branches', 'categories', 'customers', 'orders', 'order_items', 'reservations', 'payments')
+    FOR t IN SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('menu_products', 'branches', 'categories', 'customers', 'orders', 'order_items', 'reservations', 'payments', 'suppliers', 'expenses', 'inventory', 'tasks', 'notifications')
     LOOP
+        EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
         EXECUTE format('DROP POLICY IF EXISTS "Owner access" ON %I', t);
         EXECUTE format('CREATE POLICY "Owner access" ON %I FOR ALL USING (created_by = (auth.jwt() ->> ''email''))', t);
     END LOOP;
 END $$;
 
 -- 5. Special Fix for profiles table RLS
--- Ensure owners can insert their own profile during signup
 DROP POLICY IF EXISTS "Users can insert their own profile" ON profiles;
 CREATE POLICY "Users can insert their own profile" ON profiles FOR INSERT WITH CHECK (auth.uid() = id);
 
