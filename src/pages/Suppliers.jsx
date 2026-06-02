@@ -17,9 +17,9 @@ import SupplierDetail from '@/components/suppliers/SupplierDetail';
 import SupplierPaymentManager from '@/components/suppliers/SupplierPaymentManager';
 
 const ui = {
-  en: { suppliers: 'Suppliers', add_supplier: 'Add Supplier', edit_supplier: 'Edit Supplier', name: 'Supplier Name', contact: 'Contact Name', phone: 'Phone', email: 'Email', category: 'Category', notes: 'Notes', save: 'Save', cancel: 'Cancel', confirm_delete: 'Delete this supplier?', invoices: 'Invoices' },
-  ar: { suppliers: 'الموردون', add_supplier: 'إضافة مورد', edit_supplier: 'تعديل المورد', name: 'اسم المورد', contact: 'اسم جهة الاتصال', phone: 'الهاتف', email: 'البريد', category: 'الفئة', notes: 'ملاحظات', save: 'حفظ', cancel: 'إلغاء', confirm_delete: 'حذف هذا المورد؟', invoices: 'الفواتير' },
-  fa: { suppliers: 'تامین‌کنندگان', add_supplier: 'افزودن تامین‌کننده', edit_supplier: 'ویرایش تامین‌کننده', name: 'نام تامین‌کننده', contact: 'نام تماس', phone: 'تلفن', email: 'ایمیل', category: 'دسته‌بندی', notes: 'یادداشت', save: 'ذخیره', cancel: 'لغو', confirm_delete: 'این تامین‌کننده حذف شود؟', invoices: 'فاکتورها' },
+  en: { suppliers: 'Suppliers', add_supplier: 'Add Supplier', edit_supplier: 'Edit Supplier', name: 'Supplier Name', contact: 'Contact Name', phone: 'Phone', email: 'Email', category: 'Category', notes: 'Notes', save: 'Save', cancel: 'Cancel', confirm_delete: 'Confirm Delete' },
+  ar: { suppliers: 'الموردون', add_supplier: 'إضافة مورد', edit_supplier: 'تعديل المورد', name: 'اسم المورد', contact: 'اسم جهة الاتصال', phone: 'الهاتف', email: 'البريد الإلكتروني', category: 'الفئة', notes: 'ملاحظات', save: 'حفظ', cancel: 'إلغاء', confirm_delete: 'تأكيد الحذف' },
+  fa: { suppliers: 'تامین‌کنندگان', add_supplier: 'افزودن تامین‌کننده', edit_supplier: 'ویرایش تامین‌کننده', name: 'نام تامین‌کننده', contact: 'نام تماس', phone: 'تلفن', email: 'ایمیل', category: 'دسته‌بندی', notes: 'یادداشت‌ها', save: 'ذخیره', cancel: 'لغو', confirm_delete: 'تأیید حذف' },
 };
 
 const emptyForm = { name: '', contact_name: '', phone: '', email: '', category: '', notes: '' };
