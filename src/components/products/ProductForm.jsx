@@ -23,8 +23,9 @@ export default function ProductForm({ initial, onSubmit, onCancel }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    const { category, ...payload } = form;
     onSubmit({
-      ...form,
+      ...payload,
       default_price: Number(form.default_price) || 0,
       default_cost: Number(form.default_cost) || 0,
     });
