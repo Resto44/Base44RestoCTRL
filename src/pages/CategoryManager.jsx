@@ -261,20 +261,22 @@ export default function CategoryManager() {
 
   const { data: categories = [], isLoading } = useQuery({
     queryKey: ['purchase_categories', ownerFilter],
-    queryFn: () => base44.entities.PurchaseCategory.filter(ownerFilter, 'name_en', 100),
+    queryFn: () => base44.entities.PurchaseCategory.filter(ownerFilter || {}, 'name_en', 100),
+    enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
     staleTime: 30000,
   });
 
   const { data: purchases = [] } = useQuery({
     queryKey: ['purchases_for_analytics', ownerFilter],
-    queryFn: () => base44.entities.Purchase.filter(ownerFilter, '-date', 200),
+    queryFn: () => base44.entities.Purchase.filter(ownerFilter || {}, '-date', 200),
+    enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
     staleTime: 60000,
   });
 
   const saveMutation = useMutation({
     mutationFn: (data) => editing
       ? base44.entities.PurchaseCategory.update(editing.id, data)
-      : base44.entities.PurchaseCategory.create({ ...data, ...ownerFilter }),
+      : base44.entities.PurchaseCategory.create({ ...data, ...(ownerFilter || {}) }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['purchase_categories'] }); setShowForm(false); setEditing(null); },
   });
 

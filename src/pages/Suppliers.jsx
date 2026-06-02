@@ -35,10 +35,16 @@ export default function Suppliers() {
   const [deleteId, setDeleteId] = useState(null);
   const [selectedSupplier, setSelectedSupplier] = useState(null);
 
-  const { data: suppliers = [] } = useQuery({ queryKey: ['suppliers', ownerFilter], queryFn: () => base44.entities.Supplier.filter(ownerFilter, 'name', 500), enabled: !!ownerFilter.created_by });
+  const { data: suppliers = [] } = useQuery({ 
+    queryKey: ['suppliers', ownerFilter], 
+    queryFn: () => base44.entities.Supplier.filter(ownerFilter || {}, 'name', 500), 
+    enabled: !!(ownerFilter?.created_by || ownerFilter?.branch) 
+  });
 
   const saveMutation = useMutation({
-    mutationFn: (data) => editing ? base44.entities.Supplier.update(editing.id, data) : base44.entities.Supplier.create({ ...data, ...ownerFilter }),
+    mutationFn: (data) => editing 
+      ? base44.entities.Supplier.update(editing.id, data) 
+      : base44.entities.Supplier.create({ ...data, ...(ownerFilter || {}) }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['suppliers'] }); closeForm(); },
   });
   const deleteMutation = useMutation({

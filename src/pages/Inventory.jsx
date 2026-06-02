@@ -37,13 +37,31 @@ export default function Inventory() {
   const [managerPhone, setManagerPhone] = useState('');
   const [showAlertSetup, setShowAlertSetup] = useState(false);
 
-  const { data: items = [] } = useQuery({ queryKey: ['inventory', ownerFilter], queryFn: () => base44.entities.Inventory.filter(ownerFilter, '-date', 5000), enabled: !!ownerFilter?.created_by });
-  const { data: products = [] } = useQuery({ queryKey: ['products', ownerFilter], queryFn: () => base44.entities.Product.filter(ownerFilter, 'name', 500), enabled: !!ownerFilter?.created_by });
-  const { data: purchases = [] } = useQuery({ queryKey: ['purchases', ownerFilter], queryFn: () => base44.entities.Purchase.filter(ownerFilter, '-date', 10000), enabled: !!ownerFilter?.created_by });
-  const { data: wastage = [] } = useQuery({ queryKey: ['inventory_waste', ownerFilter], queryFn: () => base44.entities.InventoryWaste.filter(ownerFilter, '-date', 5000), enabled: !!ownerFilter?.created_by });
+  const { data: items = [] } = useQuery({ 
+    queryKey: ['inventory', ownerFilter], 
+    queryFn: () => base44.entities.Inventory.filter(ownerFilter || {}, '-date', 5000), 
+    enabled: !!(ownerFilter?.created_by || ownerFilter?.branch) 
+  });
+  const { data: products = [] } = useQuery({ 
+    queryKey: ['products', ownerFilter], 
+    queryFn: () => base44.entities.Product.filter(ownerFilter || {}, 'name', 500), 
+    enabled: !!(ownerFilter?.created_by || ownerFilter?.branch) 
+  });
+  const { data: purchases = [] } = useQuery({ 
+    queryKey: ['purchases', ownerFilter], 
+    queryFn: () => base44.entities.Purchase.filter(ownerFilter || {}, '-date', 10000), 
+    enabled: !!(ownerFilter?.created_by || ownerFilter?.branch) 
+  });
+  const { data: wastage = [] } = useQuery({ 
+    queryKey: ['inventory_waste', ownerFilter], 
+    queryFn: () => base44.entities.InventoryWaste.filter(ownerFilter || {}, '-date', 5000), 
+    enabled: !!(ownerFilter?.created_by || ownerFilter?.branch) 
+  });
 
   const saveMutation = useMutation({
-    mutationFn: async (data) => editing ? base44.entities.Inventory.update(editing.id, data) : base44.entities.Inventory.create({ ...data, ...ownerFilter }),
+    mutationFn: async (data) => editing 
+      ? base44.entities.Inventory.update(editing.id, data) 
+      : base44.entities.Inventory.create({ ...data, ...(ownerFilter || {}) }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['inventory'] }); closeForm(); },
   });
 
