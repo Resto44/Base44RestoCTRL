@@ -3,7 +3,6 @@ import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Camera, Upload, Loader2, CheckCircle2, X } from 'lucide-react';
-import { format } from 'date-fns';
 
 const CATEGORY_MAP = {
   food: 'other', grocery: 'other', restaurant: 'other',

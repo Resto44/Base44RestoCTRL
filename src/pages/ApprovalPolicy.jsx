@@ -20,7 +20,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { ShieldCheck, Plus, Pencil, Trash2, AlertTriangle, Info } from 'lucide-react';
+import { ShieldCheck, Plus, Pencil, Trash2, Info } from 'lucide-react';
 import BranchSelect from '@/components/shared/BranchSelect';
 
 const EXPENSE_TYPES = [

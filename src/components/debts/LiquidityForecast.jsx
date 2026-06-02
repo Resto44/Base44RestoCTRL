@@ -1,8 +1,7 @@
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
-import { TrendingUp, TrendingDown, Shield, AlertTriangle, Droplets } from 'lucide-react';
+import { Shield, AlertTriangle, Droplets } from 'lucide-react';
 import { addDays, format, parseISO, isWithinInterval, startOfDay } from 'date-fns';
 
 function liquidityScore(net30, net60, net90) {

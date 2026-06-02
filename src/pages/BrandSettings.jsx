@@ -7,7 +7,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Building2, Upload, Palette } from 'lucide-react';
+import { Upload, Palette } from 'lucide-react';
 
 const ui = {
   en: { brand: 'Brand Settings', brand_name: 'Brand Name', logo: 'Logo', upload_logo: 'Upload Logo', currency: 'Currency', timezone: 'Timezone', color: 'Primary Color (reports)', address: 'Address', save: 'Save Changes', saved: 'Saved!' },

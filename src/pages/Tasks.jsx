@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Plus, Pencil, Trash2, CheckCircle2, Circle, Clock } from 'lucide-react';
+import { Plus, Pencil, Trash2, CheckCircle2, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 
 const STATUS_COLORS = { pending: 'bg-yellow-100 text-yellow-800', in_progress: 'bg-blue-100 text-blue-800', done: 'bg-green-100 text-green-800' };

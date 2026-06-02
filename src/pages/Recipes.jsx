@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import PageHeader from '@/components/shared/PageHeader';
-import { Plus, Pencil, Trash2, ChefHat, Package, DollarSign } from 'lucide-react';
+import { Plus, Pencil, Trash2, ChefHat, Package } from 'lucide-react';
 import { formatCurrency } from '@/lib/helpers';
 
 const emptyIngredient = { product_id: '', product_name: '', qty: '', unit: '', cost_per_unit: '' };

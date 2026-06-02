@@ -11,7 +11,7 @@ import PageHeader from '@/components/shared/PageHeader';
 import { getDateRange, formatDate, formatCurrency } from '@/lib/helpers';
 import { computeRunningCashflow } from '@/lib/cashflowEngine';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { TrendingUp, TrendingDown, Wallet, CreditCard } from 'lucide-react';
+import { Wallet, CreditCard } from 'lucide-react';
 
 const RANGES = ['week', 'month', 'year'];
 

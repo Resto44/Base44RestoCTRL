@@ -5,8 +5,8 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { formatDate } from '@/lib/helpers';
-import { Sparkles, AlertTriangle, Clock, TrendingUp, Package, RefreshCw } from 'lucide-react';
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { Sparkles, Clock, TrendingUp, Package, RefreshCw } from 'lucide-react';
+import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 
 /**
  * AIRestockAlerts

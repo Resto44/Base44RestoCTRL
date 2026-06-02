@@ -5,13 +5,12 @@ import { useLanguage } from '@/lib/LanguageContext';
 import { useTenant } from '@/lib/TenantContext';
 import { formatCurrency } from '@/lib/helpers';
 import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { format, addDays, subDays, getDaysInMonth, getDate } from 'date-fns';
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, ReferenceLine, Legend
 } from 'recharts';
-import { TrendingUp, TrendingDown, AlertTriangle, Info } from 'lucide-react';
+import { AlertTriangle, Info } from 'lucide-react';
 
 const DAYS = 30;
 

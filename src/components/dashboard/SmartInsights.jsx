@@ -4,8 +4,7 @@ import { useTenant } from '@/lib/TenantContext';
 import { analyzeBranchPerformance, detectExpenseSpikes, predictLowStock, generateDailySummary } from '@/lib/smartAnalytics';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { AlertTriangle, TrendingDown, TrendingUp, Lightbulb, Flame, Package, ChevronDown, ChevronUp, Star } from 'lucide-react';
+import { AlertTriangle, TrendingDown, Lightbulb, Flame, Package, ChevronDown, ChevronUp, Star } from 'lucide-react';
 
 const severityColor = { critical: 'text-red-600 bg-red-50 border-red-200', warning: 'text-amber-600 bg-amber-50 border-amber-200', info: 'text-blue-600 bg-blue-50 border-blue-200' };
 const severityIcon = { critical: AlertTriangle, warning: AlertTriangle, info: Lightbulb };

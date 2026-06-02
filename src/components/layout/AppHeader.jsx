@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Building2, Shield, Bell, ChevronDown, LogOut } from 'lucide-react';
+import { Building2, Shield, ChevronDown } from 'lucide-react';
 import { useTenant } from '@/lib/TenantContext';
 import { useAuth } from '@/lib/AuthContext';
 import { useRole, ROLES } from '@/lib/RoleContext';

@@ -8,10 +8,8 @@ import React, { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { useAuth } from '@/lib/AuthContext';
-import { useLanguage } from '@/lib/LanguageContext';
 import { formatCurrency, formatDate } from '@/lib/helpers';
 import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -20,7 +18,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { AlertTriangle, CheckCircle2, Clock, DollarSign, XCircle, PlusCircle, Scale } from 'lucide-react';
 import { useTenant } from '@/lib/TenantContext';
-import { format, subDays } from 'date-fns';
+import { subDays } from 'date-fns';
 
 export default function ReconciliationDashboard({ transactions, sales, branches, currency }) {
   const { user } = useAuth();

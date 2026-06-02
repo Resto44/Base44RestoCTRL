@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ArrowLeft, Phone, Mail, Package, ShoppingCart, Send, Loader2, FileText, TrendingDown, FileBarChart } from 'lucide-react';
+import { ArrowLeft, Phone, Mail, Package, ShoppingCart, Send, Loader2, FileText } from 'lucide-react';
 import SupplierStatement from './SupplierStatement';
 import { formatCurrency } from '@/lib/helpers';
 import { format } from 'date-fns';

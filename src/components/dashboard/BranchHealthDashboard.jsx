@@ -11,7 +11,7 @@ import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, Tooltip, Cell, Legend
 } from 'recharts';
-import { TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle2, Flame } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Flame } from 'lucide-react';
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6'];
 

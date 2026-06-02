@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
-import { Loader2, CheckCircle2, XCircle, Bike, AlertTriangle } from 'lucide-react';
+import { Loader2, CheckCircle2, XCircle, Bike } from 'lucide-react';
 
 /**
  * Driver Invite Activation Page — /driver-invite?token=XXX

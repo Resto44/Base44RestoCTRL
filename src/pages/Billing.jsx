@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import {
   Check, CreditCard, Star, Zap, Crown,
-  Clock, AlertTriangle, BarChart3, FileText, Users, Building2, Camera
+  Clock, AlertTriangle, FileText, Users, Building2, Camera
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 

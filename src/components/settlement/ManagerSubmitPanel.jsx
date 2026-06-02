@@ -3,7 +3,7 @@
  * Branch Manager submits nightly network sales to sponsor with proof image.
  */
 import React, { useState, useRef } from 'react';
-import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { useAuth } from '@/lib/AuthContext';
 import { useLanguage } from '@/lib/LanguageContext';

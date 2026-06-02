@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { UserPlus, Bike, Mail, Phone, CheckCircle2, XCircle, Clock, AlertTriangle, RefreshCw } from 'lucide-react';
+import { UserPlus, Bike, Clock, AlertTriangle } from 'lucide-react';
 
 const STATUS_COLOR = {
   active:    'bg-green-100 text-green-700 border-green-200',

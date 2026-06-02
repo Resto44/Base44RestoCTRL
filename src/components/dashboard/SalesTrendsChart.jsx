@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Legend
@@ -6,7 +6,7 @@ import {
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { formatCurrency } from '@/lib/helpers';
-import { format, parseISO, startOfWeek, eachDayOfInterval, subDays } from 'date-fns';
+import { format, parseISO, eachDayOfInterval, subDays } from 'date-fns';
 
 const formatK = (v) => {
   if (Math.abs(v) >= 1000000) return `${(v / 1000000).toFixed(1)}M`;

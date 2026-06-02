@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,7 +19,6 @@ import { useRole } from '@/lib/RoleContext';
 import { useTenant } from '@/lib/TenantContext';
 import { useDebtI18n } from '@/lib/debtI18n';
 import { useLanguage } from '@/lib/LanguageContext';
-import { formatCurrency } from '@/lib/helpers';
 
 export default function DebtManagement() {
   const { role } = useRole();

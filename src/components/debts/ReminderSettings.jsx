@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Bell, MessageCircle, Send, Loader2, CheckCircle, Phone } from 'lucide-react';
+import { Bell, MessageCircle, Loader2, CheckCircle, Phone } from 'lucide-react';
 import { format, parseISO, differenceInDays } from 'date-fns';
 import { useAuth } from '@/lib/AuthContext';
 

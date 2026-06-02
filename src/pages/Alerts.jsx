@@ -4,9 +4,8 @@ import { base44 } from '@/api/base44Client';
 import { useLanguage } from '@/lib/LanguageContext';
 import PageHeader from '@/components/shared/PageHeader';
 import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { AlertTriangle, TrendingDown, DollarSign, Bell, UserX, Gift } from 'lucide-react';
-import { getDateRange, formatDate, formatCurrency } from '@/lib/helpers';
+import { formatDate, formatCurrency } from '@/lib/helpers';
 import { startOfMonth, subMonths, endOfMonth } from 'date-fns';
 import { currentMonth, monthRange, summariseAttendance } from '@/lib/payrollEngine';
 

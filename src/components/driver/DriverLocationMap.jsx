@@ -1,8 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Navigation, MapPin } from 'lucide-react';
 
 // Fix Leaflet default icons broken by webpack/vite
 delete L.Icon.Default.prototype._getIconUrl;

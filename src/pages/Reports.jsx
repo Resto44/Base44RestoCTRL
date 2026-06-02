@@ -7,7 +7,6 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { getDateRange, formatDate, formatCurrency, formatPct, computeDashboardMetrics, buildDailyProfitTrend } from '@/lib/helpers';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, Legend } from 'recharts';
-import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns';
 import AsyncPDFButton from '@/components/reports/AsyncPDFButton';
 import { useTenant } from '@/lib/TenantContext';
 

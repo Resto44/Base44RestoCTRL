@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Download, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { usePWAInstall } from '@/hooks/usePWAInstall';
 import { useLanguage } from '@/lib/LanguageContext';
 import PWAInstallModal from './PWAInstallModal';

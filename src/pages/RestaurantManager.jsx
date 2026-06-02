@@ -9,7 +9,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
-import { Plus, Pencil, Trash2, Building2, GitBranch, Star } from 'lucide-react';
+import { Plus, Trash2, Building2, GitBranch, Star } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/AuthContext';

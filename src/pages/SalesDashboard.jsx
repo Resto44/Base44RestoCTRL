@@ -4,18 +4,16 @@ import { base44 } from '@/api/base44Client';
 import { useLanguage } from '@/lib/LanguageContext';
 import PageHeader from '@/components/shared/PageHeader';
 import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   AreaChart, Area, BarChart, Bar, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell
 } from 'recharts';
-import { TrendingUp, TrendingDown, DollarSign, BarChart2, Calendar, Loader2 } from 'lucide-react';
+import { TrendingUp, TrendingDown, Calendar, Loader2 } from 'lucide-react';
 import { formatCurrency } from '@/lib/helpers';
 import {
-  format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth,
-  eachDayOfInterval, eachWeekOfInterval, parseISO, getWeek, getMonth
+  format, subDays, parseISO, getWeek
 } from 'date-fns';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];

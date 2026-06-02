@@ -15,7 +15,7 @@ import SmartInsights from '@/components/dashboard/SmartInsights';
 import { Card } from '@/components/ui/card';
 import { DollarSign, TrendingUp, TrendingDown, Percent, ShoppingCart, AlertTriangle, Receipt, Flame, Wallet, Scale, ShoppingBag, Package } from 'lucide-react';
 import { computeBranchSettlements } from '@/components/treasury/BranchSettlementLedger';
-import { format, subDays } from 'date-fns';
+import { format } from 'date-fns';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';

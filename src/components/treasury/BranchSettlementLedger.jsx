@@ -7,7 +7,7 @@ import { AlertTriangle, ArrowDownLeft, ArrowUpRight, Building2, TrendingUp, Cale
 import { formatCurrency } from '@/lib/helpers';
 import { format } from 'date-fns';
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, Cell
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
 
 // Settlement transaction types — which direction affects each ledger column

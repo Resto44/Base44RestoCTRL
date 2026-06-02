@@ -5,7 +5,6 @@ import { useAuth } from '@/lib/AuthContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { RefreshCw, Home, Package, Clock, Wallet, History, Navigation } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import DriverHome from '@/components/driver/DriverHome';
 import DriverOrderCard from '@/components/driver/DriverOrderCard';

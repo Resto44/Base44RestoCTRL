@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { useLanguage } from '@/lib/LanguageContext';
@@ -15,13 +15,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Link } from 'react-router-dom';
-import {
-  Wallet, Plus, ArrowDownLeft, ArrowUpRight, Building2, User,
-  TrendingUp, TrendingDown, DollarSign, Banknote, CreditCard,
-  Trash2, Filter, Scale, AlertTriangle, UserCircle, ShieldCheck, ExternalLink
+import { Plus, ArrowDownLeft, ArrowUpRight, Building2, User,
+  TrendingUp, Banknote, CreditCard,
+  Trash2, Scale, AlertTriangle, UserCircle, ShieldCheck, ExternalLink
 } from 'lucide-react';
-import { formatCurrency, formatDate } from '@/lib/helpers';
-import { format, startOfMonth, endOfMonth } from 'date-fns';
+import { formatCurrency } from '@/lib/helpers';
+import { format } from 'date-fns';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
   LineChart, Line, CartesianGrid

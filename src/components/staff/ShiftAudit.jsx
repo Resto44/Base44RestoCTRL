@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { format } from 'date-fns';
 import {
-  ClipboardCheck, AlertTriangle, CheckCircle2, XCircle, Camera,
+  ClipboardCheck, Camera,
   Flag, Plus, ChevronDown, ChevronUp, User
 } from 'lucide-react';
 import BranchSelect from '@/components/shared/BranchSelect';

@@ -6,12 +6,11 @@ import { useRole } from '@/lib/RoleContext';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import BranchSelect from '@/components/shared/BranchSelect';
 import { formatCurrency } from '@/lib/helpers';
 import { buildPayrollRow, monthRange, currentMonth } from '@/lib/payrollEngine';
-import { Download, CheckCircle2, AlertTriangle, Loader2, Users, TrendingDown, Gift, CreditCard } from 'lucide-react';
+import { Download, CheckCircle2, AlertTriangle, Users, TrendingDown, Gift } from 'lucide-react';
 import { format } from 'date-fns';
 
 const STATUS_COLORS = {

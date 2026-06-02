@@ -9,10 +9,10 @@ import { useLanguage } from '@/lib/LanguageContext';
 import { formatCurrency } from '@/lib/helpers';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, ShieldCheck, TrendingDown } from 'lucide-react';
+import { AlertTriangle, ShieldCheck } from 'lucide-react';
 import { useTenant } from '@/lib/TenantContext';
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, Cell
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend
 } from 'recharts';
 
 export default function BranchBalanceTracker() {

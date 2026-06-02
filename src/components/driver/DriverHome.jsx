@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bike, Package, CheckCircle2, Clock, Banknote, CreditCard, TrendingUp, AlertCircle } from 'lucide-react';
+import { Bike, Package, CheckCircle2, Clock, Banknote, CreditCard, AlertCircle } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 

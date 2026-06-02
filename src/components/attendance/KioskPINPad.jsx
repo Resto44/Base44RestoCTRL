@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { Button } from '@/components/ui/button';
 import { Delete } from 'lucide-react';
 
 // Numeric PIN pad for kiosk/tablet mode — tap to enter 4-digit PIN

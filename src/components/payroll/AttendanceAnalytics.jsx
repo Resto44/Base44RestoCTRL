@@ -4,9 +4,8 @@ import { base44 } from '@/api/base44Client';
 import { useLanguage } from '@/lib/LanguageContext';
 import { Card } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, Legend } from 'recharts';
-import { TrendingUp, AlertTriangle, Award, Clock, Users } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
+import { TrendingUp, AlertTriangle, Clock, Users } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/helpers';
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];

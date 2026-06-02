@@ -13,7 +13,6 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { downloadCSV, downloadPDF, buildSalesCSV, buildSalesPDF } from '@/lib/exportUtils';
 import ExportDialog from '@/components/shared/ExportDialog';
 import SalesFilterSidebar from '@/components/sales/SalesFilterSidebar';
-import { format } from 'date-fns';
 import { useNotify } from '@/lib/useNotify';
 import { useNetworkSettlement } from '@/hooks/useNetworkSettlement';
 import { useAuth } from '@/lib/AuthContext';

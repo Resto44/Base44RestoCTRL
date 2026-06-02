@@ -7,8 +7,8 @@ import PageHeader from '@/components/shared/PageHeader';
 import BranchSelect from '@/components/shared/BranchSelect';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
-import { Wifi, TrendingUp, AlertCircle, CheckCircle2, Clock, Smartphone } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { TrendingUp, CheckCircle2, Smartphone } from 'lucide-react';
 import { useTenant } from '@/lib/TenantContext';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4', '#f97316'];

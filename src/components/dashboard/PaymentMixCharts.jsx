@@ -6,9 +6,8 @@ import {
   LineChart, Line, CartesianGrid
 } from 'recharts';
 import { useLanguage } from '@/lib/LanguageContext';
-import { formatCurrency } from '@/lib/helpers';
 import { Button } from '@/components/ui/button';
-import { ChevronRight, ChevronLeft } from 'lucide-react';
+import { ChevronLeft } from 'lucide-react';
 
 const COLORS = {
   cash: '#10b981',

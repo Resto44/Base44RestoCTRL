@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { TrendingUp, Truck, DollarSign, XCircle, CheckCircle2 } from 'lucide-react';
+import { TrendingUp, Truck, DollarSign, XCircle } from 'lucide-react';
 
 export default function DeliveryAnalytics({ orders, drivers, today }) {
   const stats = useMemo(() => {

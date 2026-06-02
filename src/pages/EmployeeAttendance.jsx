@@ -8,13 +8,11 @@ import { useLanguage } from '@/lib/LanguageContext';
 import { useNotify } from '@/lib/useNotify';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import {
-  QrCode, Lock, Users, BarChart2, Camera,
-  Clock, CheckCircle2, XCircle, Download,
+  QrCode, Lock, Users, BarChart2, Camera, CheckCircle2, XCircle, Download,
   RefreshCw, Calendar
 } from 'lucide-react';
 import BranchSelect from '@/components/shared/BranchSelect';

@@ -3,14 +3,14 @@ import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTenant } from '@/lib/TenantContext';
 import { useRole } from '@/lib/RoleContext';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { CheckCircle2, XCircle, Clock, Banknote, CreditCard, AlertTriangle, FileText } from 'lucide-react';
+import { CheckCircle2, XCircle, Clock, AlertTriangle } from 'lucide-react';
 import BranchSelect from '@/components/shared/BranchSelect';
 
 const STATUS_CONFIG = {

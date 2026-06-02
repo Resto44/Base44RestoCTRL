@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Wallet, CheckCircle2, AlertTriangle, DollarSign, Plus, Banknote, CreditCard, Package } from 'lucide-react';
+import { Wallet, CheckCircle2, AlertTriangle, Plus, Banknote, CreditCard, Package } from 'lucide-react';
 
 function DriverWalletCard({ driver, orders, openShift, onSettle, onIssueDebt, debts }) {
   const driverOrders = orders.filter(o => o.driver_id === driver.id);

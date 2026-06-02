@@ -1,12 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { FileText, Download, Loader2, CheckCircle, AlertTriangle, Clock } from 'lucide-react';
-import { format, parseISO } from 'date-fns';
-import { formatCurrency } from '@/lib/helpers';
+import { format } from 'date-fns';
 import { useLanguage } from '@/lib/LanguageContext';
 
 function getStatusColor(status) {

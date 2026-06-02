@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Pencil, Trash2, Send, MessageSquare, ChevronDown, ChevronUp } from 'lucide-react';
+import { Pencil, Trash2, Send, MessageSquare, ChevronUp } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
 

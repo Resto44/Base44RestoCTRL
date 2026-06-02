@@ -5,9 +5,8 @@ import { useAuth } from '@/lib/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { ChefHat, Clock, CheckCircle2, AlertCircle, RefreshCw, Bell, LogOut } from 'lucide-react';
+import { ChefHat, Clock, CheckCircle2, AlertCircle, RefreshCw, LogOut } from 'lucide-react';
 import { toast } from 'sonner';
-import { formatDistanceToNow } from 'date-fns';
 
 function getElapsed(createdDate) {
   if (!createdDate) return 0;

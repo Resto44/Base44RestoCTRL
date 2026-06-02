@@ -2,7 +2,6 @@ import React from 'react';
 import { Card } from '@/components/ui/card';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { useLanguage } from '@/lib/LanguageContext';
-import { format } from 'date-fns';
 
 const COLORS = ['hsl(172, 66%, 50%)', 'hsl(217, 91%, 50%)', 'hsl(0, 84%, 60%)'];
 

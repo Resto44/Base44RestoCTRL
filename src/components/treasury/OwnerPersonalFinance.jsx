@@ -21,13 +21,12 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { format } from 'date-fns';
-import {
-  Plus, ArrowDownLeft, ArrowUpRight, Wallet, TrendingDown, TrendingUp,
-  Camera, ZoomIn, Loader2, Trash2, User, ShieldCheck, AlertTriangle
+import { ArrowDownLeft, ArrowUpRight, Wallet,
+  Camera, ZoomIn, Loader2, Trash2, ShieldCheck, AlertTriangle
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend, CartesianGrid, LineChart, Line
+  PieChart, Pie, Cell, Legend, CartesianGrid
 } from 'recharts';
 
 const CATEGORIES = [

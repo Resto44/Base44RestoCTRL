@@ -5,7 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { base44 } from '@/api/base44Client';
 import { useAuth } from '@/lib/AuthContext';
-import { Paperclip, Mic, MicOff, ImagePlus, Loader2, CheckCircle2 } from 'lucide-react';
+import { Paperclip, Mic, MicOff, Loader2, CheckCircle2 } from 'lucide-react';
 
 const CATEGORIES = [
   { value: 'bug', label: '🐛 Bug Report' },

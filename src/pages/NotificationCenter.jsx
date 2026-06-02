@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useNotifications } from '@/lib/NotificationContext';
 import { useLanguage } from '@/lib/LanguageContext';
 import { useTenant } from '@/lib/TenantContext';
-import { Bell, CheckCheck, Trash2, Search, Activity, Radio } from 'lucide-react';
+import { Bell, CheckCheck, Search, Radio } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';

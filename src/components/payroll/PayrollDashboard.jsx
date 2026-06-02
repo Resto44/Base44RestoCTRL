@@ -5,8 +5,8 @@ import { useLanguage } from '@/lib/LanguageContext';
 import { Card } from '@/components/ui/card';
 import { formatCurrency } from '@/lib/helpers';
 import { buildPayrollRow, monthRange, currentMonth } from '@/lib/payrollEngine';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, Legend, PieChart, Pie, Cell } from 'recharts';
-import { Users, TrendingUp, AlertTriangle, Gift, TrendingDown, Clock } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, Legend, Cell } from 'recharts';
+import { Users, AlertTriangle, Gift, TrendingDown, Clock } from 'lucide-react';
 
 const COLORS = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6'];
 

@@ -4,8 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { useLanguage } from '@/lib/LanguageContext';
 import { useTenant } from '@/lib/TenantContext';
 import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Bike, TrendingUp, Banknote, CreditCard, AlertCircle } from 'lucide-react';
+import { Bike, Banknote, CreditCard } from 'lucide-react';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 
 const LABELS = {

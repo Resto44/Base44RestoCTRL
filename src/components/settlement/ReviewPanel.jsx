@@ -19,8 +19,8 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { format } from 'date-fns';
 import {
-  CheckCircle2, XCircle, Eye, ZoomIn, Loader2,
-  Clock, AlertTriangle, ShieldCheck, Camera, Send, BadgeCheck
+  CheckCircle2, XCircle, ZoomIn, Loader2,
+  Clock, Camera, Send, BadgeCheck
 } from 'lucide-react';
 import BranchSelect from '@/components/shared/BranchSelect';
 

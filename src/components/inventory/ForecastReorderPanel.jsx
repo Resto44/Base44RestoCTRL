@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle, TrendingDown, Package, ShoppingCart, Calendar } from 'lucide-react';
+import { ShoppingCart, Calendar } from 'lucide-react';
 import { useLanguage } from '@/lib/LanguageContext';
 import { formatDate } from '@/lib/helpers';
 import { addDays } from 'date-fns';

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Receipt, BarChart3, MoreHorizontal, Wallet, Users, Truck, Home, Package, Clock, History, Bell } from 'lucide-react';
+import { LayoutDashboard, Receipt, BarChart3, MoreHorizontal, Wallet, Users, Truck, Home } from 'lucide-react';
 import { useLanguage } from '@/lib/LanguageContext';
 import { useRole, ROLES } from '@/lib/RoleContext';
 

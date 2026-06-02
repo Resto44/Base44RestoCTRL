@@ -2,8 +2,7 @@ import React, { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Truck, Clock, CheckCircle2, XCircle, ChefHat, MapPin, Phone, DollarSign } from 'lucide-react';
+import { Truck, CheckCircle2, MapPin, Phone } from 'lucide-react';
 import { format } from 'date-fns';
 
 const STATUS_FLOW = {

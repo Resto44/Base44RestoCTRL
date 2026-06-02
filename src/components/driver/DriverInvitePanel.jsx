@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { toast } from 'sonner';
 import {
   UserPlus, Bike, Clock, AlertTriangle, Copy, MessageCircle, Mail,
-  CheckCircle2, XCircle, RotateCcw, Link, Loader2
+  CheckCircle2, XCircle, Link, Loader2
 } from 'lucide-react';
 
 const APP_URL = 'https://rest-ctrl-flow.base44.app';

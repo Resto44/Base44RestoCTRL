@@ -11,9 +11,8 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Plus, Pencil, Trash2, Truck, Phone, Mail, CreditCard } from 'lucide-react';
+import { Plus, Pencil, Trash2, Truck, Phone, CreditCard } from 'lucide-react';
 import { useTenant } from '@/lib/TenantContext';
-import SupplierInvoices from '@/components/suppliers/SupplierInvoices';
 import SupplierDetail from '@/components/suppliers/SupplierDetail';
 import SupplierPaymentManager from '@/components/suppliers/SupplierPaymentManager';
 

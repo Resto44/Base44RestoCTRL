@@ -20,7 +20,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
-  AlertTriangle, ShieldCheck, TrendingUp, TrendingDown,
+  AlertTriangle, ShieldCheck,
   Clock, CheckCircle2, AlertCircle, Bell, RefreshCw
 } from 'lucide-react';
 import {

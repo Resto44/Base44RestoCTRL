@@ -7,7 +7,6 @@ import { useRole } from '@/lib/RoleContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { toast } from 'sonner';
 import { Plus, RefreshCw, ShoppingBag, Truck, ChefHat, BarChart2, Users, Map } from 'lucide-react';
 import DriverInvitePanel from '@/components/driver/DriverInvitePanel';
 import { ManagerLiveMap } from '@/components/driver/DriverLocationMap';

@@ -6,7 +6,6 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useLanguage } from '@/lib/LanguageContext';
-import { useTenant } from '@/lib/TenantContext';
 import { useDebtI18n } from '@/lib/debtI18n';
 import { format } from 'date-fns';
 

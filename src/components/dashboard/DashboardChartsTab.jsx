@@ -1,9 +1,9 @@
 import React, { useMemo } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { Card } from '@/components/ui/card';
 import { useLanguage } from '@/lib/LanguageContext';
 import { formatCurrency } from '@/lib/helpers';
-import { format, parseISO, startOfMonth } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
 

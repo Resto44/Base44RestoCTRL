@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useNotifications } from '@/lib/NotificationContext';
-import { Volume2, VolumeX, Settings2 } from 'lucide-react';
+import { Volume2, VolumeX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';

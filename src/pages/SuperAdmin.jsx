@@ -12,16 +12,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import {
-  Shield, Users, Building2, TrendingUp, AlertTriangle,
-  Search, BarChart3, Settings, Eye, Ban, CheckCircle,
+  Shield, Users, Building2, TrendingUp,
+  Search, Settings, Eye, Ban, CheckCircle,
   DollarSign, FileText, Zap, Star, Crown, RefreshCw,
-  Activity, Globe, Lock, Unlock
+  Activity, Unlock
 } from 'lucide-react';
-import {
-  LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip,
+import { XAxis, YAxis, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area
 } from 'recharts';
-import { format, parseISO, subMonths } from 'date-fns';
+import { format, subMonths } from 'date-fns';
 
 // ─── Plan definitions ─────────────────────────────────────────────────────────
 const PLANS = {
