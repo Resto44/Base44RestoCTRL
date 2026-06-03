@@ -294,4 +294,4 @@ export const base44 = {
   agents:       _b44?.agents       || stubAgents,
 };
 
-console.log('[supabaseClient] base44 export ready ✓');
+console.log('[supabaseClient] base44 export ready ✓');// Deploy ID: 1780486781
