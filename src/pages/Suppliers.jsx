@@ -11,18 +11,18 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Plus, Pencil, Trash2, Truck, Phone, CreditCard } from 'lucide-react';
+import { Plus, Pencil, Trash2, Truck, Phone, CreditCard, MapPin } from 'lucide-react';
 import { useTenant } from '@/lib/TenantContext';
 import SupplierDetail from '@/components/suppliers/SupplierDetail';
 import SupplierPaymentManager from '@/components/suppliers/SupplierPaymentManager';
 
 const ui = {
-  en: { suppliers: 'Suppliers', add_supplier: 'Add Supplier', edit_supplier: 'Edit Supplier', name: 'Supplier Name', contact: 'Contact Name', phone: 'Phone', email: 'Email', category: 'Category', notes: 'Notes', save: 'Save', cancel: 'Cancel', confirm_delete: 'Confirm Delete' },
-  ar: { suppliers: 'الموردون', add_supplier: 'إضافة مورد', edit_supplier: 'تعديل المورد', name: 'اسم المورد', contact: 'اسم جهة الاتصال', phone: 'الهاتف', email: 'البريد الإلكتروني', category: 'الفئة', notes: 'ملاحظات', save: 'حفظ', cancel: 'إلغاء', confirm_delete: 'تأكيد الحذف' },
-  fa: { suppliers: 'تامین‌کنندگان', add_supplier: 'افزودن تامین‌کننده', edit_supplier: 'ویرایش تامین‌کننده', name: 'نام تامین‌کننده', contact: 'نام تماس', phone: 'تلفن', email: 'ایمیل', category: 'دسته‌بندی', notes: 'یادداشت‌ها', save: 'ذخیره', cancel: 'لغو', confirm_delete: 'تأیید حذف' },
+  en: { suppliers: 'Suppliers', add_supplier: 'Add Supplier', edit_supplier: 'Edit Supplier', name: 'Supplier Name', phone: 'Phone', email: 'Email', address: 'Address', notes: 'Notes', save: 'Save', cancel: 'Cancel', confirm_delete: 'Confirm Delete' },
+  ar: { suppliers: 'الموردون', add_supplier: 'إضافة مورد', edit_supplier: 'تعديل المورد', name: 'اسم المورد', phone: 'الهاتف', email: 'البريد الإلكتروني', address: 'العنوان', notes: 'ملاحظات', save: 'حفظ', cancel: 'إلغاء', confirm_delete: 'تأكيد الحذف' },
+  fa: { suppliers: 'تامین‌کنندگان', add_supplier: 'افزودن تامین‌کننده', edit_supplier: 'ویرایش تامین‌کننده', name: 'نام تامین‌کننده', phone: 'تلفن', email: 'ایمیل', address: 'آدرس', notes: 'یادداشت‌ها', save: 'ذخیره', cancel: 'لغو', confirm_delete: 'تأیید حذف' },
 };
 
-const emptyForm = { name: '', contact_name: '', phone: '', email: '', category: '', notes: '' };
+const emptyForm = { name: '', phone: '', email: '', address: '', notes: '' };
 
 export default function Suppliers() {
   const { lang } = useLanguage();
@@ -53,7 +53,7 @@ export default function Suppliers() {
   });
 
   const openAdd = () => { setEditing(null); setForm(emptyForm); setShowForm(true); };
-  const openEdit = (s) => { setEditing(s); setForm({ name: s.name, contact_name: s.contact_name || '', phone: s.phone || '', email: s.email || '', category: s.category || '', notes: s.notes || '' }); setShowForm(true); };
+  const openEdit = (s) => { setEditing(s); setForm({ name: s.name, phone: s.phone || '', email: s.email || '', address: s.address || '', notes: s.notes || '' }); setShowForm(true); };
   const closeForm = () => { setShowForm(false); setEditing(null); };
 
   if (selectedSupplier) {
@@ -94,7 +94,7 @@ export default function Suppliers() {
                 <div>
                   <p className="font-medium text-sm">{s.name}</p>
                   <div className="flex items-center gap-2 flex-wrap">
-                    {s.category && <Badge variant="secondary" className="text-[10px]">{s.category}</Badge>}
+                    {s.address && <span className="text-[10px] text-muted-foreground flex items-center gap-1"><MapPin className="w-3 h-3" />{s.address}</span>}
                     {s.phone && <span className="text-xs text-muted-foreground flex items-center gap-1"><Phone className="w-3 h-3" />{s.phone}</span>}
                   </div>
                 </div>
@@ -116,7 +116,7 @@ export default function Suppliers() {
         <DialogContent>
           <DialogHeader><DialogTitle>{editing ? m.edit_supplier : m.add_supplier}</DialogTitle></DialogHeader>
           <div className="space-y-3">
-            {[['name', m.name], ['contact_name', m.contact], ['phone', m.phone], ['email', m.email], ['category', m.category], ['notes', m.notes]].map(([field, label]) => (
+            {[['name', m.name], ['phone', m.phone], ['email', m.email], ['address', m.address], ['notes', m.notes]].map(([field, label]) => (
               <div key={field}>
                 <Label className="text-xs">{label}</Label>
                 <Input value={form[field]} onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))} />
