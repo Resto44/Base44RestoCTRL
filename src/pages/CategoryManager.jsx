@@ -249,7 +249,7 @@ function CategoryCard({ cat, lang, onEdit, onDelete, onToggleFavorite, onToggleA
 
 export default function CategoryManager() {
   const { lang } = useLanguage();
-  const { ownerFilter } = useTenant();
+  const { ownerFilter, activeRestaurant } = useTenant();
   const u = UI[lang] || UI.en;
   const qc = useQueryClient();
 
@@ -260,9 +260,13 @@ export default function CategoryManager() {
   const [activeTab, setActiveTab] = useState('all');
 
   const { data: categories = [], isLoading } = useQuery({
-    queryKey: ['purchase_categories', ownerFilter],
-    queryFn: () => base44.entities.PurchaseCategory.filter(ownerFilter || {}, 'name_en', 100),
-    enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
+    queryKey: ['categories', activeRestaurant?.id, ownerFilter],
+    queryFn: () => base44.entities.Category.filter(
+      activeRestaurant?.id ? { restaurant_id: activeRestaurant.id } : (ownerFilter || {}),
+      'sort_order',
+      100
+    ),
+    enabled: !!(activeRestaurant?.id || ownerFilter?.created_by),
     staleTime: 30000,
   });
 
@@ -275,19 +279,19 @@ export default function CategoryManager() {
 
   const saveMutation = useMutation({
     mutationFn: (data) => editing
-      ? base44.entities.PurchaseCategory.update(editing.id, data)
-      : base44.entities.PurchaseCategory.create({ ...data, ...(ownerFilter || {}) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['purchase_categories'] }); setShowForm(false); setEditing(null); },
+      ? base44.entities.Category.update(editing.id, data)
+      : base44.entities.Category.create({ ...data, restaurant_id: activeRestaurant?.id }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['categories'] }); setShowForm(false); setEditing(null); },
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id) => base44.entities.PurchaseCategory.delete(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['purchase_categories'] }); setDeleteTarget(null); },
+    mutationFn: (id) => base44.entities.Category.delete(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['categories'] }); setDeleteTarget(null); },
   });
 
   const toggleMutation = useMutation({
-    mutationFn: ({ id, data }) => base44.entities.PurchaseCategory.update(id, data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['purchase_categories'] }),
+    mutationFn: ({ id, data }) => base44.entities.Category.update(id, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['categories'] }),
   });
 
   // Analytics: spending per category name
