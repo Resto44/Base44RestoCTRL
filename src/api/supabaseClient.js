@@ -155,7 +155,12 @@ function createEntity(tableName) {
     async create(record) {
       const email = await getCurrentUserEmail();
       const now = new Date().toISOString();
-      const { data, error } = await supabase.from(tableName).insert({ ...record, created_by: email, created_date: now, updated_date: now }).select().single();
+      // Strip server-generated / computed columns that cannot be inserted by the client.
+      const GENERATED_COLS = ['total'];
+      const safe = Object.fromEntries(
+        Object.entries(record).filter(([k]) => !GENERATED_COLS.includes(k))
+      );
+      const { data, error } = await supabase.from(tableName).insert({ ...safe, created_by: email, created_date: now, updated_date: now }).select().single();
       if (error) throw error;
       return data;
     },
@@ -163,13 +168,25 @@ function createEntity(tableName) {
     async bulkCreate(records) {
       const email = await getCurrentUserEmail();
       const now = new Date().toISOString();
-      const { data, error } = await supabase.from(tableName).insert(records.map(r => ({ ...r, created_by: email, created_date: now, updated_date: now }))).select();
+      const GENERATED_COLS = ['total'];
+      const { data, error } = await supabase.from(tableName).insert(
+        records.map(r => {
+          const safe = Object.fromEntries(Object.entries(r).filter(([k]) => !GENERATED_COLS.includes(k)));
+          return { ...safe, created_by: email, created_date: now, updated_date: now };
+        })
+      ).select();
       if (error) throw error;
       return data || [];
     },
 
     async update(id, changes) {
-      const { data, error } = await supabase.from(tableName).update({ ...changes, updated_date: new Date().toISOString() }).eq('id', id).select().single();
+      // Strip server-generated / computed columns that cannot be set by the client.
+      // daily_sales.total is a GENERATED ALWAYS column — sending it causes HTTP 400.
+      const GENERATED_COLS = ['total'];
+      const safe = Object.fromEntries(
+        Object.entries(changes).filter(([k]) => !GENERATED_COLS.includes(k))
+      );
+      const { data, error } = await supabase.from(tableName).update({ ...safe, updated_date: new Date().toISOString() }).eq('id', id).select().single();
       if (error) throw error;
       return data;
     },
