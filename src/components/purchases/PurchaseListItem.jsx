@@ -3,9 +3,11 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Pencil, Trash2 } from 'lucide-react';
 import { useLanguage } from '@/lib/LanguageContext';
+import { useTenant } from '@/lib/TenantContext';
 
 export default function PurchaseListItem({ purchase, onEdit, onDelete }) {
-  const { t, currency, branches } = useLanguage();
+  const { t, currency } = useLanguage();
+  const { branches } = useTenant();
   const branchLabel = branches.find(b => b.key === purchase.branch)?.label || purchase.branch;
   const total = (purchase.qty || 0) * (purchase.used_price || purchase.current_price || 0);
 
