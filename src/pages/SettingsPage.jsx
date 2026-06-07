@@ -14,7 +14,7 @@ import {
   Building2, CreditCard, ChefHat, Users, CalendarCheck, Landmark,
   Smartphone, BarChart, GitBranch, UtensilsCrossed, Shield,
   Truck, FileText, History, ArrowLeftRight, Flame, CheckSquare,
-  BarChart2, TrendingUp, ShieldCheck, Clock
+  BarChart2, TrendingUp, ShieldCheck, Clock, Send
 } from 'lucide-react';
 
 const SECTIONS = [
@@ -86,6 +86,7 @@ const SECTIONS = [
       { path: '/billing',             icon: CreditCard,  label: 'Billing' },
       { path: '/notifications',       icon: Bell,        label: 'Notifications' },
       { path: '/support',             icon: Bell,        label: 'Support' },
+      { path: '/telegram-settings',    icon: Send,        label: 'Telegram Notifications' },
     ],
   },
 ];

@@ -72,6 +72,7 @@ import CustomerDashboard from '@/pages/CustomerDashboard';
 import KitchenInvitePage from '@/pages/KitchenInvitePage';
 import SponsorDashboard from '@/pages/SponsorDashboard';
 import AuthPage from '@/pages/AuthPage';
+import TelegramSettings from '@/pages/TelegramSettings';
 
 // Route-level error boundary — catches crashes in individual pages
 class RouteErrorBoundary extends React.Component {
@@ -220,6 +221,7 @@ const SubscribedRoutes = () => {
         <Route path="/support" element={<Support />} />
         <Route path="/super-admin" element={<SuperAdmin />} />
         <Route path="/branch-management" element={<RoleGuard permission="viewBrandSettings"><BranchManagement /></RoleGuard>} />
+        <Route path="/telegram-settings" element={<RoleGuard permission="viewBrandSettings"><TelegramSettings /></RoleGuard>} />
         <Route path="/delivery" element={<RoleGuard permission="viewDelivery"><DeliveryOrders /></RoleGuard>} />
         <Route path="/menu-products" element={<RoleGuard permission="viewDelivery"><MenuProducts /></RoleGuard>} />
         <Route path="/driver-settlements" element={<RoleGuard permission="viewDelivery"><DriverSettlements /></RoleGuard>} />
