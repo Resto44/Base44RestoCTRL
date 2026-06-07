@@ -113,7 +113,9 @@ export const soundEngine = {
   },
 
   playInfo: () => {
-    playTone({ frequency: 660, type: 'sine', duration: 0.12 });
+    // Soft, clean double-tap — two short blips at lower frequency
+    playTone({ frequency: 440, type: 'sine', duration: 0.08 });
+    playTone({ frequency: 520, type: 'sine', duration: 0.08, delay: 0.1 });
   },
 
   playWarning: () => {
