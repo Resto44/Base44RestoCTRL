@@ -32,6 +32,7 @@ export function NotificationProvider({ children }) {
   const seenIds = useRef(new Set());
   const unsubRef = useRef(null);
   const initialLoadDone = useRef(false);
+  const pollTimerRef = useRef(null);
 
   // Role-based filter
   const filterForRole = useCallback((notifs) => {
@@ -50,6 +51,16 @@ export function NotificationProvider({ children }) {
     });
   }, [role, user]);
 
+  // Show popup and play sound for a new notification
+  const triggerPopupAndSound = useCallback((n) => {
+    console.log('[NotificationContext] triggerPopupAndSound:', n.type, n.id);
+    showPopup(n);
+    soundEngine.playForSeverity(n.severity);
+    if (n.severity !== 'info' && navigator.vibrate) {
+      navigator.vibrate(n.severity === 'critical' ? [200, 100, 200] : [100]);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const loadNotifications = useCallback(async () => {
     if (!orgId) return;
     try {
@@ -59,18 +70,32 @@ export function NotificationProvider({ children }) {
         500
       );
       const filtered = filterForRole(data);
-      setNotifications(filtered);
 
       // First load: seed all existing IDs as "already seen"
       if (!initialLoadDone.current) {
         seenIds.current = new Set(filtered.map(n => n.id));
         initialLoadDone.current = true;
         console.log('[NotificationContext] Initial load complete, seeded', seenIds.current.size, 'existing notifications');
+        setNotifications(filtered);
+        return;
       }
+
+      // Subsequent poll: detect any new notifications that weren't in seenIds
+      // (fallback for when realtime misses an event)
+      const newOnes = filtered.filter(n => !seenIds.current.has(n.id));
+      if (newOnes.length > 0) {
+        console.log('[NotificationContext] Poll detected', newOnes.length, 'new notification(s)');
+        newOnes.forEach(n => {
+          seenIds.current.add(n.id);
+          triggerPopupAndSound(n);
+        });
+      }
+
+      setNotifications(filtered);
     } catch (e) {
       console.warn('[NotificationContext] load failed:', e);
     }
-  }, [orgId, filterForRole]);
+  }, [orgId, filterForRole, triggerPopupAndSound]);
 
   // Subscribe to real-time events
   useEffect(() => {
@@ -81,6 +106,12 @@ export function NotificationProvider({ children }) {
     setPopups([]);
     seenIds.current = new Set();
     initialLoadDone.current = false;
+
+    // Clear any existing poll timer
+    if (pollTimerRef.current) {
+      clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
 
     // Load initial data first
     loadNotifications();
@@ -107,14 +138,8 @@ export function NotificationProvider({ children }) {
         const isNew = !seenIds.current.has(n.id);
         if (isNew) {
           seenIds.current.add(n.id);
-          console.log('[NotificationContext] New notification received:', n.type, n.id);
-          showPopup(n);
-          console.log('[NotificationContext] Popup shown for:', n.type);
-          soundEngine.playForSeverity(n.severity);
-          console.log('[NotificationContext] Sound played for severity:', n.severity);
-          if (n.severity !== 'info' && navigator.vibrate) {
-            navigator.vibrate(n.severity === 'critical' ? [200, 100, 200] : [100]);
-          }
+          console.log('[NotificationContext] Realtime: new notification received:', n.type, n.id);
+          triggerPopupAndSound(n);
         }
 
       } else if (event.type === 'update') {
@@ -127,10 +152,21 @@ export function NotificationProvider({ children }) {
     });
 
     unsubRef.current = unsub;
+
+    // Polling fallback: check every 30 seconds for new notifications
+    // This catches any notifications missed by the realtime channel
+    pollTimerRef.current = setInterval(() => {
+      if (initialLoadDone.current) {
+        console.log('[NotificationContext] Poll check running...');
+        loadNotifications();
+      }
+    }, 30000);
+
     return () => {
       if (unsubRef.current) { unsubRef.current(); unsubRef.current = null; }
+      if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null; }
     };
-  }, [orgId, filterForRole]);
+  }, [orgId, filterForRole]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const showPopup = (n) => {
     const popup = { ...n, _popupId: `${n.id}_${Date.now()}` };

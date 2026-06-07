@@ -205,11 +205,18 @@ function createEntity(tableName) {
           .channel(`rt-${tableName}-${Date.now()}`)
           .on('postgres_changes', { event: '*', schema: 'public', table: tableName }, payload => {
             const typeMap = { INSERT: 'create', UPDATE: 'update', DELETE: 'delete' };
+            console.log(`[realtime:${tableName}] event:`, payload.eventType, payload.new?.id);
             callback({ type: typeMap[payload.eventType] || payload.eventType, id: payload.new?.id || payload.old?.id, data: payload.new || null });
           })
-          .subscribe();
+          .subscribe((status, err) => {
+            console.log(`[realtime:${tableName}] channel status:`, status, err || '');
+          });
+        console.log(`[realtime:${tableName}] subscribed`);
         return () => supabase.removeChannel(channel);
-      } catch { return () => {}; }
+      } catch (e) {
+        console.warn(`[realtime:${tableName}] subscribe failed:`, e);
+        return () => {};
+      }
     },
   };
 }
