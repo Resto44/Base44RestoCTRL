@@ -28,8 +28,10 @@ export function NotificationProvider({ children }) {
   const [soundVolume, setSoundVolumeState] = useState(() => soundEngine.getVolume());
 
   // IDs that existed when we first loaded — these never popup/sound
-  const seenIds = useRef(null); // null = not loaded yet
+  // Initialize as empty Set to ensure it's never null
+  const seenIds = useRef(new Set());
   const unsubRef = useRef(null);
+  const initialLoadDone = useRef(false);
 
   // Role-based filter
   const filterForRole = useCallback((notifs) => {
@@ -60,8 +62,10 @@ export function NotificationProvider({ children }) {
       setNotifications(filtered);
 
       // First load: seed all existing IDs as "already seen"
-      if (seenIds.current === null) {
+      if (!initialLoadDone.current) {
         seenIds.current = new Set(filtered.map(n => n.id));
+        initialLoadDone.current = true;
+        console.log('[NotificationContext] Initial load complete, seeded', seenIds.current.size, 'existing notifications');
       }
     } catch (e) {
       console.warn('[NotificationContext] load failed:', e);
@@ -75,7 +79,8 @@ export function NotificationProvider({ children }) {
     // Reset state on tenant change — clear stale notifications from previous tenant
     setNotifications([]);
     setPopups([]);
-    seenIds.current = null;
+    seenIds.current = new Set();
+    initialLoadDone.current = false;
 
     // Load initial data first
     loadNotifications();
@@ -99,11 +104,14 @@ export function NotificationProvider({ children }) {
         });
 
         // Is this brand new (not in initial load)?
-        const isNew = seenIds.current === null || !seenIds.current.has(n.id);
+        const isNew = !seenIds.current.has(n.id);
         if (isNew) {
-          if (seenIds.current) seenIds.current.add(n.id);
+          seenIds.current.add(n.id);
+          console.log('[NotificationContext] New notification received:', n.type, n.id);
           showPopup(n);
+          console.log('[NotificationContext] Popup shown for:', n.type);
           soundEngine.playForSeverity(n.severity);
+          console.log('[NotificationContext] Sound played for severity:', n.severity);
           if (n.severity !== 'info' && navigator.vibrate) {
             navigator.vibrate(n.severity === 'critical' ? [200, 100, 200] : [100]);
           }

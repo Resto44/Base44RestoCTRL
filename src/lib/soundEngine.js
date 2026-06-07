@@ -7,7 +7,7 @@ let audioCtx = null;
 let muted = false;
 let volume = 0.5;
 let unlocked = false;
-let pendingPlay = null; // sound queued before unlock
+let pendingQueue = []; // sounds queued before unlock
 
 function getCtx() {
   if (!audioCtx) {
@@ -36,8 +36,11 @@ function setupUnlockListeners() {
   const events = ['click', 'keydown', 'touchstart', 'mousedown'];
   const handler = () => {
     ensureUnlocked();
-    // Play any pending sound
-    if (pendingPlay) { pendingPlay(); pendingPlay = null; }
+    // Play any pending sounds
+    while (pendingQueue.length > 0) {
+      const fn = pendingQueue.shift();
+      try { fn(); } catch (e) { console.warn('[soundEngine] pending sound failed:', e); }
+    }
     events.forEach(e => document.removeEventListener(e, handler));
   };
   events.forEach(e => document.addEventListener(e, handler, { once: true, passive: true }));
@@ -65,12 +68,17 @@ function playTone({ frequency = 440, type = 'sine', duration = 0.15, vol = null,
       osc.start(ctx.currentTime + delay);
       osc.stop(ctx.currentTime + delay + duration + 0.05);
     } catch (e) {
-      // Silently ignore — context may not be ready
+      console.warn('[soundEngine] playTone failed:', e);
     }
   };
 
+  // If context is suspended, queue the sound to play after unlock
   if (ctx.state === 'suspended') {
-    ctx.resume().then(doPlay).catch(() => {});
+    if (!unlocked) {
+      pendingQueue.push(doPlay);
+    } else {
+      ctx.resume().then(doPlay).catch(() => {});
+    }
   } else {
     doPlay();
   }
