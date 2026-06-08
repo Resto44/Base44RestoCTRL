@@ -68,30 +68,43 @@ export default function TelegramSettings() {
 
   const handleSave = async () => {
     console.log('[TelegramSettings] handleSave triggered', { hasUser: !!user?.email, orgId, activeRestaurantId });
-    if (!user?.email || !orgId || !activeRestaurantId) {
-      console.warn('[TelegramSettings] Save blocked: missing context', { user: !!user?.email, orgId, activeRestaurantId });
+    
+    // Use fallbacks to avoid silent failure if context is missing but user is present
+    const finalOrgId = orgId || user?.email || 'unknown_org';
+    const finalRestaurantId = activeRestaurantId;
+
+    if (!user?.email) {
+      console.error('[TelegramSettings] Save blocked: no user session');
       return;
     }
+
     setSaving(true);
 
     const payload = {
       key: SETTING_KEY,
       value: JSON.stringify(settings),
-      org_id: orgId,
-      restaurant_id: activeRestaurantId
+      org_id: finalOrgId,
+      restaurant_id: finalRestaurantId
     };
+
+    console.log('[TelegramSettings] Saving payload:', payload);
 
     try {
       if (existingId) {
+        console.log('[TelegramSettings] Updating existing record:', existingId);
         await base44.entities.AppSettings.update(existingId, payload);
       } else {
+        console.log('[TelegramSettings] Creating new record');
         const created = await base44.entities.AppSettings.create(payload);
-        setExistingId(created.id);
+        if (created?.id) {
+          setExistingId(created.id);
+        }
       }
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch (err) {
       console.error('[TelegramSettings] save error:', err);
+      alert('Failed to save settings. Please check console for details.');
     } finally {
       setSaving(false);
     }
