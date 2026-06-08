@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useAuth } from '@/lib/AuthContext';
+import { useRole, ROLES } from '@/lib/RoleContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 const TenantContext = createContext({

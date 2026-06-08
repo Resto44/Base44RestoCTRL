@@ -27,7 +27,7 @@ import SalesTrendsChart from '@/components/dashboard/SalesTrendsChart';
 import WelcomeDashboard from '@/components/dashboard/WelcomeDashboard';
 import ExecutiveSummaryBar from '@/components/dashboard/ExecutiveSummaryBar';
 import ManagerWorkspace from '@/components/dashboard/ManagerWorkspace';
-import { useRole } from '@/lib/RoleContext';
+import { useRole, ROLES } from '@/lib/RoleContext';
 
 const FETCH_DAYS = 90;
 
