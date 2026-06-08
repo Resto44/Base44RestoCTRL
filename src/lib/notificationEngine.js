@@ -51,7 +51,10 @@ export async function createNotification(opts) {
     // --- Telegram Dispatch ---
     try {
       // Load Telegram settings for this org
-      const settings = await base44.entities.AppSettings.filter({ org_id: orgId });
+      const settings = await base44.entities.AppSettings.filter({ 
+        org_id: orgId,
+        key: 'telegram_notification_settings' 
+      });
       const config = settings?.[0];
 
       let settingsData = null;
