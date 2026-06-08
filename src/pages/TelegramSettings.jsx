@@ -41,12 +41,11 @@ export default function TelegramSettings() {
   // Load existing settings from app_settings
   // REQUIRED: Filter by setting key, org_id, and restaurant_id
   useEffect(() => {
-    if (!user?.email || !orgId || !activeRestaurantId) return;
+    if (!user?.email) return;
     
     base44.entities.AppSettings.filter({ 
       key: SETTING_KEY, 
-      org_id: orgId,
-      restaurant_id: activeRestaurantId 
+      org_id: user.email
     }, '-created_date', 1)
       .then(rows => {
         if (rows[0]?.value) {
@@ -67,12 +66,8 @@ export default function TelegramSettings() {
   }, [user?.email, orgId, activeRestaurantId]);
 
   const handleSave = async () => {
-    console.log('[TelegramSettings] handleSave triggered', { hasUser: !!user?.email, orgId, activeRestaurantId });
+    console.log('[TelegramSettings] handleSave triggered', { hasUser: !!user?.email });
     
-    // Use fallbacks to avoid silent failure if context is missing but user is present
-    const finalOrgId = orgId || user?.email || 'unknown_org';
-    const finalRestaurantId = activeRestaurantId;
-
     if (!user?.email) {
       console.error('[TelegramSettings] Save blocked: no user session');
       return;
@@ -80,21 +75,22 @@ export default function TelegramSettings() {
 
     setSaving(true);
 
+    // Simplified payload: rely on RLS and key for identification
+    // This matches the pattern in other working components
     const payload = {
       key: SETTING_KEY,
       value: JSON.stringify(settings),
-      org_id: finalOrgId,
-      restaurant_id: finalRestaurantId
+      org_id: user.email,
+      restaurant_id: activeRestaurantId || null
     };
 
     console.log('[TelegramSettings] Saving payload:', payload);
 
     try {
-      // Use direct filter to find existing record more reliably before saving
+      // Find existing record by key and org_id (user email)
       const existing = await base44.entities.AppSettings.filter({ 
-        key: SETTING_KEY, 
-        org_id: finalOrgId,
-        restaurant_id: finalRestaurantId 
+        key: SETTING_KEY,
+        org_id: user.email
       });
 
       if (existing && existing.length > 0) {
