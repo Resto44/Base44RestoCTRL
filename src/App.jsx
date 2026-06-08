@@ -70,10 +70,7 @@ import DriverSettlements from '@/pages/DriverSettlements';
 import DriverPortal from '@/pages/DriverPortal';
 import EmployeePortal from '@/pages/EmployeePortal';
 import EmployeeInvitePage from '@/pages/EmployeeInvitePage';
-import KitchenDashboard from '@/pages/KitchenDashboard';
-import CustomerDashboard from '@/pages/CustomerDashboard';
 import KitchenInvitePage from '@/pages/KitchenInvitePage';
-import SponsorDashboard from '@/pages/SponsorDashboard';
 import AuthPage from '@/pages/AuthPage';
 import TelegramSettings from '@/pages/TelegramSettings';
 
