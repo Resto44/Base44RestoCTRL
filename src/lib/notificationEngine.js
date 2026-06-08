@@ -47,6 +47,35 @@ export async function createNotification(opts) {
 
   try {
     const result = await base44.entities.Notification.create(payload);
+    
+    // --- Telegram Dispatch ---
+    try {
+      // Load Telegram settings for this org
+      const settings = await base44.entities.AppSettings.filter({ org_id: orgId });
+      const config = settings?.[0];
+
+      if (config?.telegram_enabled && config?.telegram_bot_token && config?.telegram_chat_id) {
+        const botToken = config.telegram_bot_token;
+        const chatId = config.telegram_chat_id;
+        const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
+        
+        const text = `<b>${title}</b>\n${message}`;
+        
+        await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: text,
+            parse_mode: 'HTML'
+          })
+        });
+        console.log('[notify] Telegram message sent');
+      }
+    } catch (teleErr) {
+      console.warn('[notify] Telegram dispatch failed:', teleErr);
+    }
+
     return result;
   } catch (e) {
     console.warn('[notify] Notification creation failed:', e);

@@ -14,6 +14,7 @@ import { AlertTriangle, Plus, Package, Pencil, MessageSquare, Bell } from 'lucid
 import { format } from 'date-fns';
 import { computeLiveStock, sendWhatsAppAlert, groupLowStockByBranch } from '@/lib/stockEngine';
 import { useTenant } from '@/lib/TenantContext';
+import { useNotify } from '@/lib/useNotify';
 
 
 const ui = {
@@ -28,6 +29,7 @@ export default function Inventory() {
   const { lang, branches } = useLanguage();
   const m = ui[lang] || ui.en;
   const qc = useQueryClient();
+  const notif = useNotify();
   const { ownerFilter } = useTenant();
   const [branchFilter, setBranchFilter] = useState('all');
   const [showForm, setShowForm] = useState(false);
@@ -59,9 +61,24 @@ export default function Inventory() {
   });
 
   const saveMutation = useMutation({
-    mutationFn: async (data) => editing 
-      ? base44.entities.Inventory.update(editing.id, data) 
-      : base44.entities.Inventory.create({ ...data, ...(ownerFilter || {}) }),
+    mutationFn: async (data) => {
+      const res = editing 
+        ? await base44.entities.Inventory.update(editing.id, data) 
+        : await base44.entities.Inventory.create({ ...data, ...(ownerFilter || {}) });
+      
+      // Check if current stock is low and notify
+      const updatedLiveStock = computeLiveStock([res], [], []);
+      const item = updatedLiveStock[0];
+      if (item && item.currentStock <= item.low_stock_threshold) {
+        await notif.lowStock({
+          branch: res.branch,
+          productName: res.product_name,
+          currentQty: item.currentStock,
+          unit: res.unit
+        });
+      }
+      return res;
+    },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['inventory'] }); closeForm(); },
   });
 

@@ -8,8 +8,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { format } from 'date-fns';
 import { useAuth } from '@/lib/AuthContext';
 import { useDebtI18n } from '@/lib/debtI18n';
+import { useNotify } from '@/lib/useNotify';
 
 export default function PaymentForm({ debt, onSave, onCancel }) {
+  const notif = useNotify();
   const { user } = useAuth();
   const d = useDebtI18n();
   const [amount, setAmount] = useState('');
@@ -44,6 +46,12 @@ export default function PaymentForm({ debt, onSave, onCancel }) {
       paid_amount: newPaid,
       remaining_amount: Math.max(0, newRemaining),
       status: newStatus,
+    });
+
+    await notif.creditCollection({ 
+      branch: debt.branch || 'General', 
+      amount: amt, 
+      action: 'create' 
     });
 
     setSaving(false);
