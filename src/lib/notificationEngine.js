@@ -54,9 +54,18 @@ export async function createNotification(opts) {
       const settings = await base44.entities.AppSettings.filter({ org_id: orgId });
       const config = settings?.[0];
 
-      if (config?.telegram_enabled && config?.telegram_bot_token && config?.telegram_chat_id) {
-        const botToken = config.telegram_bot_token;
-        const chatId = config.telegram_chat_id;
+      let settingsData = null;
+      if (config?.value) {
+        try {
+          settingsData = typeof config.value === 'string' ? JSON.parse(config.value) : config.value;
+        } catch (e) {
+          console.warn('[notify] Failed to parse telegram settings JSON:', e);
+        }
+      }
+
+      if (settingsData?.enabled && settingsData?.bot_token && settingsData?.chat_id) {
+        const botToken = settingsData.bot_token;
+        const chatId = settingsData.chat_id;
         const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
         
         const text = `<b>${title}</b>\n${message}`;
