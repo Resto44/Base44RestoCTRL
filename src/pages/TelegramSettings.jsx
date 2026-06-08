@@ -90,9 +90,18 @@ export default function TelegramSettings() {
     console.log('[TelegramSettings] Saving payload:', payload);
 
     try {
-      if (existingId) {
-        console.log('[TelegramSettings] Updating existing record:', existingId);
-        await base44.entities.AppSettings.update(existingId, payload);
+      // Use direct filter to find existing record more reliably before saving
+      const existing = await base44.entities.AppSettings.filter({ 
+        key: SETTING_KEY, 
+        org_id: finalOrgId,
+        restaurant_id: finalRestaurantId 
+      });
+
+      if (existing && existing.length > 0) {
+        const idToUpdate = existing[0].id;
+        console.log('[TelegramSettings] Updating existing record:', idToUpdate);
+        await base44.entities.AppSettings.update(idToUpdate, payload);
+        setExistingId(idToUpdate);
       } else {
         console.log('[TelegramSettings] Creating new record');
         const created = await base44.entities.AppSettings.create(payload);
@@ -104,7 +113,7 @@ export default function TelegramSettings() {
       setTimeout(() => setSaved(false), 2500);
     } catch (err) {
       console.error('[TelegramSettings] save error:', err);
-      alert('Failed to save settings. Please check console for details.');
+      alert(`Failed to save settings: ${err.message || 'Unknown error'}`);
     } finally {
       setSaving(false);
     }
