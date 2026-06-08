@@ -67,7 +67,11 @@ export default function TelegramSettings() {
   }, [user?.email, orgId, activeRestaurantId]);
 
   const handleSave = async () => {
-    if (!user?.email || !orgId || !activeRestaurantId) return;
+    console.log('[TelegramSettings] handleSave triggered', { hasUser: !!user?.email, orgId, activeRestaurantId });
+    if (!user?.email || !orgId || !activeRestaurantId) {
+      console.warn('[TelegramSettings] Save blocked: missing context', { user: !!user?.email, orgId, activeRestaurantId });
+      return;
+    }
     setSaving(true);
 
     const payload = {
