@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
+import { ROLES, ROLE_HOME } from '@/lib/RoleContext';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Zap, CheckCircle2, AlertCircle, Loader2, GitBranch, RefreshCw } from 'lucide-react';
@@ -164,7 +165,8 @@ export default function InvitePage() {
     setInviteData(data);
     setStatus('success');
     log('Success — redirecting in 2.5s');
-    setTimeout(() => window.location.replace('/'), 2500);
+    const home = data.role ? (ROLE_HOME[data.role] || '/') : '/';
+    setTimeout(() => window.location.replace(home), 2500);
   };
 
   const fetchInvitePreview = async () => {
@@ -190,7 +192,8 @@ export default function InvitePage() {
     // Was actually authed server-side (edge case)
     setInviteData(data);
     setStatus('success');
-    setTimeout(() => window.location.replace('/'), 2500);
+    const home = data.role ? (ROLE_HOME[data.role] || '/') : '/';
+    setTimeout(() => window.location.replace(home), 2500);
   };
 
   const handleBackendError = (data) => {

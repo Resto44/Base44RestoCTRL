@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTenant } from '@/lib/TenantContext';
-import { useRole } from '@/lib/RoleContext';
+import { useRole, ROLES } from '@/lib/RoleContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -83,7 +83,7 @@ export default function DriverSettlements() {
   const { branches, managerBranch, isManager } = useTenant();
   const { role } = useRole();
   const qc = useQueryClient();
-  const isOwner = role === 'owner' || role === 'restaurant_admin';
+  const isOwner = role === ROLES.OWNER;
   const defaultBranch = isManager ? (managerBranch || '') : (branches[0]?.key || '');
   const [selectedBranch, setSelectedBranch] = useState(defaultBranch);
   const [filterStatus, setFilterStatus] = useState('all');

@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { useAuth } from '@/lib/AuthContext';
+import { ROLES } from '@/lib/RoleContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -192,7 +193,7 @@ export default function SuperAdmin() {
   const SUPER_ADMIN_EMAIL = import.meta.env.VITE_SUPER_ADMIN_EMAIL;
   const isSuperAdmin = SUPER_ADMIN_EMAIL
     ? user?.email === SUPER_ADMIN_EMAIL
-    : user?.role === 'admin'; // fallback if env not set
+    : user?.role === ROLES.OWNER; // fallback if env not set
 
   if (!isSuperAdmin) {
     return (

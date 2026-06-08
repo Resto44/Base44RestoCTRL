@@ -155,7 +155,7 @@ export default function Dashboard() {
   const isFirstTime = !dataLoading && allSales.length === 0 && allPurchases.length === 0;
 
   // Managers see their dedicated branch workspace
-  if (role === 'manager') return <ManagerWorkspace />;
+  if (role === ROLES.MANAGER) return <ManagerWorkspace />;
 
   if (dataLoading) return (
     <div className="flex items-center justify-center min-h-[60vh]">

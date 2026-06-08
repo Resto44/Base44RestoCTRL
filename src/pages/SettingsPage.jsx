@@ -7,7 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Link } from 'react-router-dom';
-import { useRole } from '@/lib/RoleContext';
+import { useRole, ROLES } from '@/lib/RoleContext';
 import LogoutButton from '@/components/layout/LogoutButton';
 import {
   Globe, Moon, DollarSign, Package, Wallet, Bell, Boxes,
@@ -20,7 +20,7 @@ import {
 const SECTIONS = [
   {
     title: 'Operations',
-    roles: ['owner', 'restaurant_admin', 'manager'],
+    roles: [ROLES.OWNER, ROLES.MANAGER],
     links: [
       { path: '/sales',              icon: DollarSign,   label: 'Daily Sales' },
       { path: '/purchases',          icon: Package,      label: 'Purchases' },
@@ -32,7 +32,7 @@ const SECTIONS = [
   },
   {
     title: 'Inventory',
-    roles: ['owner', 'restaurant_admin', 'manager'],
+    roles: [ROLES.OWNER, ROLES.MANAGER],
     links: [
       { path: '/inventory',           icon: Boxes,       label: 'Inventory' },
       { path: '/inventory-transfers', icon: ArrowLeftRight, label: 'Transfers' },
@@ -44,7 +44,7 @@ const SECTIONS = [
   },
   {
     title: 'People',
-    roles: ['owner', 'restaurant_admin'],
+    roles: [ROLES.OWNER],
     links: [
       { path: '/employees',           icon: Users,       label: 'Employees' },
       { path: '/employee-attendance', icon: Clock,       label: 'Attendance' },
@@ -54,7 +54,7 @@ const SECTIONS = [
   },
   {
     title: 'Finance',
-    roles: ['owner', 'restaurant_admin'],
+    roles: [ROLES.OWNER],
     links: [
       { path: '/treasury',            icon: Landmark,    label: 'Treasury' },
       { path: '/debts',               icon: CreditCard,  label: 'Debt Management' },
@@ -65,7 +65,7 @@ const SECTIONS = [
   },
   {
     title: 'Analytics & Reports',
-    roles: ['owner', 'restaurant_admin'],
+    roles: [ROLES.OWNER],
     links: [
       { path: '/reports',             icon: BarChart2,   label: 'Reports' },
       { path: '/profit-loss',         icon: TrendingUp,  label: 'Profit & Loss' },
@@ -76,7 +76,7 @@ const SECTIONS = [
   },
   {
     title: 'Configuration',
-    roles: ['owner'],
+    roles: [ROLES.OWNER],
     links: [
       { path: '/restaurants',         icon: UtensilsCrossed, label: 'Restaurants' },
       { path: '/branch-management',   icon: GitBranch,   label: 'Branches' },

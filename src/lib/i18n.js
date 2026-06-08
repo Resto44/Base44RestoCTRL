@@ -43,6 +43,8 @@ const translations = {
     support: 'Support',
     home: 'Home',
     driver_portal: 'Driver Portal',
+    menu: 'Menu',
+    kitchen: 'Kitchen',
     // Common
     save: 'Save',
     cancel: 'Cancel',
@@ -451,6 +453,8 @@ const translations = {
     support: 'الدعم',
     home: 'الرئيسية',
     driver_portal: 'بوابة السائق',
+    menu: 'القائمة',
+    kitchen: 'المطبخ',
     // Common
     save: 'حفظ',
     cancel: 'إلغاء',

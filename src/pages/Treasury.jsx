@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { useLanguage } from '@/lib/LanguageContext';
-import { useRole } from '@/lib/RoleContext';
+import { useRole, ROLES } from '@/lib/RoleContext';
 import { useTenant } from '@/lib/TenantContext';
 import PageHeader from '@/components/shared/PageHeader';
 import { Card } from '@/components/ui/card';
@@ -261,7 +261,7 @@ export default function Treasury() {
           <TabsTrigger value="forecast" className="flex-1 text-xs text-indigo-600">
             <TrendingUp className="w-3 h-3 mr-1" />{t('forecast')}
           </TabsTrigger>
-          {role === 'owner' || role === 'admin' ? (
+          {role === ROLES.OWNER ? (
             <TabsTrigger value="personal" className="flex-1 text-xs text-violet-600">
               <UserCircle className="w-3 h-3 mr-1" />{t('profile')}
             </TabsTrigger>

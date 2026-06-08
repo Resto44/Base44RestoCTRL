@@ -8,7 +8,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { useAuth } from '@/lib/AuthContext';
 import { useLanguage } from '@/lib/LanguageContext';
-import { useRole } from '@/lib/RoleContext';
+import { useRole, ROLES } from '@/lib/RoleContext';
 import { formatCurrency } from '@/lib/helpers';
 import PageHeader from '@/components/shared/PageHeader';
 import { Card } from '@/components/ui/card';
@@ -80,7 +80,7 @@ export default function ApprovalPolicy() {
     });
   };
 
-  if (role !== 'owner' && role !== 'admin') {
+  if (role !== ROLES.OWNER) {
     return <div className="text-center py-20 text-muted-foreground">Owner access only.</div>;
   }
 

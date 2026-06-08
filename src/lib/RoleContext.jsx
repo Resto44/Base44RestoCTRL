@@ -4,129 +4,146 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { audit } from '@/lib/auditLogger';
 
 /**
- * ROLE SYSTEM
- * -----------
- * user.role values → internal role:
- *   'admin'         → owner          (full access)
- *   'restaurant_admin' → restaurant_admin (full access minus billing/brand)
- *   'sponsor'       → sponsor        (settlement/treasury view only)
- *   'manager'       → manager        (branch-scoped operations)
- *   'staff'         → staff          (upload-only: sales + purchases)
- *   anything else   → staff          (safest default)
+ * ROLE SYSTEM (Implementation Specification)
+ * ----------------------------------------
+ * 1. Owner
+ * 2. Manager
+ * 3. Employee
+ * 4. Driver
+ * 5. Sponsor (Kafeel)
+ * 6. Kitchen
+ * 7. Customer
  */
 
 export const ROLES = {
-  OWNER:            'owner',
-  RESTAURANT_ADMIN: 'restaurant_admin',
-  SPONSOR:          'sponsor',
-  MANAGER:          'manager',
-  STAFF:            'staff',
-  DRIVER:           'driver',
-  EMPLOYEE:         'employee',
-  KITCHEN:          'kitchen',
-  CUSTOMER:         'customer',
+  OWNER:    'owner',
+  MANAGER:  'manager',
+  EMPLOYEE: 'employee',
+  DRIVER:   'driver',
+  SPONSOR:  'sponsor',
+  KITCHEN:  'kitchen',
+  CUSTOMER: 'customer',
 };
 
 // Which route each role lands on after login
 export const ROLE_HOME = {
-  owner:            '/',
-  restaurant_admin: '/',
-  sponsor:          '/sponsor-dashboard',
-  manager:          '/manager-dashboard',
-  staff:            '/staff-upload',
-  driver:           '/driver',
-  employee:         '/employee',
-  kitchen:          '/kitchen',
-  customer:         '/customer',
+  [ROLES.OWNER]:    '/',
+  [ROLES.MANAGER]:  '/manager-dashboard',
+  [ROLES.EMPLOYEE]: '/employee-dashboard',
+  [ROLES.DRIVER]:   '/driver-dashboard',
+  [ROLES.SPONSOR]:  '/sponsor-dashboard',
+  [ROLES.KITCHEN]:  '/kitchen-dashboard',
+  [ROLES.CUSTOMER]: '/customer-dashboard',
 };
 
 // Roles that must never be redirected to onboarding
-export const NON_OWNER_ROLES = new Set(['manager', 'staff', 'sponsor', 'driver', 'employee', 'kitchen', 'customer']);
-
-// Pages each role is allowed to visit (whitelist approach for restricted roles)
-const SPONSOR_ALLOWED   = new Set(['/sponsor-treasury', '/sponsor-dashboard']);
-const STAFF_ALLOWED     = new Set(['/staff-upload', '/sales', '/purchases', '/employee-attendance']);
-const DRIVER_ALLOWED    = new Set(['/driver', '/driver-invite', '/driver-dashboard', '/auth/driver-login']);
-const EMPLOYEE_ALLOWED  = new Set(['/employee', '/employee-invite', '/employee-dashboard', '/auth/employee-login']);
-const KITCHEN_ALLOWED   = new Set(['/kitchen', '/kitchen-dashboard']);
-const CUSTOMER_ALLOWED  = new Set(['/customer', '/customer-dashboard']);
+export const NON_OWNER_ROLES = new Set([
+  ROLES.MANAGER, 
+  ROLES.EMPLOYEE, 
+  ROLES.DRIVER, 
+  ROLES.SPONSOR, 
+  ROLES.KITCHEN, 
+  ROLES.CUSTOMER
+]);
 
 const RoleContext = createContext();
 
 // ─── Permission matrix ───────────────────────────────────────────────────────
 function buildCan(role) {
   const is = (...r) => r.includes(role);
+  
+  // Owner has full access
+  if (role === ROLES.OWNER) {
+    return Object.keys(PERMISSIONS_LIST).reduce((acc, key) => ({ ...acc, [key]: true }), {});
+  }
+
   return {
     // Navigation / pages
-    viewDashboard:      is('owner', 'restaurant_admin', 'manager'),
-    viewSales:          is('owner', 'restaurant_admin', 'manager', 'staff'),
-    viewPurchases:      is('owner', 'restaurant_admin', 'manager', 'staff'),
-    viewExpenses:       is('owner', 'restaurant_admin', 'manager'),
-    viewInventory:      is('owner', 'restaurant_admin', 'manager'),
-    viewSuppliers:      is('owner', 'restaurant_admin', 'manager'),
-    viewReports:        is('owner', 'restaurant_admin'),
-    viewTreasury:       is('owner', 'restaurant_admin'),
-    viewSponsorTreasury:is('owner', 'restaurant_admin', 'sponsor'),
-    viewPayroll:        is('owner', 'restaurant_admin'),
-    viewEmployees:      is('owner', 'restaurant_admin'),
-    viewBilling:        is('owner'),
-    viewBrandSettings:  is('owner'),
-    viewAlerts:         is('owner', 'restaurant_admin', 'manager'),
-    viewTasks:          is('owner', 'restaurant_admin', 'manager', 'staff'),
-    viewNetworkAccounts:is('owner', 'restaurant_admin', 'manager'),
-    viewNetworkAnalytics:is('owner', 'restaurant_admin'),
-    viewDebts:          is('owner', 'restaurant_admin', 'manager'),
-    viewStaffAttendance:is('owner', 'restaurant_admin', 'manager'),
-    viewDelivery:       is('owner', 'restaurant_admin', 'manager'),
-    viewDriverPortal:   is('driver'),
-    recordAttendance:   is('owner', 'restaurant_admin', 'manager', 'staff'),
-    viewEmployeeControl:is('owner', 'restaurant_admin', 'manager'),
-    approveAdvances:    is('owner', 'restaurant_admin'),
-    viewApprovalPolicy: is('owner', 'restaurant_admin'),
-    viewActivityLogs:   is('owner', 'restaurant_admin'),
-
-    // Actions
-    exportPDF:          is('owner', 'restaurant_admin'),
-    manageUsers:        is('owner'),
-    manageSettings:     is('owner', 'restaurant_admin'),
-    uploadSales:        true,   // all roles (filtered by their own branch)
-    uploadPurchases:    is('owner', 'restaurant_admin', 'manager', 'staff'),
-    uploadProof:        true,
-
-    // Support
-    viewSupport:            true,  // all roles can submit support
-
-    // Sponsor-specific
-    viewSponsorSettlements: is('owner', 'restaurant_admin', 'sponsor'),
-    viewSponsorBalance:     is('owner', 'restaurant_admin', 'sponsor'),
+    viewDashboard:      is(ROLES.OWNER, ROLES.MANAGER),
+    viewSales:          is(ROLES.OWNER, ROLES.MANAGER),
+    viewPurchases:      is(ROLES.OWNER, ROLES.MANAGER),
+    viewInventory:      is(ROLES.OWNER, ROLES.MANAGER),
+    viewOrders:         is(ROLES.OWNER, ROLES.MANAGER, ROLES.KITCHEN, ROLES.CUSTOMER),
+    viewStaff:          is(ROLES.OWNER, ROLES.MANAGER),
+    viewAttendance:     is(ROLES.OWNER, ROLES.MANAGER, ROLES.EMPLOYEE),
+    viewReports:        is(ROLES.OWNER, ROLES.MANAGER, ROLES.SPONSOR),
+    
+    // Financials
+    viewFinancials:     is(ROLES.OWNER),
+    viewProfitLoss:     is(ROLES.OWNER),
+    
+    // Employee Specific
+    recordAttendance:   is(ROLES.OWNER, ROLES.MANAGER, ROLES.EMPLOYEE),
+    viewSchedule:       is(ROLES.OWNER, ROLES.MANAGER, ROLES.EMPLOYEE),
+    viewTasks:          is(ROLES.OWNER, ROLES.MANAGER, ROLES.EMPLOYEE),
+    viewSalary:         is(ROLES.OWNER, ROLES.EMPLOYEE),
+    manageLoans:        is(ROLES.OWNER, ROLES.EMPLOYEE),
+    viewProfile:        is(ROLES.OWNER, ROLES.MANAGER, ROLES.EMPLOYEE, ROLES.DRIVER, ROLES.CUSTOMER),
+    
+    // Driver Specific
+    viewDeliveries:     is(ROLES.OWNER, ROLES.MANAGER, ROLES.DRIVER),
+    updateDelivery:     is(ROLES.OWNER, ROLES.MANAGER, ROLES.DRIVER),
+    viewEarnings:       is(ROLES.OWNER, ROLES.DRIVER),
+    
+    // Sponsor Specific
+    viewWallet:         is(ROLES.OWNER, ROLES.SPONSOR),
+    manageTransactions: is(ROLES.OWNER, ROLES.SPONSOR),
+    viewSponsored:      is(ROLES.OWNER, ROLES.SPONSOR),
+    
+    // Kitchen Specific
+    viewKitchenQueue:   is(ROLES.OWNER, ROLES.MANAGER, ROLES.KITCHEN),
+    updatePrepStatus:   is(ROLES.OWNER, ROLES.MANAGER, ROLES.KITCHEN),
+    
+    // Customer Specific
+    placeOrders:        is(ROLES.CUSTOMER),
+    trackOrders:        is(ROLES.CUSTOMER),
+    
+    // Settings / Management
+    manageSettings:     is(ROLES.OWNER),
+    manageBranches:     is(ROLES.OWNER),
+    manageUsers:        is(ROLES.OWNER),
+    manageRoles:        is(ROLES.OWNER),
+    manageCustomers:    is(ROLES.OWNER),
+    manageDrivers:      is(ROLES.OWNER),
+    manageKitchen:      is(ROLES.OWNER),
+    manageSponsors:     is(ROLES.OWNER),
+    
+    // Legacy / Misc
+    uploadSales:        is(ROLES.OWNER, ROLES.MANAGER),
+    viewAlerts:         is(ROLES.OWNER, ROLES.MANAGER),
+    viewSupport:        true,
   };
 }
 
+const PERMISSIONS_LIST = {
+  viewDashboard: false, viewSales: false, viewPurchases: false, viewInventory: false,
+  viewOrders: false, viewStaff: false, viewAttendance: false, viewReports: false,
+  viewFinancials: false, viewProfitLoss: false, recordAttendance: false,
+  viewSchedule: false, viewTasks: false, viewSalary: false, manageLoans: false,
+  viewProfile: false, viewDeliveries: false, updateDelivery: false, viewEarnings: false,
+  viewWallet: false, manageTransactions: false, viewSponsored: false,
+  viewKitchenQueue: false, updatePrepStatus: false, placeOrders: false,
+  trackOrders: false, manageSettings: false, manageBranches: false, manageUsers: false,
+  manageRoles: false, manageCustomers: false, manageDrivers: false, manageKitchen: false,
+  manageSponsors: false, uploadSales: false, viewAlerts: false, viewSupport: true
+};
+
 // logSecurityEvent is fire-and-forget via auditLogger
 function logSecurityEvent(_user, _type, detail) {
-  // use the module-level audit helper (already initialized in auditLogger)
   audit.securityViolation(detail, _user?.role || 'unknown');
 }
 
-// ─── Provider ─────────────────────────────────────────────────────────────────
 export function RoleProvider({ children }) {
   const { user } = useAuth();
 
   const role = useMemo(() => {
-    if (!user) return ROLES.OWNER; // unauthenticated renders nothing — safe default
-    switch (user.role) {
-      case 'admin':            return ROLES.OWNER;
-      case 'restaurant_admin': return ROLES.RESTAURANT_ADMIN;
-      case 'sponsor':          return ROLES.SPONSOR;
-      case 'manager':          return ROLES.MANAGER;
-      case 'staff':            return ROLES.STAFF;
-      case 'driver':           return ROLES.DRIVER;
-      case 'employee':         return ROLES.EMPLOYEE;
-      case 'kitchen':          return ROLES.KITCHEN;
-      case 'customer':         return ROLES.CUSTOMER;
-      // Any unrecognized/null role → OWNER (never send unknown users to staff pages)
-      default:                 return ROLES.OWNER;
-    }
+    if (!user) return ROLES.OWNER; 
+    // Normalize role strings to match our ROLES constant
+    const r = (user.role || '').toLowerCase();
+    if (Object.values(ROLES).includes(r)) return r;
+    if (r === 'admin' || r === 'restaurant_admin') return ROLES.OWNER;
+    if (r === 'staff') return ROLES.EMPLOYEE;
+    return ROLES.OWNER; // Safe default
   }, [user]);
 
   const can = useMemo(() => buildCan(role), [role]);
@@ -140,61 +157,28 @@ export function RoleProvider({ children }) {
 
 export function useRole() {
   const ctx = useContext(RoleContext);
-  // Safe fallback — if used outside RoleProvider, return safe defaults instead of crashing
   if (!ctx) return { role: ROLES.OWNER, can: buildCan(ROLES.OWNER), user: null };
   return ctx;
 }
 
-// ─── Route guard hook (use inside Router context) ─────────────────────────────
 export function useRouteGuard() {
   const { role, user } = useRole();
   const navigate = useNavigate();
   const location = useLocation();
 
   useEffect(() => {
-    // Don't enforce routes until we know who the user is
     if (!user) return;
-
     const path = location.pathname;
+    
+    // Whitelist bypass for home, auth, and onboarding
+    if (['/', '/auth', '/onboarding', '/support'].includes(path)) return;
 
-    if (role === ROLES.SPONSOR && !SPONSOR_ALLOWED.has(path)) {
-      logSecurityEvent(user, 'unauthorized_access_attempt',
-        `Sponsor tried to access: ${path}`);
-      navigate('/sponsor-dashboard', { replace: true });
-      return;
-    }
-
-    if (role === ROLES.STAFF && !STAFF_ALLOWED.has(path)) {
-      logSecurityEvent(user, 'unauthorized_access_attempt',
-        `Staff tried to access: ${path}`);
-      navigate('/staff-upload', { replace: true });
-      return;
-    }
-
-    if (role === ROLES.DRIVER && !DRIVER_ALLOWED.has(path)) {
-      logSecurityEvent(user, 'unauthorized_access_attempt',
-        `Driver tried to access: ${path}`);
-      navigate('/driver', { replace: true });
-      return;
-    }
-
-    if (role === ROLES.EMPLOYEE && !EMPLOYEE_ALLOWED.has(path)) {
-      logSecurityEvent(user, 'unauthorized_access_attempt',
-        `Employee tried to access: ${path}`);
-      navigate('/employee', { replace: true });
-      return;
-    }
-
-    if (role === ROLES.KITCHEN && !KITCHEN_ALLOWED.has(path)) {
-      logSecurityEvent(user, 'unauthorized_access_attempt',
-        `Kitchen staff tried to access: ${path}`);
-      navigate('/kitchen', { replace: true });
-      return;
-    }
-
-    if (role === ROLES.CUSTOMER && !CUSTOMER_ALLOWED.has(path)) {
-      navigate('/customer', { replace: true });
-      return;
+    // Check if the role is allowed to be on this specific dashboard
+    if (path.endsWith('-dashboard')) {
+      const dashboardRole = path.replace('/', '').replace('-dashboard', '');
+      if (dashboardRole !== role && role !== ROLES.OWNER) {
+        navigate(ROLE_HOME[role] || '/', { replace: true });
+      }
     }
   }, [location.pathname, role, user]);
 }

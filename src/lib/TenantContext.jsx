@@ -20,25 +20,45 @@ export function TenantProvider({ children }) {
     localStorage.getItem(`rc_restaurant_${user?.email || 'default'}`) || null
   );
 
-  const isManagerRole = user?.role === 'manager';
+  const isOwner = user?.role === ROLES.OWNER;
+  const isManager = user?.role === ROLES.MANAGER;
+  const isEmployee = user?.role === ROLES.EMPLOYEE;
+  const isDriver = user?.role === ROLES.DRIVER;
+  const isKitchen = user?.role === ROLES.KITCHEN;
+  const isCustomer = user?.role === ROLES.CUSTOMER;
+  const isSponsor = user?.role === ROLES.SPONSOR;
 
   const { data: restaurants = [], isLoading: loadingRestaurants, refetch: refetchRestaurants } = useQuery({
     queryKey: ['restaurants', user?.email, user?.role],
     queryFn: async () => {
       if (!user?.email) return [];
-      if (isManagerRole) {
-        // Managers don't own restaurants — fetch via their ManagerInvite to find the owner's restaurant
-        const invites = await base44.entities.ManagerInvite.filter({ email: user.email });
-        const active = invites.find(i => i.status !== 'revoked');
-        if (active?.restaurant_id) {
-          // Return a minimal restaurant stub so TenantContext has something to work with
-          const rests = await base44.entities.Restaurant.filter({ org_id: active.owner_email }, 'name', 10);
-          const match = rests.find(r => r.id === active.restaurant_id) || rests[0];
-          return match ? [match] : [];
-        }
-        return [];
+      
+      if (isOwner) {
+        return base44.entities.Restaurant.filter({ org_id: user.email }, 'name', 50);
       }
-      return base44.entities.Restaurant.filter({ org_id: user.email }, 'name', 50);
+
+      // Non-owners: find the restaurant via their invite or assignment
+      // We'll look for any active assignment to find the owner_email
+      const [mgr, emp, kit, drv] = await Promise.all([
+        base44.entities.ManagerInvite.filter({ email: user.email }),
+        base44.entities.Employee.filter({ email: user.email }),
+        base44.entities.Employee.filter({ email: user.email, position: 'Kitchen' }), // heuristic
+        base44.entities.Employee.filter({ email: user.email, is_driver: true }),
+      ]);
+
+      const assignment = mgr.find(i => i.status !== 'revoked') || 
+                         emp.find(e => e.is_active !== false) ||
+                         kit.find(k => k.is_active !== false) ||
+                         drv.find(d => d.is_active !== false);
+
+      if (assignment) {
+        const ownerEmail = assignment.owner_email || assignment.created_by;
+        if (ownerEmail) {
+          return base44.entities.Restaurant.filter({ org_id: ownerEmail }, 'name', 10);
+        }
+      }
+      
+      return [];
     },
     enabled: !!user?.email,
     staleTime: 60000,
@@ -90,41 +110,49 @@ export function TenantProvider({ children }) {
   const orgFilter = { org_id: user?.email || '' };
   const restaurantFilter = activeRestaurant ? { org_id: user?.email || '', restaurant_id: activeRestaurant.id } : null;
 
-  // Manager branch isolation
-  const isManager = user?.role === 'manager';
+  // Branch isolation for all staff roles
+  const isStaffRole = [ROLES.MANAGER, ROLES.EMPLOYEE, ROLES.DRIVER, ROLES.KITCHEN].includes(user?.role);
 
-  // Single lookup: hydrate branch + owner from ManagerInvite
   const [hydratedBranch, setHydratedBranch] = React.useState(null);
   const [inviteHydrated, setInviteHydrated] = React.useState(false);
 
   React.useEffect(() => {
-    if (!isManager || !user?.email || inviteHydrated) return;
+    if (!isStaffRole || !user?.email || inviteHydrated) return;
     if (user?.branch) { setHydratedBranch(user.branch); setInviteHydrated(true); return; }
     setInviteHydrated(true);
-    base44.entities.ManagerInvite.filter({ email: user.email })
-      .then(invites => {
-        const active = invites.find(i => i.status !== 'revoked');
-        if (active?.branch_key) {
-          setHydratedBranch(active.branch_key);
-          base44.auth.updateMe({ branch: active.branch_key }).catch(() => {});
-          base44.entities.ManagerInvite.update(active.id, { status: 'accepted' }).catch(() => {});
+    
+    // Attempt to find branch assignment across multiple sources
+    const findBranch = async () => {
+      const [mgr, emp] = await Promise.all([
+        base44.entities.ManagerInvite.filter({ email: user.email }),
+        base44.entities.Employee.filter({ email: user.email })
+      ]);
+      
+      const active = mgr.find(i => i.status !== 'revoked') || emp.find(e => e.is_active !== false);
+      if (active?.branch_key || active?.branch) {
+        const b = active.branch_key || active.branch;
+        setHydratedBranch(b);
+        base44.auth.updateMe({ branch: b }).catch(() => {});
+        if (active.invite_token) {
+           base44.entities.ManagerInvite.update(active.id, { status: 'accepted' }).catch(() => {});
         }
-      })
-      .catch(() => {});
-  }, [isManager, user?.email, user?.branch, inviteHydrated]);
+      }
+    };
+    findBranch();
+  }, [isStaffRole, user?.email, user?.branch, inviteHydrated]);
 
-  const managerBranch = isManager ? (user?.branch || hydratedBranch || null) : null;
+  const assignedBranch = isStaffRole ? (user?.branch || hydratedBranch || null) : null;
 
-  // TENANT ISOLATION: scope ALL entity queries to this owner.
-  // For managers: also scope to their assigned branch so they never see other branches' data.
-  // '__none__' ensures no records leak when email is missing (impossible match).
+  // TENANT ISOLATION
   const ownerFilter = React.useMemo(() => {
-    if (isManager) {
-      // Use '__none__' branch until hydrated — prevents cross-tenant leak during hydration
-      return { branch: managerBranch || '__none__' };
+    if (isStaffRole) {
+      return { branch: assignedBranch || '__none__' };
+    }
+    if (isCustomer) {
+       return { customer_email: user?.email || '__none__' };
     }
     return { created_by: user?.email || '__none__' };
-  }, [user?.email, isManager, managerBranch]);
+  }, [user?.email, isStaffRole, isCustomer, assignedBranch]);
 
   // On user CHANGE (not initial mount), clear ALL cached queries and localStorage restaurant
   // selection to prevent cross-tenant data leaks.
@@ -166,8 +194,13 @@ export function TenantProvider({ children }) {
       orgFilter,
       restaurantFilter,
       ownerFilter,
-      managerBranch,
+      managerBranch: assignedBranch,
       isManager,
+      isEmployee,
+      isDriver,
+      isKitchen,
+      isCustomer,
+      isSponsor,
     }}>
       {children}
     </TenantContext.Provider>

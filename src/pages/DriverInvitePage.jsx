@@ -106,8 +106,8 @@ export default function DriverInvitePage() {
     if (data.success) {
       setInviteData(data);
       setState('success');
-      log('Success — redirecting to /driver in 2s');
-      setTimeout(() => window.location.replace('/driver'), 2000);
+      log('Success — redirecting to /driver-dashboard in 2s');
+      setTimeout(() => window.location.replace('/driver-dashboard'), 2000);
     }
   };
 
@@ -192,7 +192,7 @@ export default function DriverInvitePage() {
                 <div className="flex justify-center">
                   <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
                 </div>
-                <Button className="w-full" onClick={() => window.location.replace('/driver')}>
+                <Button className="w-full" onClick={() => window.location.replace('/driver-dashboard')}>
                   Open Driver Dashboard
                 </Button>
               </div>

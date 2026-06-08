@@ -63,14 +63,7 @@ export const AuthProvider = ({ children }) => {
             localStorage.getItem('pending_driver_invite_token') ||
             localStorage.getItem('pending_employee_invite_token') ||
             localStorage.getItem('pending_kitchen_invite_token');
-          if (!currentUser.role && !hasPendingInvite) {
-            await withTimeout(base44.auth.updateMe({ role: 'admin' }), 5000).catch(() => {});
-            const updated = await withTimeout(base44.auth.me(), 5000).catch(() => currentUser);
-            if (!mounted.current) return;
-            setUser(updated || currentUser);
-          } else {
-            setUser(currentUser);
-          }
+          setUser(currentUser);
           setIsAuthenticated(true);
         } else {
           setIsAuthenticated(false);
@@ -112,14 +105,7 @@ export const AuthProvider = ({ children }) => {
         localStorage.getItem('pending_driver_invite_token') ||
         localStorage.getItem('pending_employee_invite_token') ||
         localStorage.getItem('pending_kitchen_invite_token');
-      if (!currentUser.role && !hasPendingInvite) {
-        await withTimeout(base44.auth.updateMe({ role: 'admin' }), 5000).catch(() => {});
-        const updated = await withTimeout(base44.auth.me(), 5000).catch(() => currentUser);
-        if (!mounted.current) return;
-        setUser(updated || currentUser);
-      } else {
-        setUser(currentUser);
-      }
+      setUser(currentUser);
       setIsAuthenticated(true);
     } catch (error) {
       if (!mounted.current) return;

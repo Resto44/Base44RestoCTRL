@@ -57,7 +57,7 @@ export default function KitchenInvitePage() {
     if (data.pending_auth) { setInviteData(data); setState('pending_auth'); return; }
     if (data.success) {
       setInviteData(data); setState('success');
-      setTimeout(() => window.location.replace('/kitchen'), 2000);
+      setTimeout(() => window.location.replace('/kitchen-dashboard'), 2000);
     }
   };
 
@@ -114,7 +114,7 @@ export default function KitchenInvitePage() {
                 </div>
                 <h2 className="font-black text-xl text-slate-800">Account Activated! 🎉</h2>
                 <p className="text-sm text-slate-500">Redirecting to kitchen dashboard…</p>
-                <Button className="w-full" onClick={() => window.location.replace('/kitchen')}>Open Kitchen Dashboard</Button>
+                <Button className="w-full" onClick={() => window.location.replace('/kitchen-dashboard')}>Open Kitchen Dashboard</Button>
               </div>
             )}
 

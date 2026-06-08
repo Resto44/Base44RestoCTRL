@@ -15,8 +15,11 @@ import Onboarding from '@/pages/Onboarding';
 import NotificationCenter from '@/pages/NotificationCenter';
 import AppLayout from '@/components/layout/AppLayout';
 import PaywallScreen from '@/components/subscription/PaywallScreen';
-import Dashboard from '@/pages/Dashboard';
-import Sales from '@/pages/Sales';
+import Dashboard from './pages/Dashboard';
+import KitchenDashboard from './pages/KitchenDashboard';
+import CustomerDashboard from './pages/CustomerDashboard';
+import SponsorDashboard from './pages/SponsorDashboard';
+import Sales from './pages/Sales';
 import Purchases from '@/pages/Purchases';
 import Products from '@/pages/Products';
 import SettingsPage from '@/pages/SettingsPage';
@@ -103,12 +106,12 @@ function OnboardingGate({ children }) {
 
   if (loadingRestaurants) return null; // wait — don't render children yet
 
-  // Managers and staff NEVER go through owner onboarding
-  const restrictedRole = user?.role === 'manager' || user?.role === 'staff' || user?.role === 'sponsor' || user?.role === 'driver' || user?.role === 'employee' || user?.role === 'kitchen' || user?.role === 'customer';
+  // Non-owner roles NEVER go through owner onboarding
+  const restrictedRole = [ROLES.MANAGER, ROLES.EMPLOYEE, ROLES.DRIVER, ROLES.SPONSOR, ROLES.KITCHEN, ROLES.CUSTOMER].includes(user?.role);
   if (restrictedRole) return children;
 
-  // 'admin' is the platform role for the account owner (set at signup or persisted on first login)
-  const isOwner = user?.role === 'admin' || user?.role === 'owner' || user?.role === 'restaurant_admin' || !user?.role;
+  // 'owner' is the platform role for the account owner
+  const isOwner = user?.role === ROLES.OWNER || !user?.role;
   const needsOnboarding = isOwner && restaurants.length === 0;
   const onOnboardingPage = location.pathname === '/onboarding';
 
@@ -176,67 +179,70 @@ const SubscribedRoutes = () => {
     <Routes>
       {/* Onboarding — always accessible, no AppLayout chrome */}
       <Route path="/onboarding" element={<Onboarding onComplete={() => window.location.replace('/')} />} />
-      <Route element={<AppLayout />}>
-        <Route path="/" element={<RoleGuard permission="viewDashboard"><Dashboard /></RoleGuard>} />
-        <Route path="/staff-upload" element={<RoleGuard permission="uploadSales"><StaffUpload /></RoleGuard>} />
-        <Route path="/sales" element={<RoleGuard permission="viewSales"><Sales /></RoleGuard>} />
-        <Route path="/purchases" element={<RoleGuard permission="viewPurchases"><Purchases /></RoleGuard>} />
-        <Route path="/products" element={<RoleGuard permission="viewInventory"><Products /></RoleGuard>} />
-        <Route path="/settings" element={<RoleGuard permission="manageSettings"><SettingsPage /></RoleGuard>} />
-        <Route path="/expenses" element={<RoleGuard permission="viewExpenses"><Expenses /></RoleGuard>} />
-        <Route path="/tasks" element={<RoleGuard permission="viewTasks"><Tasks /></RoleGuard>} />
-        <Route path="/alerts" element={<RoleGuard permission="viewAlerts"><Alerts /></RoleGuard>} />
-        <Route path="/reports" element={<RoleGuard permission="viewReports"><Reports /></RoleGuard>} />
-        <Route path="/inventory" element={<RoleGuard permission="viewInventory"><Inventory /></RoleGuard>} />
-        <Route path="/inventory-transfers" element={<RoleGuard permission="viewInventory"><InventoryTransfer /></RoleGuard>} />
-        <Route path="/suppliers" element={<RoleGuard permission="viewSuppliers"><Suppliers /></RoleGuard>} />
-        <Route path="/brand" element={<RoleGuard permission="viewBrandSettings"><BrandSettings /></RoleGuard>} />
-        <Route path="/billing" element={<RoleGuard permission="viewBilling"><Billing /></RoleGuard>} />
-        <Route path="/scheduled-reports" element={<RoleGuard permission="exportPDF"><ScheduledReports /></RoleGuard>} />
-        <Route path="/purchase-orders" element={<RoleGuard permission="viewSuppliers"><PurchaseOrders /></RoleGuard>} />
-        <Route path="/inventory-waste" element={<RoleGuard permission="viewInventory"><InventoryWaste /></RoleGuard>} />
-        {/* /staff-attendance redirects to unified attendance page */}
-        <Route path="/staff-attendance" element={<RoleGuard permission="viewStaffAttendance"><EmployeeAttendance /></RoleGuard>} />
-        <Route path="/restaurants" element={<RoleGuard permission="viewBrandSettings"><RestaurantManager /></RoleGuard>} />
-        <Route path="/notifications" element={<RoleGuard permission="viewAlerts"><NotificationCenter /></RoleGuard>} />
-        <Route path="/activity-logs" element={<RoleGuard permission="viewActivityLogs"><ActivityLogs /></RoleGuard>} />
-        <Route path="/price-optimization" element={<RoleGuard permission="viewReports"><PriceOptimization /></RoleGuard>} />
-        <Route path="/sales-dashboard" element={<RoleGuard permission="viewReports"><SalesDashboard /></RoleGuard>} />
-        <Route path="/recipes" element={<RoleGuard permission="viewInventory"><Recipes /></RoleGuard>} />
-        <Route path="/profit-loss" element={<RoleGuard permission="viewReports"><ProfitLoss /></RoleGuard>} />
-        <Route path="/cashflow" element={<RoleGuard permission="viewReports"><CashFlow /></RoleGuard>} />
-        <Route path="/inventory-forecast" element={<InventoryForecast />} />
-        <Route path="/payroll" element={<RoleGuard permission="viewPayroll"><Payroll /></RoleGuard>} />
-        <Route path="/employees" element={<RoleGuard permission="viewEmployees"><Employees /></RoleGuard>} />
-        <Route path="/employee-control" element={<RoleGuard permission="viewEmployeeControl"><EmployeeControl /></RoleGuard>} />
-        <Route path="/employee-attendance" element={<RoleGuard permission="recordAttendance"><EmployeeAttendance /></RoleGuard>} />
-        <Route path="/treasury" element={<RoleGuard permission="viewTreasury"><Treasury /></RoleGuard>} />
-        <Route path="/sponsor-treasury" element={<RoleGuard permission="viewSponsorTreasury"><SponsorTreasury /></RoleGuard>} />
-        <Route path="/sponsor-dashboard" element={<SponsorDashboard />} />
-        <Route path="/approval-policy" element={<RoleGuard permission="viewBrandSettings"><ApprovalPolicy /></RoleGuard>} />
-        <Route path="/network-accounts" element={<RoleGuard permission="viewNetworkAccounts"><NetworkAccounts /></RoleGuard>} />
-        <Route path="/network-analytics" element={<RoleGuard permission="viewNetworkAnalytics"><NetworkAnalytics /></RoleGuard>} />
-        <Route path="/debts" element={<RoleGuard permission="viewDebts"><DebtManagement /></RoleGuard>} />
-        <Route path="/categories" element={<RoleGuard permission="manageSettings"><CategoryManager /></RoleGuard>} />
-        <Route path="/support" element={<Support />} />
-        <Route path="/super-admin" element={<SuperAdmin />} />
-        <Route path="/branch-management" element={<RoleGuard permission="viewBrandSettings"><BranchManagement /></RoleGuard>} />
-        <Route path="/telegram-settings" element={<RoleGuard permission="viewBrandSettings"><TelegramSettings /></RoleGuard>} />
-        <Route path="/delivery" element={<RoleGuard permission="viewDelivery"><DeliveryOrders /></RoleGuard>} />
-        <Route path="/menu-products" element={<RoleGuard permission="viewDelivery"><MenuProducts /></RoleGuard>} />
-        <Route path="/driver-settlements" element={<RoleGuard permission="viewDelivery"><DriverSettlements /></RoleGuard>} />
-        <Route path="/driver" element={<DriverPortal />} />
-        {/* Dashboard aliases — role-specific named routes */}
-        <Route path="/driver-dashboard" element={<DriverPortal />} />
-        <Route path="/employee" element={<EmployeePortal />} />
-        <Route path="/employee-dashboard" element={<EmployeePortal />} />
-        <Route path="/manager-dashboard" element={<RoleGuard permission="viewSales"><Sales /></RoleGuard>} />
-        <Route path="/owner-dashboard" element={<RoleGuard permission="viewDashboard"><Dashboard /></RoleGuard>} />
-        <Route path="/kitchen" element={<KitchenDashboard />} />
-        <Route path="/kitchen-dashboard" element={<KitchenDashboard />} />
-        <Route path="/customer" element={<CustomerDashboard />} />
-        <Route path="/customer-dashboard" element={<CustomerDashboard />} />
-      </Route>
+        <Route element={<AppLayout />}>
+          <Route path="/" element={<RoleGuard permission="viewDashboard"><Dashboard /></RoleGuard>} />
+          <Route path="/staff-upload" element={<RoleGuard permission="uploadSales"><StaffUpload /></RoleGuard>} />
+          <Route path="/sales" element={<RoleGuard permission="viewSales"><Sales /></RoleGuard>} />
+          <Route path="/purchases" element={<RoleGuard permission="viewPurchases"><Purchases /></RoleGuard>} />
+          <Route path="/products" element={<RoleGuard permission="viewInventory"><Products /></RoleGuard>} />
+          <Route path="/settings" element={<RoleGuard permission="manageSettings"><SettingsPage /></RoleGuard>} />
+          <Route path="/expenses" element={<RoleGuard permission="viewExpenses"><Expenses /></RoleGuard>} />
+          <Route path="/tasks" element={<RoleGuard permission="viewTasks"><Tasks /></RoleGuard>} />
+          <Route path="/alerts" element={<RoleGuard permission="viewAlerts"><Alerts /></RoleGuard>} />
+          <Route path="/reports" element={<RoleGuard permission="viewReports"><Reports /></RoleGuard>} />
+          <Route path="/inventory" element={<RoleGuard permission="viewInventory"><Inventory /></RoleGuard>} />
+          <Route path="/inventory-transfers" element={<RoleGuard permission="viewInventory"><InventoryTransfer /></RoleGuard>} />
+          <Route path="/suppliers" element={<RoleGuard permission="viewSuppliers"><Suppliers /></RoleGuard>} />
+          <Route path="/brand" element={<RoleGuard permission="viewBrandSettings"><BrandSettings /></RoleGuard>} />
+          <Route path="/billing" element={<RoleGuard permission="viewBilling"><Billing /></RoleGuard>} />
+          <Route path="/scheduled-reports" element={<RoleGuard permission="exportPDF"><ScheduledReports /></RoleGuard>} />
+          <Route path="/purchase-orders" element={<RoleGuard permission="viewSuppliers"><PurchaseOrders /></RoleGuard>} />
+          <Route path="/inventory-waste" element={<RoleGuard permission="viewInventory"><InventoryWaste /></RoleGuard>} />
+          {/* /staff-attendance redirects to unified attendance page */}
+          <Route path="/staff-attendance" element={<RoleGuard permission="viewStaffAttendance"><EmployeeAttendance /></RoleGuard>} />
+          <Route path="/restaurants" element={<RoleGuard permission="viewBrandSettings"><RestaurantManager /></RoleGuard>} />
+          <Route path="/notifications" element={<RoleGuard permission="viewAlerts"><NotificationCenter /></RoleGuard>} />
+          <Route path="/activity-logs" element={<RoleGuard permission="viewActivityLogs"><ActivityLogs /></RoleGuard>} />
+          <Route path="/price-optimization" element={<RoleGuard permission="viewReports"><PriceOptimization /></RoleGuard>} />
+          <Route path="/sales-dashboard" element={<RoleGuard permission="viewReports"><SalesDashboard /></RoleGuard>} />
+          <Route path="/recipes" element={<RoleGuard permission="viewInventory"><Recipes /></RoleGuard>} />
+          <Route path="/profit-loss" element={<RoleGuard permission="viewReports"><ProfitLoss /></RoleGuard>} />
+          <Route path="/cashflow" element={<RoleGuard permission="viewReports"><CashFlow /></RoleGuard>} />
+          <Route path="/inventory-forecast" element={<InventoryForecast />} />
+          <Route path="/payroll" element={<RoleGuard permission="viewPayroll"><Payroll /></RoleGuard>} />
+          <Route path="/employees" element={<RoleGuard permission="viewEmployees"><Employees /></RoleGuard>} />
+          <Route path="/employee-control" element={<RoleGuard permission="viewEmployeeControl"><EmployeeControl /></RoleGuard>} />
+          <Route path="/employee-attendance" element={<RoleGuard permission="recordAttendance"><EmployeeAttendance /></RoleGuard>} />
+          <Route path="/treasury" element={<RoleGuard permission="viewTreasury"><Treasury /></RoleGuard>} />
+          <Route path="/sponsor-treasury" element={<RoleGuard permission="viewSponsorTreasury"><SponsorTreasury /></RoleGuard>} />
+          <Route path="/approval-policy" element={<RoleGuard permission="viewBrandSettings"><ApprovalPolicy /></RoleGuard>} />
+          <Route path="/network-accounts" element={<RoleGuard permission="viewNetworkAccounts"><NetworkAccounts /></RoleGuard>} />
+          <Route path="/network-analytics" element={<RoleGuard permission="viewNetworkAnalytics"><NetworkAnalytics /></RoleGuard>} />
+          <Route path="/debts" element={<RoleGuard permission="viewDebts"><DebtManagement /></RoleGuard>} />
+          <Route path="/categories" element={<RoleGuard permission="manageSettings"><CategoryManager /></RoleGuard>} />
+          <Route path="/support" element={<Support />} />
+          <Route path="/super-admin" element={<SuperAdmin />} />
+          <Route path="/branch-management" element={<RoleGuard permission="viewBrandSettings"><BranchManagement /></RoleGuard>} />
+          <Route path="/telegram-settings" element={<RoleGuard permission="viewBrandSettings"><TelegramSettings /></RoleGuard>} />
+          <Route path="/delivery" element={<RoleGuard permission="viewDelivery"><DeliveryOrders /></RoleGuard>} />
+          <Route path="/menu-products" element={<RoleGuard permission="viewDelivery"><MenuProducts /></RoleGuard>} />
+          <Route path="/driver-settlements" element={<RoleGuard permission="viewDelivery"><DriverSettlements /></RoleGuard>} />
+          
+          {/* Dashboard aliases — role-specific named routes */}
+          <Route path="/owner-dashboard" element={<RoleGuard permission="viewDashboard"><Dashboard /></RoleGuard>} />
+          <Route path="/manager-dashboard" element={<RoleGuard permission="viewDashboard"><Dashboard /></RoleGuard>} />
+          <Route path="/employee-dashboard" element={<EmployeePortal />} />
+          <Route path="/driver-dashboard" element={<DriverPortal />} />
+          <Route path="/sponsor-dashboard" element={<SponsorDashboard />} />
+          <Route path="/kitchen-dashboard" element={<KitchenDashboard />} />
+          <Route path="/customer-dashboard" element={<CustomerDashboard />} />
+          
+          {/* Legacy/Shortcut paths */}
+          <Route path="/employee" element={<EmployeePortal />} />
+          <Route path="/driver" element={<DriverPortal />} />
+          <Route path="/kitchen" element={<KitchenDashboard />} />
+          <Route path="/customer" element={<CustomerDashboard />} />
+        </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>
     </OnboardingGate>
@@ -252,7 +258,7 @@ function ManagerRoleApplier() {
     if (!user?.email) return;
 
     // Only apply for roles that should not have manager access yet
-    const safeRoles = new Set(['user', 'admin', null, undefined, '']);
+    const safeRoles = new Set(['user', ROLES.OWNER, null, undefined, '']);
     if (!safeRoles.has(user.role)) return;
 
     // Check all invite token types

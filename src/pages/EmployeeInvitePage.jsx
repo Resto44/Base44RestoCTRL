@@ -101,8 +101,8 @@ export default function EmployeeInvitePage() {
     if (data.success) {
       setInviteData(data);
       setState('success');
-      log('Success — redirecting to /employee in 2s');
-      setTimeout(() => window.location.replace('/employee'), 2000);
+      log('Success — redirecting to /employee-dashboard in 2s');
+      setTimeout(() => window.location.replace('/employee-dashboard'), 2000);
     }
   };
 
@@ -195,7 +195,7 @@ export default function EmployeeInvitePage() {
                 </div>
                 <Button
                   className="w-full bg-emerald-600 hover:bg-emerald-700"
-                  onClick={() => window.location.replace('/employee')}>
+                  onClick={() => window.location.replace('/employee-dashboard')}>
                   Open Employee Dashboard
                 </Button>
               </div>

@@ -3,7 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/AuthContext';
 import { useTenant } from '@/lib/TenantContext';
-import { useRole } from '@/lib/RoleContext';
+import { useRole, ROLES } from '@/lib/RoleContext';
 import { useLanguage } from '@/lib/LanguageContext';
 import { useNotify } from '@/lib/useNotify';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -72,7 +72,7 @@ export default function EmployeeAttendance() {
   const notify = useNotify();
   const qc = useQueryClient();
 
-  const isOwner = role === 'owner' || role === 'restaurant_admin';
+  const isOwner = role === ROLES.OWNER;
   const defaultBranch = isManager ? (managerBranch || '') : (branches[0]?.key || '');
 
   const [selectedBranch, setSelectedBranch] = useState(defaultBranch);

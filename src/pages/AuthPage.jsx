@@ -45,7 +45,7 @@ export default function AuthPage() {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { full_name: fullName } },
+      options: { data: { full_name: fullName, role: 'customer' } },
     });
     if (error) {
       toast.error(error.message);

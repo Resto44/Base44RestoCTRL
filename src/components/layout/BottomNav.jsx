@@ -1,43 +1,47 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Receipt, BarChart3, MoreHorizontal, Wallet, Users, Truck, Home } from 'lucide-react';
+import { LayoutDashboard, Receipt, BarChart3, MoreHorizontal, Wallet, Users, Truck, Home, ChefHat, ShoppingBag, ClipboardList, UserCheck } from 'lucide-react';
 import { useLanguage } from '@/lib/LanguageContext';
 import { useRole, ROLES } from '@/lib/RoleContext';
 
 // Clean enterprise navigation — 5 items max per role
 const NAV_BY_ROLE = {
   [ROLES.OWNER]: [
-    { path: '/',          icon: LayoutDashboard, labelKey: 'dashboard' },
-    { path: '/sales',     icon: Receipt,         labelKey: 'sales' },
-    { path: '/delivery',  icon: Truck,           labelKey: 'delivery' },
-    { path: '/treasury',  icon: Wallet,          labelKey: 'treasury' },
-    { path: '/settings',  icon: MoreHorizontal,  labelKey: 'settings' },
-  ],
-  [ROLES.RESTAURANT_ADMIN]: [
-    { path: '/',          icon: LayoutDashboard, labelKey: 'dashboard' },
-    { path: '/sales',     icon: Receipt,         labelKey: 'sales' },
-    { path: '/delivery',  icon: Truck,           labelKey: 'delivery' },
-    { path: '/reports',   icon: BarChart3,       labelKey: 'reports' },
-    { path: '/settings',  icon: MoreHorizontal,  labelKey: 'settings' },
+    { path: '/owner-dashboard', icon: LayoutDashboard, labelKey: 'dashboard' },
+    { path: '/sales',           icon: Receipt,         labelKey: 'sales' },
+    { path: '/delivery',        icon: Truck,           labelKey: 'delivery' },
+    { path: '/treasury',        icon: Wallet,          labelKey: 'treasury' },
+    { path: '/settings',        icon: MoreHorizontal,  labelKey: 'settings' },
   ],
   [ROLES.MANAGER]: [
-    { path: '/sales',               icon: Receipt,         labelKey: 'sales' },
-    { path: '/delivery',            icon: Truck,           labelKey: 'delivery' },
-    { path: '/employee-attendance', icon: Users,           labelKey: 'attendance' },
-    { path: '/settings',            icon: MoreHorizontal,  labelKey: 'settings' },
-  ],
-  [ROLES.STAFF]: [
-    { path: '/staff-upload',        icon: Receipt,         labelKey: 'sales' },
-    { path: '/employee-attendance', icon: Users,           labelKey: 'attendance' },
-  ],
-  [ROLES.SPONSOR]: [
-    { path: '/sponsor-treasury', icon: Wallet, labelKey: 'treasury' },
-  ],
-  [ROLES.DRIVER]: [
-    { path: '/driver', icon: Home, labelKey: 'home' },
+    { path: '/manager-dashboard', icon: LayoutDashboard, labelKey: 'dashboard' },
+    { path: '/sales',             icon: Receipt,         labelKey: 'sales' },
+    { path: '/delivery',          icon: Truck,           labelKey: 'delivery' },
+    { path: '/employees',         icon: Users,           labelKey: 'employees' },
+    { path: '/reports',           icon: BarChart3,       labelKey: 'reports' },
   ],
   [ROLES.EMPLOYEE]: [
-    { path: '/employee', icon: Home, labelKey: 'home' },
+    { path: '/employee-dashboard',  icon: LayoutDashboard, labelKey: 'dashboard' },
+    { path: '/employee-attendance', icon: UserCheck,       labelKey: 'attendance' },
+    { path: '/tasks',               icon: ClipboardList,   labelKey: 'tasks' },
+    { path: '/employee',            icon: Home,            labelKey: 'home' },
+  ],
+  [ROLES.DRIVER]: [
+    { path: '/driver-dashboard', icon: LayoutDashboard, labelKey: 'dashboard' },
+    { path: '/delivery',         icon: Truck,           labelKey: 'delivery' },
+    { path: '/driver',           icon: Home,            labelKey: 'home' },
+  ],
+  [ROLES.SPONSOR]: [
+    { path: '/sponsor-dashboard', icon: LayoutDashboard, labelKey: 'dashboard' },
+    { path: '/sponsor-treasury',  icon: Wallet,          labelKey: 'treasury' },
+  ],
+  [ROLES.KITCHEN]: [
+    { path: '/kitchen-dashboard', icon: LayoutDashboard, labelKey: 'dashboard' },
+    { path: '/kitchen',           icon: ChefHat,         labelKey: 'kitchen' },
+  ],
+  [ROLES.CUSTOMER]: [
+    { path: '/customer-dashboard', icon: LayoutDashboard, labelKey: 'dashboard' },
+    { path: '/customer',           icon: ShoppingBag,     labelKey: 'menu' },
   ],
 };
 
