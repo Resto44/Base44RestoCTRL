@@ -11,21 +11,18 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import PageHeader from '@/components/shared/PageHeader';
 import { Send, Bot, CheckCircle, XCircle, Loader2, Info, MessageSquare } from 'lucide-react';
-
 const SETTING_KEY = 'telegram_notification_settings';
 const DEFAULT_TEMPLATE = `Restaurant: {restaurant}
 Branch: {branch}
 Event: {event}
 Amount: {amount}
 Time: {time}`;
-
 const DEFAULT_SETTINGS = {
   enabled: false,
   bot_token: '',
   chat_id: '',
   message_template: DEFAULT_TEMPLATE,
 };
-
 export default function TelegramSettings() {
   const { user } = useAuth();
   const { orgId } = useTenant();
@@ -36,12 +33,16 @@ export default function TelegramSettings() {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState(null); // null | 'success' | 'error'
   const [testError, setTestError] = useState('');
-
   // Load existing settings from app_settings
+  // FIX: The app_settings table does NOT have an org_id column in the live schema.
+  // The RLS policy grants access via created_by = current_user_email().
+  // We filter by key only and rely on RLS to scope to the current user.
+  // Previously filtering by { key, org_id } caused the load query to return 0 rows
+  // (no org_id column → Supabase silently ignored or mismatched the filter),
+  // so existingId was always null and settings always reset to defaults on refresh.
   useEffect(() => {
-    if (!orgId) return;
-    
-    base44.entities.AppSettings.filter({ key: SETTING_KEY, org_id: orgId }, '-created_date', 1)
+    if (!user?.email) return;
+    base44.entities.AppSettings.filter({ key: SETTING_KEY }, '-created_date', 1)
       .then(rows => {
         if (rows[0]?.value) {
           try {
@@ -54,18 +55,20 @@ export default function TelegramSettings() {
         }
       })
       .catch(err => console.warn('[TelegramSettings] load error:', err));
-  }, [orgId]);
-
+  }, [user?.email]);
   const handleSave = async () => {
-    if (!orgId) return;
+    if (!user?.email) return;
     setSaving(true);
-    
+    // FIX: Save with created_by (the column that RLS uses) instead of org_id.
+    // The app_settings table schema only has: id, key, value, created_by,
+    // created_date, updated_date.  There is no org_id column.
+    // Sending org_id in the payload caused the INSERT to succeed but the
+    // subsequent filter({ key, org_id }) on load found nothing (column absent),
+    // so settings appeared lost after every refresh.
     const payload = {
       key: SETTING_KEY,
       value: JSON.stringify(settings),
-      org_id: orgId,
     };
-
     try {
       if (existingId) {
         await base44.entities.AppSettings.update(existingId, payload);
@@ -81,12 +84,10 @@ export default function TelegramSettings() {
       setSaving(false);
     }
   };
-
   const handleTest = async () => {
     setTesting(true);
     setTestResult(null);
     setTestError('');
-
     const { bot_token, chat_id, message_template } = settings;
     if (!bot_token || !chat_id) {
       setTestResult('error');
@@ -94,7 +95,6 @@ export default function TelegramSettings() {
       setTesting(false);
       return;
     }
-
     try {
       const testMessage = message_template
         .replace('{restaurant}', 'Test Restaurant')
@@ -102,7 +102,6 @@ export default function TelegramSettings() {
         .replace('{event}', 'Test Connection')
         .replace('{amount}', '0.00')
         .replace('{time}', new Date().toLocaleString());
-
       const url = `https://api.telegram.org/bot${bot_token}/sendMessage`;
       const res = await fetch(url, {
         method: 'POST',
@@ -113,7 +112,6 @@ export default function TelegramSettings() {
           parse_mode: 'HTML',
         }),
       });
-
       const data = await res.json();
       if (data.ok) {
         setTestResult('success');
@@ -128,14 +126,12 @@ export default function TelegramSettings() {
       setTesting(false);
     }
   };
-
   return (
     <div className="space-y-6 pb-24">
       <PageHeader
         title="Telegram Notifications"
         subtitle="Receive real-time alerts in Telegram when key events occur."
       />
-
       {/* Setup Instructions */}
       <Card className="border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800">
         <CardHeader className="pb-2">
@@ -153,7 +149,6 @@ export default function TelegramSettings() {
           <p>6. Paste your Chat ID below, save, then press <strong>Send Test Message</strong>.</p>
         </CardContent>
       </Card>
-
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Configuration Card */}
         <Card>
@@ -177,7 +172,6 @@ export default function TelegramSettings() {
                 onCheckedChange={(v) => setSettings(s => ({ ...s, enabled: v }))}
               />
             </div>
-
             {/* Bot Token */}
             <div className="space-y-1.5">
               <Label htmlFor="bot_token">Bot Token</Label>
@@ -191,7 +185,6 @@ export default function TelegramSettings() {
               />
               <p className="text-xs text-muted-foreground">Provided by @BotFather when you create a bot.</p>
             </div>
-
             {/* Chat ID */}
             <div className="space-y-1.5">
               <Label htmlFor="chat_id">Chat ID</Label>
@@ -205,7 +198,6 @@ export default function TelegramSettings() {
               />
               <p className="text-xs text-muted-foreground">Your personal or group chat ID. Negative IDs are for groups.</p>
             </div>
-
             {/* Actions */}
             <div className="flex flex-wrap gap-3 pt-2">
               <Button
@@ -234,7 +226,6 @@ export default function TelegramSettings() {
                 )}
               </Button>
             </div>
-
             {/* Test Result */}
             {testResult === 'success' && (
               <div className="flex items-center gap-2 rounded-md bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 px-4 py-3 text-sm text-green-800 dark:text-green-300">
@@ -244,7 +235,6 @@ export default function TelegramSettings() {
                 </span>
               </div>
             )}
-
             {testResult === 'error' && (
               <div className="flex items-start gap-2 rounded-md bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 px-4 py-3 text-sm text-red-800 dark:text-red-300">
                 <XCircle className="w-4 h-4 shrink-0 mt-0.5" />
@@ -255,7 +245,6 @@ export default function TelegramSettings() {
             )}
           </CardContent>
         </Card>
-
         {/* Message Template Card */}
         <Card>
           <CardHeader>
@@ -300,7 +289,6 @@ export default function TelegramSettings() {
                 ))}
               </div>
             </div>
-            
             <div className="rounded-md bg-muted p-3">
               <h4 className="text-xs font-semibold mb-2 flex items-center gap-1">
                 <Info className="w-3 h-3" /> Preview
@@ -317,7 +305,6 @@ export default function TelegramSettings() {
           </CardContent>
         </Card>
       </div>
-
       {/* Status summary */}
       <Card>
         <CardContent className="pt-4">
