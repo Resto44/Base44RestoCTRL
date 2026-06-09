@@ -14,22 +14,6 @@ import { appParams } from '@/lib/app-params';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-let supabase;
-try {
-  if (SUPABASE_URL && SUPABASE_ANON_KEY) {
-    supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      auth: { persistSession: true, autoRefreshToken: true },
-    });
-    console.log('[supabaseClient] Supabase client initialized ✓', SUPABASE_URL);
-  } else {
-    console.warn('[supabaseClient] VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY not set — using stub client');
-    supabase = null;
-  }
-} catch (e) {
-  console.error('[supabaseClient] Supabase init failed:', e.message);
-  supabase = null;
-}
-
 // ── Stub Supabase for when it's unavailable ────────────────────────────────
 const stubAuth = {
   getUser: async () => ({ data: { user: null }, error: null }),
@@ -59,16 +43,34 @@ const stubFrom = () => ({
   then: (resolve) => resolve({ data: [], error: null }),
 });
 
-if (!supabase) {
-  supabase = {
-    auth: stubAuth,
-    from: () => stubFrom(),
-    channel: () => ({
-      on: function() { return this; },
-      subscribe: function() { return this; },
-    }),
-    removeChannel: () => {},
-  };
+let supabase = {
+  auth: stubAuth,
+  from: () => stubFrom(),
+  channel: () => ({
+    on: function() { return this; },
+    subscribe: function() { return this; },
+  }),
+  removeChannel: () => {},
+};
+
+try {
+  if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+    const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: { persistSession: true, autoRefreshToken: true },
+    });
+    // Use Object.assign to maintain the same reference in case of circular imports
+    Object.assign(supabase, client);
+    // Ensure the prototype is also copied if necessary, or just replace the variable
+    // For safety with live bindings, replacing the variable is usually fine, 
+    // but Object.assign is safer for captured closures if they captured the object itself.
+    // However, the closures capture the 'supabase' variable, so re-assignment is fine.
+    supabase = client; 
+    console.log('[supabaseClient] Supabase client initialized ✓', SUPABASE_URL);
+  } else {
+    console.warn('[supabaseClient] VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY not set — using stub client');
+  }
+} catch (e) {
+  console.error('[supabaseClient] Supabase init failed:', e.message);
 }
 
 export { supabase };
