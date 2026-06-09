@@ -73,6 +73,7 @@ import EmployeeInvitePage from '@/pages/EmployeeInvitePage';
 import KitchenInvitePage from '@/pages/KitchenInvitePage';
 import AuthPage from '@/pages/AuthPage';
 import TelegramSettings from '@/pages/TelegramSettings';
+import LandingPage from '@/pages/LandingPage';
 
 // Route-level error boundary — catches crashes in individual pages
 class RouteErrorBoundary extends React.Component {
@@ -131,7 +132,7 @@ function OnboardingGate({ children }) {
 function RoleHomeRedirect() {
   const { role } = useRole();
   const { restaurants, loadingRestaurants } = useTenant();
-  const home = ROLE_HOME[role] || '/';
+  const home = ROLE_HOME[role] === '/' ? '/dashboard' : (ROLE_HOME[role] || '/dashboard');
 
   React.useEffect(() => {
     if (loadingRestaurants) return;
@@ -177,7 +178,8 @@ const SubscribedRoutes = () => {
       {/* Onboarding — always accessible, no AppLayout chrome */}
       <Route path="/onboarding" element={<Onboarding onComplete={() => window.location.replace('/')} />} />
         <Route element={<AppLayout />}>
-          <Route path="/" element={<RoleGuard permission="viewDashboard"><Dashboard /></RoleGuard>} />
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/dashboard" element={<RoleGuard permission="viewDashboard"><Dashboard /></RoleGuard>} />
           <Route path="/staff-upload" element={<RoleGuard permission="uploadSales"><StaffUpload /></RoleGuard>} />
           <Route path="/sales" element={<RoleGuard permission="viewSales"><Sales /></RoleGuard>} />
           <Route path="/purchases" element={<RoleGuard permission="viewPurchases"><Purchases /></RoleGuard>} />
