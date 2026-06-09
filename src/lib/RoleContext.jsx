@@ -125,7 +125,13 @@ const PERMISSIONS_LIST = {
   viewKitchenQueue: false, updatePrepStatus: false, placeOrders: false,
   trackOrders: false, manageSettings: false, manageBranches: false, manageUsers: false,
   manageRoles: false, manageCustomers: false, manageDrivers: false, manageKitchen: false,
-  manageSponsors: false, uploadSales: false, viewAlerts: false, viewSupport: true
+  manageSponsors: false, uploadSales: false, viewAlerts: false, viewSupport: true,
+  // Additional permissions used in route guards — must be listed here so Owner reduce() grants them
+  viewEmployees: false, viewPayroll: false, viewTreasury: false, viewExpenses: false,
+  viewDelivery: false, viewBrandSettings: false, viewBilling: false, viewDebts: false,
+  viewNetworkAccounts: false, viewNetworkAnalytics: false, viewSponsorTreasury: false,
+  viewActivityLogs: false, viewEmployeeControl: false, viewStaffAttendance: false,
+  viewSuppliers: false, exportPDF: false,
 };
 
 // logSecurityEvent is fire-and-forget via auditLogger
