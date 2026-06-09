@@ -16,6 +16,7 @@ const normalizeRole = (role) => {
 };
 
 const getSelectedRole = () => normalizeRole(getUrlParams().get('role'));
+const getRequestedRole = () => getUrlParams().has('role') ? getSelectedRole() : null;
 
 const getRoleHome = (role) => {
   const normalized = normalizeRole(role);
@@ -48,7 +49,10 @@ export default function AuthPage() {
     }
 
     try {
-      const currentUser = await base44.auth.me();
+      const requestedRole = getRequestedRole();
+      const currentUser = requestedRole
+        ? await base44.auth.updateMe({ role: requestedRole })
+        : await base44.auth.me();
       window.location.href = getRoleHome(currentUser?.role || fallbackRole);
     } catch (_error) {
       window.location.href = getRoleHome(fallbackRole);
