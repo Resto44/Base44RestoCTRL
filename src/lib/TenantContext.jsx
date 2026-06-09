@@ -173,11 +173,11 @@ export function TenantProvider({ children }) {
 
   // For managers: restrict branches list to only their assigned branch
   const effectiveBranches = React.useMemo(() => {
-    if (isManager && managerBranch) {
-      return branches.filter(b => b.key === managerBranch);
+    if (isManager && assignedBranch) {
+      return branches.filter(b => b.key === assignedBranch);
     }
     return branches;
-  }, [branches, isManager, managerBranch]);
+  }, [branches, isManager, assignedBranch]);
 
   return (
     <TenantContext.Provider value={{
