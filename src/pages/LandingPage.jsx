@@ -39,7 +39,7 @@ export default function LandingPage() {
   // If already logged in, show a different CTA or redirect
   const handleGetStarted = () => {
     if (user) {
-      const home = ROLE_HOME[user.role] || '/';
+      const home = ROLE_HOME[user.role] === '/' ? '/dashboard' : (ROLE_HOME[user.role] || '/dashboard');
       navigate(home);
     } else {
       navigate('/auth?mode=signup');
@@ -171,7 +171,7 @@ export default function LandingPage() {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {roles.map((role) => (
-            <div key={role.role} onClick={() => navigate(`/auth?mode=signup&role=${role.role}`)} className="cursor-pointer">
+            <div key={role.role} onClick={() => navigate(`/auth?role=${role.role}`)} className="cursor-pointer">
               <RoleCard {...role} />
             </div>
           ))}

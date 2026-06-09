@@ -137,7 +137,8 @@ function RoleHomeRedirect() {
   React.useEffect(() => {
     if (loadingRestaurants) return;
     if (restaurants.length === 0) return; // don't redirect until onboarded
-    if (window.location.pathname === '/' && home !== '/') {
+    // Only redirect if on root or auth page and already logged in
+    if ((window.location.pathname === '/' || window.location.pathname === '/auth') && home !== '/') {
       window.location.replace(home);
     }
   }, [home, loadingRestaurants, restaurants.length]);
@@ -178,7 +179,7 @@ const SubscribedRoutes = () => {
       {/* Onboarding — always accessible, no AppLayout chrome */}
       <Route path="/onboarding" element={<Onboarding onComplete={() => window.location.replace('/')} />} />
         <Route element={<AppLayout />}>
-          <Route path="/" element={<LandingPage />} />
+          <Route path="/" element={<Dashboard />} />
           <Route path="/dashboard" element={<RoleGuard permission="viewDashboard"><Dashboard /></RoleGuard>} />
           <Route path="/staff-upload" element={<RoleGuard permission="uploadSales"><StaffUpload /></RoleGuard>} />
           <Route path="/sales" element={<RoleGuard permission="viewSales"><Sales /></RoleGuard>} />
@@ -360,6 +361,7 @@ function App() {
           <Router>
             <Routes>
               {/* Public routes — NO auth/subscription/onboarding checks */}
+              <Route path="/" element={<LandingPage />} />
               <Route path="/auth" element={<AuthPage />} />
               <Route path="/invite" element={<InvitePage />} />
               {/* Aliases for invite routes */}
