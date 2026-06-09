@@ -12,6 +12,8 @@ const getUrlParams = () => new URLSearchParams(window.location.search);
 
 const normalizeRole = (role) => {
   const r = (role || '').toLowerCase();
+  if (r === 'admin' || r === 'restaurant_admin') return ROLES.OWNER;
+  if (r === 'staff') return ROLES.EMPLOYEE;
   return Object.values(ROLES).includes(r) ? r : ROLES.CUSTOMER;
 };
 
