@@ -1,18 +1,36 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/api/supabaseClient';
+import { base44 } from '@/api/base44Client';
+import { ROLES, ROLE_HOME } from '@/lib/RoleContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2, ChefHat, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 
+const getUrlParams = () => new URLSearchParams(window.location.search);
+
+const normalizeRole = (role) => {
+  const r = (role || '').toLowerCase();
+  return Object.values(ROLES).includes(r) ? r : ROLES.CUSTOMER;
+};
+
+const getSelectedRole = () => normalizeRole(getUrlParams().get('role'));
+
+const getRoleHome = (role) => {
+  const normalized = normalizeRole(role);
+  return ROLE_HOME[normalized] === '/' ? '/dashboard' : (ROLE_HOME[normalized] || '/dashboard');
+};
+
 export default function AuthPage() {
-  const [mode, setMode] = useState('login'); // 'login' | 'signup' | 'reset'
+  const initialParams = getUrlParams();
+  const [mode, setMode] = useState(initialParams.get('mode') === 'signup' || initialParams.get('role') ? 'signup' : 'login'); // 'login' | 'signup' | 'reset'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
+  const selectedRole = getSelectedRole();
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -21,10 +39,20 @@ export default function AuthPage() {
     });
   }, []);
 
-  const redirectAfterLogin = () => {
-    const urlParams = new URLSearchParams(window.location.search);
+  const redirectAfterLogin = async (fallbackRole = selectedRole) => {
+    const urlParams = getUrlParams();
     const next = urlParams.get('next');
-    window.location.href = next || '/';
+    if (next) {
+      window.location.href = next;
+      return;
+    }
+
+    try {
+      const currentUser = await base44.auth.me();
+      window.location.href = getRoleHome(currentUser?.role || fallbackRole);
+    } catch (_error) {
+      window.location.href = getRoleHome(fallbackRole);
+    }
   };
 
   const handleLogin = async (e) => {
@@ -34,7 +62,7 @@ export default function AuthPage() {
     if (error) {
       toast.error(error.message);
     } else {
-      redirectAfterLogin();
+      await redirectAfterLogin();
     }
     setLoading(false);
   };
@@ -45,7 +73,7 @@ export default function AuthPage() {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { full_name: fullName, role: 'customer' } },
+      options: { data: { full_name: fullName, role: selectedRole } },
     });
     if (error) {
       toast.error(error.message);
@@ -53,7 +81,12 @@ export default function AuthPage() {
       toast.success('Check your email to confirm your account.');
       setMode('login');
     } else {
-      redirectAfterLogin();
+      try {
+        await base44.auth.updateMe({ full_name: fullName, role: selectedRole });
+      } catch (_error) {
+        // Keep signup moving even if the profile row is created asynchronously.
+      }
+      await redirectAfterLogin(selectedRole);
     }
     setLoading(false);
   };
