@@ -77,13 +77,29 @@ export default function DebtForm({ initial = {}, onSave, onCancel }) {
       installment_amount: parseFloat(form.installment_amount) || 0,
       status: paid >= total ? 'paid' : paid > 0 ? 'partial' : 'open',
     };
-    if (initial.id) {
-      await base44.entities.DebtRecord.update(initial.id, data);
-    } else {
-      await base44.entities.DebtRecord.create(data);
+    try {
+      const finalData = { ...data };
+      if (form.party_type === 'employee') {
+        finalData.employee_id = form.party_id;
+        finalData.employee_name = form.party_name;
+      } else if (form.party_type === 'driver') {
+        finalData.driver_id = form.party_id;
+        finalData.driver_name = form.party_name;
+      }
+      delete finalData.party_id;
+
+      if (initial.id) {
+        await base44.entities.DebtRecord.update(initial.id, finalData);
+      } else {
+        await base44.entities.DebtRecord.create(finalData);
+      }
+      onSave();
+    } catch (err) {
+      console.error('Failed to save debt:', err);
+      alert('Error: ' + (err.message || 'Unknown error'));
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
-    onSave();
   };
 
   const handlePartySelect = (val) => {
