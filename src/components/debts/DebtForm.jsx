@@ -6,11 +6,12 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useLanguage } from '@/lib/LanguageContext';
+import { useTenant } from '@/lib/TenantContext';
 import { useDebtI18n } from '@/lib/debtI18n';
 import { format } from 'date-fns';
 
 export default function DebtForm({ initial = {}, onSave, onCancel }) {
-  const { branches } = useLanguage();
+  const { branches, activeRestaurantId } = useTenant();
   const d = useDebtI18n();
 
   const partyTypes = [
@@ -50,6 +51,7 @@ export default function DebtForm({ initial = {}, onSave, onCancel }) {
     const paid = parseFloat(form.paid_amount) || 0;
     const data = {
       ...form,
+      restaurant_id: activeRestaurantId,
       total_amount: total,
       paid_amount: paid,
       remaining_amount: total - paid,
