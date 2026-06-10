@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Plus, RefreshCw, ShoppingBag, Truck, ChefHat, BarChart2, Users, Map } from 'lucide-react';
-import DriverInvitePanel from '@/components/driver/DriverInvitePanel';
+import DriverManagementPanel from '@/components/driver/DriverManagementPanel';
 import { ManagerLiveMap } from '@/components/driver/DriverLocationMap';
 import BranchSelect from '@/components/shared/BranchSelect';
 import OrderBoard from '@/components/delivery/OrderBoard';
@@ -212,10 +212,8 @@ export default function DeliveryOrders() {
           </TabsContent>
 
           <TabsContent value="drivermgmt">
-            <DriverInvitePanel
+            <DriverManagementPanel
               branch={selectedBranch}
-              branchLabel={branches.find(b => b.key === selectedBranch)?.label || selectedBranch}
-              restaurantName=""
               today={today}
             />
           </TabsContent>

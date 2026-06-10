@@ -271,7 +271,7 @@ const auth = {
 
 // ── Entity registry ────────────────────────────────────────────────────────
 const entities = {
-  Employee: createEntity('employees'), DriverInvite: createEntity('driver_invites'),
+  Employee: createEntity('employees'), Driver: createEntity('drivers'), DriverInvite: createEntity('driver_invites'),
   ManagerInvite: createEntity('manager_invites'), EmployeeInvite: createEntity('employee_invites'),
   DeliveryOrder: createEntity('delivery_orders'), DriverSettlement: createEntity('driver_settlements'),
   DriverShift: createEntity('driver_shifts'), DriverDebt: createEntity('driver_debts'),
