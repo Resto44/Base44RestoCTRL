@@ -12,8 +12,10 @@ const PARTY_ICONS = {
   supplier: '📦',
   loan: '🏦',
   branch: '🏪',
-  owner_personal: '👑',
-};
+    owner_personal: '👑',
+    employee: '👨‍💼',
+    driver: '🚚',
+  };
 
 export default function DebtCard({ debt, onPay, onView, onEdit }) {
   const d = useDebtI18n();

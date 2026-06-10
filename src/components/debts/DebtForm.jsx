@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,7 +12,7 @@ import { useDebtI18n } from '@/lib/debtI18n';
 import { format } from 'date-fns';
 
 export default function DebtForm({ initial = {}, onSave, onCancel }) {
-  const { branches, activeRestaurantId } = useTenant();
+  const { branches, activeRestaurantId, ownerFilter } = useTenant();
   const d = useDebtI18n();
 
   const partyTypes = [
@@ -21,6 +22,8 @@ export default function DebtForm({ initial = {}, onSave, onCancel }) {
     { value: 'loan', label: d.party_loan },
     { value: 'branch', label: d.party_branch },
     { value: 'owner_personal', label: d.party_owner_personal },
+    { value: 'employee', label: d.party_employee },
+    { value: 'driver', label: d.party_driver },
   ];
 
   const [form, setForm] = useState({
@@ -33,6 +36,7 @@ export default function DebtForm({ initial = {}, onSave, onCancel }) {
     date: format(new Date(), 'yyyy-MM-dd'),
     due_date: '',
     total_amount: '',
+    paid_amount: '',
     description: '',
     notes: '',
     interest_rate: '',
@@ -43,6 +47,20 @@ export default function DebtForm({ initial = {}, onSave, onCancel }) {
   const [saving, setSaving] = useState(false);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  // Load Employees
+  const { data: employees = [] } = useQuery({
+    queryKey: ['employees', ownerFilter],
+    queryFn: () => base44.entities.Employee.filter(ownerFilter || {}, 'full_name', 500),
+    enabled: form.party_type === 'employee' && !!ownerFilter?.created_by,
+  });
+
+  // Load Drivers
+  const { data: drivers = [] } = useQuery({
+    queryKey: ['drivers', activeRestaurantId],
+    queryFn: () => base44.entities.Driver.filter({ restaurant_id: activeRestaurantId }, 'full_name', 500),
+    enabled: form.party_type === 'driver' && !!activeRestaurantId,
+  });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -68,6 +86,31 @@ export default function DebtForm({ initial = {}, onSave, onCancel }) {
     onSave();
   };
 
+  const handlePartySelect = (val) => {
+    if (form.party_type === 'employee') {
+      const emp = employees.find(e => e.id === val);
+      if (emp) {
+        setForm(f => ({
+          ...f,
+          party_id: emp.id,
+          party_name: emp.full_name || emp.name,
+          party_phone: emp.phone || '',
+          branch: emp.branch || f.branch
+        }));
+      }
+    } else if (form.party_type === 'driver') {
+      const drv = drivers.find(d => d.id === val);
+      if (drv) {
+        setForm(f => ({
+          ...f,
+          party_id: drv.id,
+          party_name: drv.full_name,
+          party_phone: drv.phone || '',
+        }));
+      }
+    }
+  };
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4 py-2">
       {/* Type + Party Type */}
@@ -84,7 +127,12 @@ export default function DebtForm({ initial = {}, onSave, onCancel }) {
         </div>
         <div className="space-y-1">
           <Label>{d.party_label}</Label>
-          <Select value={form.party_type} onValueChange={v => set('party_type', v)}>
+          <Select value={form.party_type} onValueChange={v => {
+            set('party_type', v);
+            set('party_name', '');
+            set('party_phone', '');
+            set('party_id', '');
+          }}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               {partyTypes.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
@@ -93,11 +141,31 @@ export default function DebtForm({ initial = {}, onSave, onCancel }) {
         </div>
       </div>
 
-      {/* Name + Phone */}
+      {/* Name Selector for Employee/Driver or Input for others */}
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
           <Label>{d.name_label}</Label>
-          <Input required value={form.party_name} onChange={e => set('party_name', e.target.value)} placeholder={d.name_placeholder} />
+          {form.party_type === 'employee' ? (
+            <Select value={form.party_id} onValueChange={handlePartySelect}>
+              <SelectTrigger><SelectValue placeholder={d.name_placeholder} /></SelectTrigger>
+              <SelectContent>
+                {employees.map(e => (
+                  <SelectItem key={e.id} value={e.id}>{e.full_name || e.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : form.party_type === 'driver' ? (
+            <Select value={form.party_id} onValueChange={handlePartySelect}>
+              <SelectTrigger><SelectValue placeholder={d.name_placeholder} /></SelectTrigger>
+              <SelectContent>
+                {drivers.map(drv => (
+                  <SelectItem key={drv.id} value={drv.id}>{drv.full_name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <Input required value={form.party_name} onChange={e => set('party_name', e.target.value)} placeholder={d.name_placeholder} />
+          )}
         </div>
         <div className="space-y-1">
           <Label>{d.phone_label}</Label>

@@ -70,6 +70,8 @@ export const DEBT_TRANSLATIONS = {
     party_loan: 'Loan',
     party_branch: 'Branch',
     party_owner_personal: 'Personal',
+    party_employee: 'Employee',
+    party_driver: 'Driver',
 
     // Statuses
     status_open_label: 'Open',
@@ -212,6 +214,8 @@ export const DEBT_TRANSLATIONS = {
     party_loan: 'قرض',
     party_branch: 'فرع',
     party_owner_personal: 'شخصي',
+    party_employee: 'موظف',
+    party_driver: 'سائق',
 
     status_open_label: 'مفتوح',
     status_partial_label: 'جزئي',
@@ -346,6 +350,8 @@ export const DEBT_TRANSLATIONS = {
     party_loan: 'وام',
     party_branch: 'شعبه',
     party_owner_personal: 'شخصی',
+    party_employee: 'کارمند',
+    party_driver: 'راننده',
 
     status_open_label: 'باز',
     status_partial_label: 'جزئی',

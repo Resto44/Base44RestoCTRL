@@ -96,6 +96,8 @@ export default function DebtManagement() {
     { value: 'loan', label: d.party_loan },
     { value: 'branch', label: d.party_branch },
     { value: 'owner_personal', label: d.party_owner_personal },
+    { value: 'employee', label: d.party_employee },
+    { value: 'driver', label: d.party_driver },
   ];
 
   const remainingTotal = filtered.reduce((s, debt) => s + (debt.remaining_amount || 0), 0);

@@ -18,7 +18,9 @@
         "supplier",
         "loan",
         "branch",
-        "owner_personal"
+        "owner_personal",
+        "employee",
+        "driver"
       ],
       "description": "Who is the counterparty"
     },
