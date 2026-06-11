@@ -84,7 +84,7 @@ export default function AttendanceTab() {
     const hours = calcHours(form.check_in, form.check_out);
     createMut.mutate({
       ...form,
-      employee_name: emp?.name || form.employee_name,
+      employee_name: emp?.full_name || form.employee_name,
       branch: emp?.branch || form.branch,
       hours_worked: hours,
       late_minutes: Number(form.late_minutes) || 0,
@@ -183,13 +183,13 @@ export default function AttendanceTab() {
               <Select value={form.employee_id} onValueChange={v => {
                 const emp = employees.find(e => e.id === v);
                 set('employee_id', v);
-                set('employee_name', emp?.name || '');
+                set('employee_name', emp?.full_name || '');
                 set('branch', emp?.branch || '');
               }}>
-                <SelectTrigger><SelectValue placeholder={t('select_product')} /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={t('select_employee')} /></SelectTrigger>
                 <SelectContent>
                   {availableEmployees.filter(e => e.is_active !== false).map(e => (
-                    <SelectItem key={e.id} value={e.id}>{e.name} — {e.branch}</SelectItem>
+                    <SelectItem key={e.id} value={e.id}>{e.full_name} — {e.branch}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
