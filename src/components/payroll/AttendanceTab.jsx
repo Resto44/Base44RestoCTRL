@@ -48,7 +48,7 @@ export default function AttendanceTab() {
 
   const { data: employees = [] } = useQuery({
     queryKey: ['employees'],
-    queryFn: () => base44.entities.Employee.list('name', 500),
+    queryFn: () => base44.entities.Employee.list('full_name', 500),
   });
 
   const { data: records = [], isLoading } = useQuery({
@@ -186,7 +186,7 @@ export default function AttendanceTab() {
                 set('employee_name', emp?.full_name || '');
                 set('branch', emp?.branch || '');
               }}>
-                <SelectTrigger><SelectValue placeholder={t('select_employee')} /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={t('select')} /></SelectTrigger>
                 <SelectContent>
                   {availableEmployees.filter(e => e.is_active !== false).map(e => (
                     <SelectItem key={e.id} value={e.id}>{e.full_name} — {e.branch}</SelectItem>
