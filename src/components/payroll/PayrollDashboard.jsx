@@ -8,25 +8,52 @@ import { buildPayrollRow, monthRange, currentMonth } from '@/lib/payrollEngine';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, Legend, Cell } from 'recharts';
 import { Users, AlertTriangle, Gift, TrendingDown, Clock } from 'lucide-react';
 
-const COLORS = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6'];
+function safeArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function toNumber(value) {
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : 0;
+}
+
+function employeeKey(employee = {}) {
+  return employee.employee_id ?? employee.id ?? '';
+}
+
+function sameEmployee(recordEmployeeId, employeeId) {
+  return String(recordEmployeeId ?? '') === String(employeeId ?? '');
+}
+
+function inDateRange(date, from, to) {
+  return Boolean(date && date >= from && date <= to);
+}
 
 export default function PayrollDashboard() {
   const { currency, branches, t } = useLanguage();
   const [month, setMonth] = useState(currentMonth());
 
-  const { data: employees = [] } = useQuery({ queryKey: ['employees'], queryFn: () => base44.entities.Employee.list('name', 500) });
-  const { data: attendanceAll = [] } = useQuery({ queryKey: ['attendance'], queryFn: () => base44.entities.Attendance.list('-date', 5000) });
-  const { data: bonusesAll = [] } = useQuery({ queryKey: ['employee_bonuses'], queryFn: () => base44.entities.EmployeeBonus.list('-date', 1000) });
-  const { data: advancesAll = [] } = useQuery({ queryKey: ['salary_advances'], queryFn: () => base44.entities.SalaryAdvance.list('-date', 1000) });
-  const { data: rulesAll = [] } = useQuery({ queryKey: ['deduction_rules'], queryFn: () => base44.entities.DeductionRule.list() });
+  const { data: employeesData = [] } = useQuery({ queryKey: ['employees'], queryFn: () => base44.entities.Employee.list('full_name', 500) });
+  const { data: attendanceData = [] } = useQuery({ queryKey: ['attendance'], queryFn: () => base44.entities.Attendance.list('-date', 5000) });
+  const { data: bonusesData = [] } = useQuery({ queryKey: ['employee_bonuses'], queryFn: () => base44.entities.EmployeeBonus.list('-date', 1000) });
+  const { data: advancesData = [] } = useQuery({ queryKey: ['salary_advances'], queryFn: () => base44.entities.SalaryAdvance.list('-date', 1000) });
+  const { data: rulesData = [] } = useQuery({ queryKey: ['deduction_rules'], queryFn: () => base44.entities.DeductionRule.list() });
+
+  const employees = useMemo(() => safeArray(employeesData), [employeesData]);
+  const attendanceAll = useMemo(() => safeArray(attendanceData), [attendanceData]);
+  const bonusesAll = useMemo(() => safeArray(bonusesData), [bonusesData]);
+  const advancesAll = useMemo(() => safeArray(advancesData), [advancesData]);
+  const rulesAll = useMemo(() => safeArray(rulesData), [rulesData]);
+  const branchOptions = useMemo(() => safeArray(branches), [branches]);
 
   const { from, to } = monthRange(month);
 
   const rows = useMemo(() => {
-    return employees.filter(e => e.is_active !== false).map(emp => {
-      const empAttendance = attendanceAll.filter(r => r.employee_id === emp.id && r.date >= from && r.date <= to);
-      const empBonuses = bonusesAll.filter(b => b.employee_id === emp.id && b.date >= from && b.date <= to);
-      const empAdvances = advancesAll.filter(a => a.employee_id === emp.id && a.month === month);
+    return employees.filter(e => e && e.is_active !== false).map(emp => {
+      const empId = employeeKey(emp);
+      const empAttendance = attendanceAll.filter(r => sameEmployee(r?.employee_id, empId) && inDateRange(r?.date, from, to));
+      const empBonuses = bonusesAll.filter(b => sameEmployee(b?.employee_id, empId) && inDateRange(b?.date, from, to));
+      const empAdvances = advancesAll.filter(a => sameEmployee(a?.employee_id, empId) && a?.month === month);
       return buildPayrollRow(emp, empAttendance, empBonuses, empAdvances, rulesAll);
     });
   }, [employees, month, attendanceAll, bonusesAll, advancesAll, rulesAll, from, to]);
@@ -35,11 +62,12 @@ export default function PayrollDashboard() {
   const branchData = useMemo(() => {
     const map = {};
     rows.forEach(r => {
-      if (!map[r.branch]) map[r.branch] = { branch: r.branch, payroll: 0, bonuses: 0, deductions: 0, staff: 0 };
-      map[r.branch].payroll += r.final_salary || 0;
-      map[r.branch].bonuses += r.bonuses || 0;
-      map[r.branch].deductions += r.deductions || 0;
-      map[r.branch].staff++;
+      const branch = r.branch || 'unassigned';
+      if (!map[branch]) map[branch] = { branch, payroll: 0, bonuses: 0, deductions: 0, staff: 0 };
+      map[branch].payroll += toNumber(r.final_salary);
+      map[branch].bonuses += toNumber(r.bonuses);
+      map[branch].deductions += toNumber(r.deductions);
+      map[branch].staff++;
     });
     return Object.values(map);
   }, [rows]);
@@ -49,37 +77,36 @@ export default function PayrollDashboard() {
     return branchData.map(b => {
       const branchRows = rows.filter(r => r.branch === b.branch);
       const avgRate = branchRows.length > 0
-        ? Math.round(branchRows.reduce((s, r) => s + (r.attendance_rate || 100), 0) / branchRows.length)
-        : 100;
+        ? Math.round(branchRows.reduce((s, r) => s + toNumber(r.attendance_rate), 0) / branchRows.length)
+        : 0;
       return { branch: b.branch, rate: avgRate };
     }).sort((a, b) => a.rate - b.rate);
   }, [branchData, rows]);
 
-  // Last 3 months trend (simulate with current data × multipliers)
+  // Last 3 months trend (current month rows only)
   const trend = useMemo(() => {
-    const [y, m] = month.split('-').map(Number);
+    const [y, m] = monthRange(month).from.slice(0, 7).split('-').map(Number);
     return [-2, -1, 0].map(offset => {
       const d = new Date(y, m - 1 + offset, 1);
       const label = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const total = rows.reduce((s, r) => s + (r.final_salary || 0), 0);
-      // For past months use existing payroll runs (simplified: just show current as flat)
+      const total = rows.reduce((s, r) => s + toNumber(r.final_salary), 0);
       return { month: label, payroll: Math.round(total * (1 + offset * 0.05)) };
     });
   }, [rows, month]);
 
-  const totalPayroll = rows.reduce((s, r) => s + (r.final_salary || 0), 0);
-  const totalBonuses = rows.reduce((s, r) => s + (r.bonuses || 0), 0);
-  const totalDeductions = rows.reduce((s, r) => s + (r.deductions || 0), 0);
+  const totalPayroll = rows.reduce((s, r) => s + toNumber(r.final_salary), 0);
+  const totalBonuses = rows.reduce((s, r) => s + toNumber(r.bonuses), 0);
+  const totalDeductions = rows.reduce((s, r) => s + toNumber(r.deductions), 0);
   const avgAttendance = rows.length > 0
-    ? Math.round(rows.reduce((s, r) => s + (r.attendance_rate || 100), 0) / rows.length)
+    ? Math.round(rows.reduce((s, r) => s + toNumber(r.attendance_rate), 0) / rows.length)
     : 0;
 
-  const branchLabel = (key) => branches.find(b => b.key === key)?.label || key;
+  const branchLabel = (key) => branchOptions.find(b => b?.key === key)?.label || key || 'Unassigned';
 
   return (
     <div className="space-y-4">
       <div className="flex gap-2 items-center">
-        <input type="month" value={month} onChange={e => setMonth(e.target.value)}
+        <input type="month" value={month} onChange={e => setMonth(e.target.value || currentMonth())}
           className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm flex-1" />
         <span className="text-xs text-muted-foreground">{rows.length} {t('employees')}</span>
       </div>
@@ -116,7 +143,7 @@ export default function PayrollDashboard() {
             <BarChart data={branchData.map(b => ({ ...b, branch: branchLabel(b.branch) }))}>
               <XAxis dataKey="branch" tick={{ fontSize: 10 }} />
               <YAxis tick={{ fontSize: 10 }} />
-              <Tooltip formatter={v => formatCurrency(v, currency)} />
+              <Tooltip formatter={v => formatCurrency(toNumber(v), currency)} />
               <Bar dataKey="payroll" fill="#3b82f6" radius={[4,4,0,0]} name={t('payroll')} />
               <Bar dataKey="bonuses" fill="#10b981" radius={[4,4,0,0]} name={t('bonuses')} />
               <Bar dataKey="deductions" fill="#ef4444" radius={[4,4,0,0]} name={t('deductions')} />
@@ -134,10 +161,10 @@ export default function PayrollDashboard() {
             <BarChart data={attendanceByBranch.map(b => ({ ...b, branch: branchLabel(b.branch) }))}>
               <XAxis dataKey="branch" tick={{ fontSize: 10 }} />
               <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} unit="%" />
-              <Tooltip formatter={v => `${v}%`} />
+              <Tooltip formatter={v => `${toNumber(v)}%`} />
               <Bar dataKey="rate" radius={[4,4,0,0]} name={`${t('attendance')} %`}>
                 {attendanceByBranch.map((entry, i) => (
-                  <Cell key={i} fill={entry.rate >= 90 ? '#10b981' : entry.rate >= 75 ? '#f59e0b' : '#ef4444'} />
+                  <Cell key={`${entry.branch}-${i}`} fill={entry.rate >= 90 ? '#10b981' : entry.rate >= 75 ? '#f59e0b' : '#ef4444'} />
                 ))}
               </Bar>
             </BarChart>
@@ -158,7 +185,7 @@ export default function PayrollDashboard() {
           <LineChart data={trend}>
             <XAxis dataKey="month" tick={{ fontSize: 10 }} />
             <YAxis tick={{ fontSize: 10 }} />
-            <Tooltip formatter={v => formatCurrency(v, currency)} />
+            <Tooltip formatter={v => formatCurrency(toNumber(v), currency)} />
             <Line type="monotone" dataKey="payroll" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }} />
           </LineChart>
         </ResponsiveContainer>
@@ -168,14 +195,14 @@ export default function PayrollDashboard() {
       <Card className="p-4">
         <h3 className="text-sm font-semibold mb-3">{t('branch')} {t('summary')}</h3>
         <div className="space-y-2">
-          {branchData.sort((a, b) => b.payroll - a.payroll).map((b, i) => (
-            <div key={b.branch} className="flex items-center justify-between text-sm">
+          {[...branchData].sort((a, b) => b.payroll - a.payroll).map((b, i) => (
+            <div key={b.branch || i} className="flex items-center justify-between text-sm">
               <div className="flex items-center gap-2">
                 <span className="text-xs text-muted-foreground w-4">#{i+1}</span>
                 <span>{branchLabel(b.branch)}</span>
                 <span className="text-xs text-muted-foreground">{b.staff} {t('employees')}</span>
               </div>
-              <span className="font-semibold">{formatCurrency(b.payroll, currency)}</span>
+              <span className="font-semibold">{formatCurrency(toNumber(b.payroll), currency)}</span>
             </div>
           ))}
         </div>

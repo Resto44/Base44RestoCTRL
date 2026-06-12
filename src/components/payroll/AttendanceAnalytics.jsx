@@ -11,32 +11,77 @@ import { formatCurrency, formatDate } from '@/lib/helpers';
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const STATUS_COLORS = { present: '#10b981', late: '#f59e0b', absent: '#ef4444', half_day: '#3b82f6', vacation: '#8b5cf6' };
 
+function safeArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function toNumber(value) {
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : 0;
+}
+
+function employeeKey(employee = {}) {
+  return employee.employee_id ?? employee.id ?? '';
+}
+
+function sameEmployee(recordEmployeeId, employeeId) {
+  return String(recordEmployeeId ?? '') === String(employeeId ?? '');
+}
+
+function inDateRange(date, from, to) {
+  return Boolean(date && date >= from && date <= to);
+}
+
+function safePercent(percent) {
+  return Number.isFinite(percent) ? percent : 0;
+}
+
 export default function AttendanceAnalytics() {
   const { t, currency, branches } = useLanguage();
   const [selectedBranch, setSelectedBranch] = useState('all');
   const [lookbackDays, setLookbackDays] = useState(30);
 
-  const { data: attendance = [] } = useQuery({ queryKey: ['attendance'], queryFn: () => base44.entities.Attendance.list('-date', 5000) });
-  const { data: employees = [] } = useQuery({ queryKey: ['employees'], queryFn: () => base44.entities.Employee.list('name', 500) });
-  const { data: bonuses = [] } = useQuery({ queryKey: ['employee_bonuses'], queryFn: () => base44.entities.EmployeeBonus.list('-date', 1000) });
-  const { data: sales = [] } = useQuery({ queryKey: ['sales'], queryFn: () => base44.entities.DailySales.list('-date', 500) });
+  const { data: attendanceData = [] } = useQuery({ queryKey: ['attendance'], queryFn: () => base44.entities.Attendance.list('-date', 5000) });
+  const { data: employeesData = [] } = useQuery({ queryKey: ['employees'], queryFn: () => base44.entities.Employee.list('full_name', 500) });
+  const { data: bonusesData = [] } = useQuery({ queryKey: ['employee_bonuses'], queryFn: () => base44.entities.EmployeeBonus.list('-date', 1000) });
+
+  const attendance = useMemo(() => safeArray(attendanceData), [attendanceData]);
+  const employees = useMemo(() => safeArray(employeesData), [employeesData]);
+  const bonuses = useMemo(() => safeArray(bonusesData), [bonusesData]);
+  const branchOptions = useMemo(() => safeArray(branches), [branches]);
 
   const cutoff = useMemo(() => {
-    const d = new Date(); d.setDate(d.getDate() - lookbackDays);
+    const d = new Date();
+    d.setDate(d.getDate() - lookbackDays);
     return formatDate(d);
   }, [lookbackDays]);
 
   const today = formatDate(new Date());
 
+  const employeeById = useMemo(() => {
+    const map = {};
+    employees.forEach(emp => {
+      const id = employeeKey(emp);
+      if (id) map[String(id)] = emp;
+    });
+    return map;
+  }, [employees]);
+
   const filteredAttendance = useMemo(() =>
-    attendance.filter(r => r.date >= cutoff && r.date <= today &&
-      (selectedBranch === 'all' || r.branch === selectedBranch)
-    ), [attendance, cutoff, today, selectedBranch]);
+    attendance.filter(r => {
+      if (!r || !inDateRange(r.date, cutoff, today)) return false;
+      if (selectedBranch === 'all') return true;
+      const emp = employeeById[String(r.employee_id ?? '')];
+      return (r.branch || emp?.branch) === selectedBranch;
+    }), [attendance, cutoff, today, selectedBranch, employeeById]);
 
   // Status distribution for pie
   const statusDist = useMemo(() => {
     const counts = {};
-    filteredAttendance.forEach(r => { counts[r.status] = (counts[r.status] || 0) + 1; });
+    filteredAttendance.forEach(r => {
+      const status = r?.status || 'unknown';
+      counts[status] = (counts[status] || 0) + 1;
+    });
     return Object.entries(counts).map(([status, count]) => ({ name: t(status) || status, value: count, status }));
   }, [filteredAttendance, t]);
 
@@ -44,8 +89,11 @@ export default function AttendanceAnalytics() {
   const byDayOfWeek = useMemo(() => {
     const map = Array(7).fill(null).map((_, i) => ({ day: DAYS[i], present: 0, absent: 0, late: 0 }));
     filteredAttendance.forEach(r => {
+      if (!r?.date) return;
       const dow = new Date(r.date).getDay(); // 0=Sun
+      if (!Number.isFinite(dow)) return;
       const idx = dow === 0 ? 6 : dow - 1; // Mon=0
+      if (!map[idx]) return;
       if (r.status === 'present' || r.status === 'half_day') map[idx].present++;
       else if (r.status === 'absent') map[idx].absent++;
       else if (r.status === 'late') map[idx].late++;
@@ -56,48 +104,53 @@ export default function AttendanceAnalytics() {
   // Per-employee performance
   const employeePerformance = useMemo(() => {
     const map = {};
+
     filteredAttendance.forEach(r => {
-      if (!map[r.employee_id]) map[r.employee_id] = { name: r.employee_name, branch: r.branch, present: 0, absent: 0, late: 0, hours: 0, total: 0 };
-      map[r.employee_id].total++;
-      map[r.employee_id].hours += r.hours_worked || 0;
-      if (r.status === 'present') map[r.employee_id].present++;
-      else if (r.status === 'absent') map[r.employee_id].absent++;
-      else if (r.status === 'late') map[r.employee_id].late++;
+      if (!r?.employee_id) return;
+
+      const id = String(r.employee_id);
+      const emp = employeeById[id];
+      const branch = r.branch || emp?.branch || 'unassigned';
+      const name = emp?.full_name || r.employee_name || id;
+
+      if (!map[id]) map[id] = { name, branch, present: 0, absent: 0, late: 0, hours: 0, total: 0 };
+
+      if (r.status !== 'vacation') map[id].total++;
+      map[id].hours += toNumber(r.hours_worked);
+
+      if (r.status === 'present') map[id].present++;
+      else if (r.status === 'half_day') map[id].present += 0.5;
+      else if (r.status === 'late') { map[id].present++; map[id].late++; }
+      else if (r.status === 'absent') map[id].absent++;
     });
+
     // Attach bonus info
-    const periodBonuses = bonuses.filter(b => b.date >= cutoff && b.date <= today);
+    const periodBonuses = bonuses.filter(b => inDateRange(b?.date, cutoff, today));
     periodBonuses.forEach(b => {
-      if (map[b.employee_id]) {
-        map[b.employee_id].totalBonus = (map[b.employee_id].totalBonus || 0) + b.amount;
+      const id = String(b?.employee_id ?? '');
+      if (map[id]) {
+        map[id].totalBonus = toNumber(map[id].totalBonus) + toNumber(b.amount);
       }
     });
+
     return Object.entries(map).map(([id, v]) => ({
       id, ...v,
-      rate: v.total > 0 ? Math.round((v.present / v.total) * 100) : 0,
+      rate: v.total > 0 ? Math.min(100, Math.round((toNumber(v.present) / v.total) * 100)) : 0,
     })).sort((a, b) => b.rate - a.rate);
-  }, [filteredAttendance, bonuses, cutoff, today]);
+  }, [filteredAttendance, bonuses, cutoff, today, employeeById]);
 
-  // Sales per employee branch correlation
-  const salesByBranch = useMemo(() => {
-    const sMap = {};
-    sales.filter(s => s.date >= cutoff).forEach(s => {
-      sMap[s.branch] = (sMap[s.branch] || 0) + (s.cash || 0) + (s.network || 0) + (s.credit || 0);
-    });
-    return sMap;
-  }, [sales, cutoff]);
-
-  const totalPresent = filteredAttendance.filter(r => r.status === 'present').length;
-  const totalAbsent = filteredAttendance.filter(r => r.status === 'absent').length;
-  const totalLate = filteredAttendance.filter(r => r.status === 'late').length;
+  const totalPresent = filteredAttendance.filter(r => r?.status === 'present' || r?.status === 'late' || r?.status === 'half_day').length;
+  const totalAbsent = filteredAttendance.filter(r => r?.status === 'absent').length;
+  const totalLate = filteredAttendance.filter(r => r?.status === 'late').length;
   const avgRate = employeePerformance.length > 0
-    ? Math.round(employeePerformance.reduce((s, e) => s + e.rate, 0) / employeePerformance.length)
+    ? Math.round(employeePerformance.reduce((s, e) => s + toNumber(e.rate), 0) / employeePerformance.length)
     : 0;
 
   return (
     <div className="space-y-4">
       {/* Filters */}
       <div className="flex gap-2 flex-wrap">
-        <Select value={String(lookbackDays)} onValueChange={v => setLookbackDays(Number(v))}>
+        <Select value={String(lookbackDays)} onValueChange={v => setLookbackDays(Number(v) || 30)}>
           <SelectTrigger className="w-36 h-8 text-sm"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="7">{t('last_7_days')}</SelectItem>
@@ -109,7 +162,7 @@ export default function AttendanceAnalytics() {
           <SelectTrigger className="w-36 h-8 text-sm"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">{t('all_branches')}</SelectItem>
-            {branches.map(b => <SelectItem key={b.key} value={b.key}>{b.label}</SelectItem>)}
+            {branchOptions.map(b => <SelectItem key={b.key} value={b.key}>{b.label}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>
@@ -137,9 +190,9 @@ export default function AttendanceAnalytics() {
             <h3 className="text-sm font-semibold mb-3">{t('status')} Distribution</h3>
             <ResponsiveContainer width="100%" height={170}>
               <PieChart>
-                <Pie data={statusDist} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={65} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
+                <Pie data={statusDist} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={65} label={({ name, percent }) => `${name} ${(safePercent(percent) * 100).toFixed(0)}%`} labelLine={false}>
                   {statusDist.map((entry, i) => (
-                    <Cell key={i} fill={STATUS_COLORS[entry.status] || '#94a3b8'} />
+                    <Cell key={`${entry.status}-${i}`} fill={STATUS_COLORS[entry.status] || '#94a3b8'} />
                   ))}
                 </Pie>
                 <Tooltip />
@@ -183,7 +236,7 @@ export default function AttendanceAnalytics() {
               </thead>
               <tbody>
                 {employeePerformance.slice(0, 15).map((emp, i) => (
-                  <tr key={emp.id} className="border-b border-border/40 last:border-0 hover:bg-muted/30">
+                  <tr key={emp.id || i} className="border-b border-border/40 last:border-0 hover:bg-muted/30">
                     <td className="py-2">
                       <div className="font-medium">{emp.name}</div>
                       <div className="text-xs text-muted-foreground">{emp.branch}</div>
@@ -191,14 +244,14 @@ export default function AttendanceAnalytics() {
                     <td className="py-2 text-center text-emerald-600 font-semibold">{emp.present}</td>
                     <td className="py-2 text-center text-red-500">{emp.absent}</td>
                     <td className="py-2 text-center text-amber-500">{emp.late}</td>
-                    <td className="py-2 text-center">{emp.hours.toFixed(1)}h</td>
+                    <td className="py-2 text-center">{toNumber(emp.hours).toFixed(1)}h</td>
                     <td className="py-2 text-center">
-                      {emp.totalBonus ? <span className="text-emerald-600 font-semibold">{formatCurrency(emp.totalBonus, currency)}</span> : '—'}
+                      {toNumber(emp.totalBonus) > 0 ? <span className="text-emerald-600 font-semibold">{formatCurrency(toNumber(emp.totalBonus), currency)}</span> : '—'}
                     </td>
                     <td className="py-2 text-center">
                       <div className="flex items-center gap-1 justify-center">
                         <div className="w-16 bg-muted rounded-full h-1.5">
-                          <div className="h-1.5 rounded-full" style={{ width: `${emp.rate}%`, background: emp.rate >= 90 ? '#10b981' : emp.rate >= 75 ? '#f59e0b' : '#ef4444' }} />
+                          <div className="h-1.5 rounded-full" style={{ width: `${Math.min(toNumber(emp.rate), 100)}%`, background: emp.rate >= 90 ? '#10b981' : emp.rate >= 75 ? '#f59e0b' : '#ef4444' }} />
                         </div>
                         <span className={`text-xs font-semibold ${emp.rate >= 90 ? 'text-emerald-600' : emp.rate >= 75 ? 'text-amber-600' : 'text-red-500'}`}>{emp.rate}%</span>
                       </div>
@@ -207,38 +260,6 @@ export default function AttendanceAnalytics() {
                 ))}
               </tbody>
             </table>
-          </div>
-        </Card>
-      )}
-
-      {/* Sales vs Attendance correlation by branch */}
-      {Object.keys(salesByBranch).length > 0 && (
-        <Card className="p-4">
-          <h3 className="text-sm font-semibold mb-1">Branch: {t('sales')} vs Attendance Rate</h3>
-          <p className="text-xs text-muted-foreground mb-3">Correlation between staff attendance and revenue</p>
-          <div className="space-y-3">
-            {branches.map(b => {
-              const branchEmps = employeePerformance.filter(e => e.branch === b.key);
-              const avgAttRate = branchEmps.length > 0
-                ? Math.round(branchEmps.reduce((s, e) => s + e.rate, 0) / branchEmps.length) : 0;
-              const branchSales = salesByBranch[b.key] || 0;
-              return (
-                <div key={b.key} className="space-y-1">
-                  <div className="flex justify-between text-sm">
-                    <span className="font-medium">{b.label}</span>
-                    <div className="flex gap-3 text-xs">
-                      <span className="text-emerald-600">Sales: {formatCurrency(branchSales, currency)}</span>
-                      <span className={avgAttRate >= 85 ? 'text-emerald-600' : 'text-amber-600'}>Att: {avgAttRate}%</span>
-                    </div>
-                  </div>
-                  <div className="flex gap-1">
-                    <div className="flex-1 bg-muted rounded-full h-2">
-                      <div className="h-2 rounded-full bg-emerald-500" style={{ width: `${Math.min(avgAttRate, 100)}%` }} />
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
           </div>
         </Card>
       )}

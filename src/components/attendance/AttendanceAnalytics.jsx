@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,56 +19,80 @@ import {
   Cell,
 } from 'recharts';
 
+function safeArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function toValidDateRange(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 7;
+}
+
+function formatIsoDate(date) {
+  return date.toISOString().split('T')[0];
+}
+
+function hasCheckIn(record) {
+  return Boolean(record?.check_in || record?.status === 'present' || record?.status === 'late' || record?.status === 'half_day');
+}
+
 export default function AttendanceAnalytics({ branch, dateRange = 7 }) {
   const { t } = useLanguage();
+  const safeDateRange = toValidDateRange(dateRange);
 
   // Fetch attendance history
-  const { data: attendanceHistory = [] } = useQuery({
-    queryKey: ['attendance-history', branch, dateRange],
+  const { data: attendanceHistoryData = [] } = useQuery({
+    queryKey: ['attendance-history', branch || 'all', safeDateRange],
     queryFn: async () => {
-      const endDate = new Date();
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - dateRange);
+      const records = branch
+        ? await base44.entities.Attendance.filter({ branch })
+        : await base44.entities.Attendance.list('-date', 5000);
 
-      return base44.entities.Attendance.filter({
-        branch,
-      });
+      return safeArray(records);
     },
   });
 
+  const attendanceHistory = useMemo(() => safeArray(attendanceHistoryData), [attendanceHistoryData]);
+
   // Calculate daily attendance metrics
-  const dailyMetrics = [];
-  for (let i = dateRange - 1; i >= 0; i--) {
-    const date = new Date();
-    date.setDate(date.getDate() - i);
-    const dateStr = date.toISOString().split('T')[0];
+  const dailyMetrics = useMemo(() => {
+    const metrics = [];
 
-    const dayRecords = attendanceHistory.filter(r => r.date === dateStr);
-    const present = dayRecords.filter(r => r.check_in).length;
-    const absent = dayRecords.filter(r => !r.check_in).length;
+    for (let i = safeDateRange - 1; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dateStr = formatIsoDate(date);
 
-    dailyMetrics.push({
-      date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      present,
-      absent,
-      total: present + absent,
-      rate: present > 0 ? Math.round((present / (present + absent)) * 100) : 0,
-    });
-  }
+      const dayRecords = attendanceHistory.filter(r => r?.date === dateStr);
+      const present = dayRecords.filter(hasCheckIn).length;
+      const absent = dayRecords.filter(r => r?.status === 'absent' || !hasCheckIn(r)).length;
+      const total = present + absent;
+
+      metrics.push({
+        date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        present,
+        absent,
+        total,
+        rate: total > 0 ? Math.round((present / total) * 100) : 0,
+      });
+    }
+
+    return metrics;
+  }, [attendanceHistory, safeDateRange]);
 
   // Calculate punctuality
   const lateCount = attendanceHistory.filter(r => {
-    if (!r.check_in) return false;
+    if (!r?.check_in) return r?.status === 'late';
     const checkInTime = new Date(`2000-01-01 ${r.check_in}`);
     const scheduledTime = new Date('2000-01-01 08:00:00');
-    return checkInTime > scheduledTime;
+    return Number.isFinite(checkInTime.getTime()) && checkInTime > scheduledTime;
   }).length;
 
   const onTimeCount = attendanceHistory.filter(r => {
-    if (!r.check_in) return false;
+    if (!r?.check_in) return r?.status === 'present' || r?.status === 'half_day';
     const checkInTime = new Date(`2000-01-01 ${r.check_in}`);
     const scheduledTime = new Date('2000-01-01 08:00:00');
-    return checkInTime <= scheduledTime;
+    return Number.isFinite(checkInTime.getTime()) && checkInTime <= scheduledTime;
   }).length;
 
   const punctualityData = [
@@ -85,9 +109,9 @@ export default function AttendanceAnalytics({ branch, dateRange = 7 }) {
   ];
 
   // Attendance status summary
-  const totalRecords = attendanceHistory.length;
-  const totalPresent = attendanceHistory.filter(r => r.check_in).length;
-  const totalAbsent = totalRecords - totalPresent;
+  const totalRecords = attendanceHistory.filter(r => r?.status !== 'vacation').length;
+  const totalPresent = attendanceHistory.filter(hasCheckIn).length;
+  const totalAbsent = attendanceHistory.filter(r => r?.status === 'absent').length;
   const attendanceRate =
     totalRecords > 0 ? Math.round((totalPresent / totalRecords) * 100) : 0;
 
