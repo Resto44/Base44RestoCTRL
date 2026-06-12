@@ -31,7 +31,7 @@ function EmployeeSelect({ employees, value, onChange }) {
       <SelectTrigger><SelectValue placeholder="Select employee" /></SelectTrigger>
       <SelectContent>
         {employees.filter(e => e.is_active !== false).map(e => (
-          <SelectItem key={e.id} value={e.id}>{e.full_name} — {e.branch}</SelectItem>
+          <SelectItem key={e.id} value={String(e.id)}>{e.full_name} — {e.branch}</SelectItem>
         ))}
       </SelectContent>
     </Select>
@@ -55,17 +55,17 @@ export default function BonusDeductionTab() {
 
   const createBonus = useMutation({
     mutationFn: (d) => {
-      console.log('Bonus Payload:', d);
       return base44.entities.EmployeeBonus.create(d);
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
+      console.log('BONUS SUCCESS', result);
       qc.invalidateQueries({ queryKey: ['employee_bonuses'] });
       setShowBonusForm(false);
       setBonusForm(emptyBonus);
       notif.success('Bonus saved successfully');
     },
     onError: (error) => {
-      console.error('Bonus Create Error:', error);
+      console.error('BONUS ERROR', error);
       notif.error('Failed to save bonus');
     },
   });
@@ -93,14 +93,20 @@ export default function BonusDeductionTab() {
   const totalAdvances = advances.reduce((s, a) => s + (a.amount || 0), 0);
 
   const submitBonus = () => {
-    if (!bonusForm.employee_id || !bonusForm.amount) return;
+    console.log('BONUS SUBMIT TRIGGERED', bonusForm);
+    if (!bonusForm.employee_id || !bonusForm.amount) {
+      console.log('BONUS VALIDATION FAILED', { id: !!bonusForm.employee_id, amount: !!bonusForm.amount });
+      return;
+    }
     const emp = employees.find(e => String(e.id) === String(bonusForm.employee_id));
-    createBonus.mutate({ 
+    const payload = { 
       ...bonusForm, 
       employee_name: emp?.full_name || '', 
       branch: emp?.branch || '', 
       amount: Number(bonusForm.amount) 
-    });
+    };
+    console.log('BONUS PAYLOAD', payload);
+    createBonus.mutate(payload);
   };
 
   const submitAdvance = () => {
