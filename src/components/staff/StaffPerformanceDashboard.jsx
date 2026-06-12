@@ -13,10 +13,22 @@ import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { TrendingUp, Users, Download, Clock, DollarSign } from 'lucide-react';
 
+function toNumber(value) {
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : 0;
+}
+
+function safeToFixed(value, decimals = 1) {
+  const num = toNumber(value);
+  return num.toFixed(decimals);
+}
+
 function calcHours(checkIn, checkOut) {
   if (!checkIn || !checkOut) return 0;
+  if (typeof checkIn !== 'string' || typeof checkOut !== 'string') return 0;
   const [ih, im] = checkIn.split(':').map(Number);
   const [oh, om] = checkOut.split(':').map(Number);
+  if (![ih, im, oh, om].every(Number.isFinite)) return 0;
   const mins = (oh * 60 + om) - (ih * 60 + im);
   return mins > 0 ? mins / 60 : 0;
 }
@@ -34,24 +46,33 @@ export default function StaffPerformanceDashboard({ attendanceRecords }) {
   });
 
   // Filter attendance to date range + branch
-  const filteredAttendance = useMemo(() =>
-    attendanceRecords.filter(r =>
-      r.date >= fromDate && r.date <= toDate &&
-      (branch === 'all' || r.branch === branch)
-    ), [attendanceRecords, fromDate, toDate, branch]);
+  const filteredAttendance = useMemo(() => {
+    const records = Array.isArray(attendanceRecords) ? attendanceRecords : [];
+    return records.filter(r => {
+      if (!r || !r.date) return false;
+      if (r.date < fromDate || r.date > toDate) return false;
+      if (branch === 'all') return true;
+      return r.branch === branch;
+    });
+  }, [attendanceRecords, fromDate, toDate, branch]);
 
   // Filter sales to same range + branch
-  const filteredSales = useMemo(() =>
-    sales.filter(s =>
-      s.date >= fromDate && s.date <= toDate &&
-      (branch === 'all' || s.branch === branch)
-    ), [sales, fromDate, toDate, branch]);
+  const filteredSales = useMemo(() => {
+    const salesArray = Array.isArray(sales) ? sales : [];
+    return salesArray.filter(s => {
+      if (!s || !s.date) return false;
+      if (s.date < fromDate || s.date > toDate) return false;
+      if (branch === 'all') return true;
+      return s.branch === branch;
+    });
+  }, [sales, fromDate, toDate, branch]);
 
   // Build per-staff performance metrics
   const staffMetrics = useMemo(() => {
     const map = {};
 
     filteredAttendance.forEach(r => {
+      if (!r) return;
       const key = r.staff_name || r.staff_email || 'Unknown';
       if (!map[key]) map[key] = {
         name: key,
@@ -62,7 +83,7 @@ export default function StaffPerformanceDashboard({ attendanceRecords }) {
         workDates: new Set(),
       };
       map[key].shifts++;
-      map[key].totalHours += r.hours_worked || calcHours(r.check_in, r.check_out);
+      map[key].totalHours += toNumber(r.hours_worked) || calcHours(r.check_in, r.check_out);
       map[key].workDates.add(r.date);
       if (r.branch) map[key].branches.add(r.branch);
     });
@@ -71,20 +92,22 @@ export default function StaffPerformanceDashboard({ attendanceRecords }) {
     // (approximate: sales per day / # staff working that day)
     const dayStaffCount = {};
     filteredAttendance.forEach(r => {
+      if (!r) return;
       const key = `${r.date}_${r.branch}`;
       dayStaffCount[key] = (dayStaffCount[key] || 0) + 1;
     });
 
     filteredAttendance.forEach(r => {
+      if (!r) return;
       const staffKey = r.staff_name || r.staff_email || 'Unknown';
       const dayKey = `${r.date}_${r.branch}`;
       const count = dayStaffCount[dayKey] || 1;
       // Find sales for that day/branch
       const daySales = filteredSales
-        .filter(s => s.date === r.date && (branch === 'all' ? s.branch === r.branch : true))
-        .reduce((s, x) => s + (x.cash || 0) + (x.network || 0), 0);
+        .filter(s => s && s.date === r.date && (branch === 'all' ? s.branch === r.branch : true))
+        .reduce((s, x) => s + toNumber(x.cash) + toNumber(x.network), 0);
       if (map[staffKey]) {
-        map[staffKey].allocatedSales = (map[staffKey].allocatedSales || 0) + (daySales / count);
+        map[staffKey].allocatedSales = toNumber(map[staffKey].allocatedSales) + (daySales / count);
       }
     });
 
@@ -93,22 +116,22 @@ export default function StaffPerformanceDashboard({ attendanceRecords }) {
         ...s,
         branches: [...s.branches],
         workDates: [...s.workDates],
-        avgSalesPerShift: s.shifts > 0 ? (s.allocatedSales || 0) / s.shifts : 0,
-        salesPerHour: s.totalHours > 0 ? (s.allocatedSales || 0) / s.totalHours : 0,
+        avgSalesPerShift: s.shifts > 0 ? toNumber(s.allocatedSales) / s.shifts : 0,
+        salesPerHour: s.totalHours > 0 ? toNumber(s.allocatedSales) / s.totalHours : 0,
         avgHoursPerShift: s.shifts > 0 ? s.totalHours / s.shifts : 0,
       }))
       .sort((a, b) => b.avgSalesPerShift - a.avgSalesPerShift);
   }, [filteredAttendance, filteredSales, branch]);
 
-  const totalSales = filteredSales.reduce((s, x) => s + (x.cash || 0) + (x.network || 0), 0);
-  const totalHours = staffMetrics.reduce((s, x) => s + x.totalHours, 0);
+  const totalSales = filteredSales.reduce((s, x) => s + toNumber(x?.cash) + toNumber(x?.network), 0);
+  const totalHours = staffMetrics.reduce((s, x) => s + toNumber(x.totalHours), 0);
 
   const exportCSV = () => {
     const rows = [
       ['Staff', 'Shifts', 'Total Hours', 'Avg Hours/Shift', 'Allocated Sales', 'Avg Sales/Shift', 'Sales/Hour'],
       ...staffMetrics.map(s => [
-        s.name, s.shifts, s.totalHours.toFixed(1), s.avgHoursPerShift.toFixed(1),
-        (s.allocatedSales || 0).toFixed(2), s.avgSalesPerShift.toFixed(2), s.salesPerHour.toFixed(2),
+        s.name, s.shifts, safeToFixed(s.totalHours, 1), safeToFixed(s.avgHoursPerShift, 1),
+        safeToFixed(s.allocatedSales, 2), safeToFixed(s.avgSalesPerShift, 2), safeToFixed(s.salesPerHour, 2),
       ])
     ];
     const csv = rows.map(r => r.join(',')).join('\n');
@@ -120,9 +143,9 @@ export default function StaffPerformanceDashboard({ attendanceRecords }) {
   };
 
   const chartData = staffMetrics.slice(0, 8).map(s => ({
-    name: s.name.split(' ')[0],
-    'Avg Sales/Shift': Math.round(s.avgSalesPerShift),
-    'Total Hours': Math.round(s.totalHours),
+    name: (s.name || '').split(' ')[0] || 'Staff',
+    'Avg Sales/Shift': Math.round(toNumber(s.avgSalesPerShift)),
+    'Total Hours': Math.round(toNumber(s.totalHours)),
   }));
 
   return (
@@ -151,7 +174,7 @@ export default function StaffPerformanceDashboard({ attendanceRecords }) {
         </Card>
         <Card className="p-3 text-center">
           <Clock className="w-5 h-5 mx-auto mb-1 text-primary" />
-          <p className="text-lg font-bold">{totalHours.toFixed(0)}h</p>
+          <p className="text-lg font-bold">{safeToFixed(totalHours, 0)}h</p>
           <p className="text-xs text-muted-foreground">Total Hours Worked</p>
         </Card>
         <Card className="p-3 text-center">
@@ -199,14 +222,14 @@ export default function StaffPerformanceDashboard({ attendanceRecords }) {
                 </div>
                 <div className="grid grid-cols-3 gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
                   <span><strong className="text-foreground">{s.shifts}</strong> shifts</span>
-                  <span><strong className="text-foreground">{s.totalHours.toFixed(1)}h</strong> total</span>
-                  <span><strong className="text-foreground">{s.avgHoursPerShift.toFixed(1)}h</strong>/shift</span>
+                  <span><strong className="text-foreground">{safeToFixed(s.totalHours, 1)}h</strong> total</span>
+                  <span><strong className="text-foreground">{safeToFixed(s.avgHoursPerShift, 1)}h</strong>/shift</span>
                 </div>
               </div>
               <div className="text-right shrink-0">
-                <p className="font-bold text-primary text-sm">{formatCurrency(s.avgSalesPerShift, currency)}</p>
+                <p className="font-bold text-primary text-sm">{formatCurrency(toNumber(s.avgSalesPerShift), currency)}</p>
                 <p className="text-xs text-muted-foreground">avg/shift</p>
-                <p className="text-xs text-emerald-600 font-medium">{formatCurrency(s.salesPerHour, currency)}/hr</p>
+                <p className="text-xs text-emerald-600 font-medium">{formatCurrency(toNumber(s.salesPerHour), currency)}/hr</p>
               </div>
             </div>
           </Card>

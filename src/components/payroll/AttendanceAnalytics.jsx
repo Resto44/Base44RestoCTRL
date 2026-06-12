@@ -36,6 +36,11 @@ function safePercent(percent) {
   return Number.isFinite(percent) ? percent : 0;
 }
 
+function safeToFixed(value, decimals = 1) {
+  const num = toNumber(value);
+  return num.toFixed(decimals);
+}
+
 export default function AttendanceAnalytics() {
   const { t, currency, branches } = useLanguage();
   const [selectedBranch, setSelectedBranch] = useState('all');
@@ -190,7 +195,7 @@ export default function AttendanceAnalytics() {
             <h3 className="text-sm font-semibold mb-3">{t('status')} Distribution</h3>
             <ResponsiveContainer width="100%" height={170}>
               <PieChart>
-                <Pie data={statusDist} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={65} label={({ name, percent }) => `${name} ${(safePercent(percent) * 100).toFixed(0)}%`} labelLine={false}>
+                <Pie data={statusDist} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={65} label={({ name, percent }) => `${name} ${Math.round(safePercent(percent) * 100)}%`} labelLine={false}>
                   {statusDist.map((entry, i) => (
                     <Cell key={`${entry.status}-${i}`} fill={STATUS_COLORS[entry.status] || '#94a3b8'} />
                   ))}
@@ -244,7 +249,7 @@ export default function AttendanceAnalytics() {
                     <td className="py-2 text-center text-emerald-600 font-semibold">{emp.present}</td>
                     <td className="py-2 text-center text-red-500">{emp.absent}</td>
                     <td className="py-2 text-center text-amber-500">{emp.late}</td>
-                    <td className="py-2 text-center">{toNumber(emp.hours).toFixed(1)}h</td>
+                    <td className="py-2 text-center">{safeToFixed(emp.hours, 1)}h</td>
                     <td className="py-2 text-center">
                       {toNumber(emp.totalBonus) > 0 ? <span className="text-emerald-600 font-semibold">{formatCurrency(toNumber(emp.totalBonus), currency)}</span> : '—'}
                     </td>

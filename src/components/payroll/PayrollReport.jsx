@@ -19,6 +19,16 @@ const STATUS_COLORS = {
   paid: 'bg-emerald-100 text-emerald-700 border-emerald-200',
 };
 
+function toNumber(value) {
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : 0;
+}
+
+function safeToFixed(value, decimals = 1) {
+  const num = toNumber(value);
+  return num.toFixed(decimals);
+}
+
 export default function PayrollReport() {
   const { currency, branches } = useLanguage();
   const { role } = useRole();
@@ -28,7 +38,7 @@ export default function PayrollReport() {
   const [confirmFinalize, setConfirmFinalize] = useState(null);
   const [generating, setGenerating] = useState(false);
 
-  const { data: employees = [] } = useQuery({ queryKey: ['employees'], queryFn: () => base44.entities.Employee.list('name', 500) });
+  const { data: employees = [] } = useQuery({ queryKey: ['employees'], queryFn: () => base44.entities.Employee.list('full_name', 500) });
   const { data: attendanceAll = [] } = useQuery({ queryKey: ['attendance'], queryFn: () => base44.entities.Attendance.list('-date', 5000) });
   const { data: bonusesAll = [] } = useQuery({ queryKey: ['employee_bonuses'], queryFn: () => base44.entities.EmployeeBonus.list('-date', 1000) });
   const { data: advancesAll = [] } = useQuery({ queryKey: ['salary_advances'], queryFn: () => base44.entities.SalaryAdvance.list('-date', 1000) });
@@ -38,19 +48,19 @@ export default function PayrollReport() {
   const { from, to } = monthRange(month);
 
   const rows = useMemo(() => {
-    const filteredEmp = employees.filter(e =>
-      e.is_active !== false &&
+    const filteredEmp = (Array.isArray(employees) ? employees : []).filter(e =>
+      e && e.is_active !== false &&
       (filterBranch === 'all' || e.branch === filterBranch)
     );
 
     return filteredEmp.map(emp => {
       // Check if payroll already finalized for this employee this month
-      const existing = payrollRuns.find(r => r.employee_id === emp.id && r.month === month);
+      const existing = (Array.isArray(payrollRuns) ? payrollRuns : []).find(r => r && r.employee_id === emp.id && r.month === month);
       if (existing) return { ...existing, _saved: true };
 
-      const empAttendance = attendanceAll.filter(r => r.employee_id === emp.id && r.date >= from && r.date <= to);
-      const empBonuses = bonusesAll.filter(b => b.employee_id === emp.id && b.date >= from && b.date <= to);
-      const empAdvances = advancesAll.filter(a => a.employee_id === emp.id && a.month === month);
+      const empAttendance = (Array.isArray(attendanceAll) ? attendanceAll : []).filter(r => r && r.employee_id === emp.id && r.date >= from && r.date <= to);
+      const empBonuses = (Array.isArray(bonusesAll) ? bonusesAll : []).filter(b => b && b.employee_id === emp.id && b.date >= from && b.date <= to);
+      const empAdvances = (Array.isArray(advancesAll) ? advancesAll : []).filter(a => a && a.employee_id === emp.id && a.month === month);
       return buildPayrollRow(emp, empAttendance, empBonuses, empAdvances, rulesAll);
     });
   }, [employees, filterBranch, month, attendanceAll, bonusesAll, advancesAll, rulesAll, payrollRuns, from, to]);
@@ -84,7 +94,7 @@ export default function PayrollReport() {
     const headers = ['Employee', 'Branch', 'Base Salary', 'Bonuses', 'Deductions', 'Advances', 'Final Salary', 'Present Days', 'Absent Days', 'Late Days', 'Hours', 'Status'];
     const csvRows = rows.map(r => [
       r.employee_name, r.branch, r.base_salary, r.bonuses, r.deductions, r.advances,
-      r.final_salary, r.present_days, r.absent_days, r.late_days, (r.total_hours || 0).toFixed(1), r.status || 'draft'
+      r.final_salary, r.present_days, r.absent_days, r.late_days, safeToFixed(r.total_hours, 1), r.status || 'draft'
     ]);
     const csv = [headers, ...csvRows].map(r => r.join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -95,16 +105,16 @@ export default function PayrollReport() {
   };
 
   const totals = useMemo(() => ({
-    base: rows.reduce((s, r) => s + (r.base_salary || 0), 0),
-    bonuses: rows.reduce((s, r) => s + (r.bonuses || 0), 0),
-    deductions: rows.reduce((s, r) => s + (r.deductions || 0), 0),
-    advances: rows.reduce((s, r) => s + (r.advances || 0), 0),
-    final: rows.reduce((s, r) => s + (r.final_salary || 0), 0),
-    unpaid: rows.filter(r => r.status !== 'paid').reduce((s, r) => s + (r.final_salary || 0), 0),
+    base: rows.reduce((s, r) => s + toNumber(r?.base_salary), 0),
+    bonuses: rows.reduce((s, r) => s + toNumber(r?.bonuses), 0),
+    deductions: rows.reduce((s, r) => s + toNumber(r?.deductions), 0),
+    advances: rows.reduce((s, r) => s + toNumber(r?.advances), 0),
+    final: rows.reduce((s, r) => s + toNumber(r?.final_salary), 0),
+    unpaid: rows.filter(r => r?.status !== 'paid').reduce((s, r) => s + toNumber(r?.final_salary), 0),
   }), [rows]);
 
   // Deduction warnings (>20% of base)
-  const highDeductions = rows.filter(r => r.base_salary > 0 && (r.deductions / r.base_salary) > 0.2);
+  const highDeductions = rows.filter(r => r && toNumber(r.base_salary) > 0 && (toNumber(r.deductions) / toNumber(r.base_salary)) > 0.2);
 
   return (
     <div className="space-y-4">
@@ -149,7 +159,7 @@ export default function PayrollReport() {
               <p className="text-xs font-semibold text-amber-700">High Deduction Warning</p>
               {highDeductions.map(r => (
                 <p key={r.employee_id || r.employee_name} className="text-xs text-amber-600">
-                  {r.employee_name}: {formatCurrency(r.deductions, currency)} deducted ({Math.round((r.deductions / r.base_salary) * 100)}% of base)
+                  {r.employee_name}: {formatCurrency(r.deductions, currency)} deducted ({toNumber(r.base_salary) > 0 ? Math.round((toNumber(r.deductions) / toNumber(r.base_salary)) * 100) : 0}% of base)
                 </p>
               ))}
             </div>
@@ -173,20 +183,20 @@ export default function PayrollReport() {
 
             {/* Attendance summary */}
             <div className="flex gap-3 text-xs mb-2">
-              <span className="text-emerald-600">✓ {row.present_days} present</span>
-              <span className="text-red-500">✗ {row.absent_days} absent</span>
-              <span className="text-amber-600">⏱ {row.late_days} late</span>
-              <span className="text-muted-foreground">{(row.total_hours || 0).toFixed(0)}h</span>
+              <span className="text-emerald-600">✓ {toNumber(row.present_days)} present</span>
+              <span className="text-red-500">✗ {toNumber(row.absent_days)} absent</span>
+              <span className="text-amber-600">⏱ {toNumber(row.late_days)} late</span>
+              <span className="text-muted-foreground">{safeToFixed(row.total_hours, 0)}h</span>
             </div>
 
             {/* Salary breakdown */}
             <div className="bg-muted/40 rounded-lg p-2 space-y-1 text-xs mb-2">
-              <div className="flex justify-between"><span>Base Salary</span><span>{formatCurrency(row.base_salary, currency)}</span></div>
-              {row.bonuses > 0 && <div className="flex justify-between text-emerald-600"><span>+ Bonuses</span><span>{formatCurrency(row.bonuses, currency)}</span></div>}
-              {row.deductions > 0 && <div className="flex justify-between text-red-500"><span>− Deductions</span><span>{formatCurrency(row.deductions, currency)}</span></div>}
-              {row.advances > 0 && <div className="flex justify-between text-amber-600"><span>− Advances</span><span>{formatCurrency(row.advances, currency)}</span></div>}
+              <div className="flex justify-between"><span>Base Salary</span><span>{formatCurrency(toNumber(row.base_salary), currency)}</span></div>
+              {toNumber(row.bonuses) > 0 && <div className="flex justify-between text-emerald-600"><span>+ Bonuses</span><span>{formatCurrency(toNumber(row.bonuses), currency)}</span></div>}
+              {toNumber(row.deductions) > 0 && <div className="flex justify-between text-red-500"><span>− Deductions</span><span>{formatCurrency(toNumber(row.deductions), currency)}</span></div>}
+              {toNumber(row.advances) > 0 && <div className="flex justify-between text-amber-600"><span>− Advances</span><span>{formatCurrency(toNumber(row.advances), currency)}</span></div>}
               <div className="flex justify-between font-bold border-t border-border pt-1 text-sm">
-                <span>= Final Payable</span><span className="text-primary">{formatCurrency(row.final_salary, currency)}</span>
+                <span>= Final Payable</span><span className="text-primary">{formatCurrency(toNumber(row.final_salary), currency)}</span>
               </div>
             </div>
 
@@ -198,8 +208,8 @@ export default function PayrollReport() {
                     Finalize
                   </Button>
                 )}
-                {row.status === 'finalized' && row._saved && (
-                  <Button size="sm" className="flex-1 text-xs h-7 bg-emerald-600 hover:bg-emerald-700" onClick={() => handleMarkPaid(row)}>
+                {row.status === 'finalized' && (
+                  <Button size="sm" variant="outline" className="flex-1 text-xs h-7 text-emerald-600" onClick={() => handleMarkPaid(row)}>
                     <CheckCircle2 className="w-3 h-3 mr-1" /> Mark Paid
                   </Button>
                 )}
@@ -209,22 +219,23 @@ export default function PayrollReport() {
         ))}
       </div>
 
-      <AlertDialog open={!!confirmFinalize} onOpenChange={() => setConfirmFinalize(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Finalize Payroll for {confirmFinalize?.employee_name}?</AlertDialogTitle>
-          </AlertDialogHeader>
-          <p className="text-sm text-muted-foreground px-6">
-            Final Payable: {formatCurrency(confirmFinalize?.final_salary, currency)}<br />
-            Deductions: {formatCurrency(confirmFinalize?.deductions, currency)}<br />
-            This action will lock the payroll record for this employee.
-          </p>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => handleFinalize(confirmFinalize)}>Finalize</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Confirmation dialog */}
+      {confirmFinalize && (
+        <AlertDialog open={!!confirmFinalize} onOpenChange={v => !v && setConfirmFinalize(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Finalize Payroll?</AlertDialogTitle>
+            </AlertDialogHeader>
+            <p className="text-sm text-muted-foreground">
+              Finalize payroll for <strong>{confirmFinalize.employee_name}</strong> ({confirmFinalize.month})?
+            </p>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={() => handleFinalize(confirmFinalize)}>Finalize</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </div>
   );
 }
