@@ -19,7 +19,7 @@ export default function WeeklyRosterView() {
 
   const { data: rosters = [], isLoading } = useQuery({
     queryKey: ['staff_rosters'],
-    queryFn: () => base44.entities.StaffRoster.list('-week_start', 500),
+    queryFn: () => base44.entities.StaffRoster.list('-week_starting', 500),
   });
 
   const createMut = useMutation({
@@ -43,6 +43,9 @@ export default function WeeklyRosterView() {
   const filtered = useMemo(() => rosters.filter(r =>
     (r.week_starting || r.week_start) === weekStart && (branch === 'all' || r.branch === branch)
   ), [rosters, weekStart, branch]);
+
+  console.log('ROSTERS RAW', rosters);
+  console.log('ROSTERS FILTERED', filtered);
 
   const totalHours = filtered.reduce((s, r) => s + (r.total_hours || 0), 0);
 

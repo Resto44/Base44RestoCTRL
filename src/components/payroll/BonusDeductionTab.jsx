@@ -51,7 +51,13 @@ export default function BonusDeductionTab() {
 
   const { data: employees = [] } = useQuery({ queryKey: ['employees'], queryFn: () => base44.entities.Employee.list('full_name', 500) });
   const { data: bonuses = [] } = useQuery({ queryKey: ['employee_bonuses'], queryFn: () => base44.entities.EmployeeBonus.list('-date', 1000) });
-  const { data: advances = [] } = useQuery({ queryKey: ['salary_advances'], queryFn: () => base44.entities.SalaryAdvance.list('-date', 1000) });
+  const { data: advances = [] } = useQuery({ 
+    queryKey: ['salary_advances'], 
+    queryFn: () => base44.entities.SalaryAdvance.list('-created_date', 1000) 
+  });
+
+  console.log('ADVANCES RAW', advances);
+  console.log('ADVANCES FILTERED', advances); // No local filter applied here
 
   const createBonus = useMutation({
     mutationFn: (d) => {
@@ -178,7 +184,7 @@ export default function BonusDeductionTab() {
             <Card key={a.id} className="p-3 flex items-center justify-between gap-2">
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm truncate">{a.employee_name}</p>
-                <p className="text-xs text-muted-foreground">{a.date} · Month: {a.month} · {a.branch}</p>
+                <p className="text-xs text-muted-foreground">{(a.created_date || a.date)?.split('T')[0]} · Month: {a.month}</p>
                 {a.notes && <p className="text-xs text-muted-foreground truncate">{a.notes}</p>}
               </div>
               <div className="flex items-center gap-2 shrink-0">
