@@ -108,8 +108,10 @@ export function buildSalesCSV(data, t, currency, branches) {
   const getBranchLabel = (key) => branches.find(b => b.key === key)?.label || key;
   const headers = [t('date'), t('branch'), t('cash'), t('network'), t('credit'), t('total_sales')];
   const rows = data.map(s => {
-    const total = (s.cash || 0) + (s.network || 0) + (s.credit || 0);
-    return [s.date, getBranchLabel(s.branch), s.cash || 0, s.network || 0, s.credit || 0, total];
+    const sCash = Number(s.restaurant_cash ?? s.cash ?? 0);
+    const sNet  = Number(s.restaurant_network ?? s.network ?? 0);
+    const total = sCash + sNet + (Number(s.credit) || 0);
+    return [s.date, getBranchLabel(s.branch), sCash, sNet, Number(s.credit) || 0, total];
   });
   // Totals row
   const totals = rows.reduce((acc, r) => [
@@ -127,12 +129,14 @@ export function buildSalesPDF(data, t, currency, branches, subtitle) {
   const getBranchLabel = (key) => branches.find(b => b.key === key)?.label || key;
   const headers = [t('date'), t('branch'), t('cash'), t('network'), t('credit'), t('total_sales')];
   const rows = data.map(s => {
-    const total = (s.cash || 0) + (s.network || 0) + (s.credit || 0);
-    return [s.date, getBranchLabel(s.branch), `${currency}${(s.cash || 0).toLocaleString()}`, `${currency}${(s.network || 0).toLocaleString()}`, `${currency}${(s.credit || 0).toLocaleString()}`, `${currency}${total.toLocaleString()}`];
+    const sCash = Number(s.restaurant_cash ?? s.cash ?? 0);
+    const sNet  = Number(s.restaurant_network ?? s.network ?? 0);
+    const total = sCash + sNet + (Number(s.credit) || 0);
+    return [s.date, getBranchLabel(s.branch), `${currency}${sCash.toLocaleString()}`, `${currency}${sNet.toLocaleString()}`, `${currency}${(Number(s.credit) || 0).toLocaleString()}`, `${currency}${total.toLocaleString()}`];
   });
-  const totalCash = data.reduce((s, r) => s + (r.cash || 0), 0);
-  const totalNet = data.reduce((s, r) => s + (r.network || 0), 0);
-  const totalCredit = data.reduce((s, r) => s + (r.credit || 0), 0);
+  const totalCash   = data.reduce((s, r) => s + Number(r.restaurant_cash   ?? r.cash    ?? 0), 0);
+  const totalNet    = data.reduce((s, r) => s + Number(r.restaurant_network ?? r.network ?? 0), 0);
+  const totalCredit = data.reduce((s, r) => s + (Number(r.credit) || 0), 0);
   const grandTotal = totalCash + totalNet + totalCredit;
   const totalsRow = [t('total_sales'), '', `${currency}${totalCash.toLocaleString()}`, `${currency}${totalNet.toLocaleString()}`, `${currency}${totalCredit.toLocaleString()}`, `${currency}${grandTotal.toLocaleString()}`];
   return { headers, rows, totalsRow, subtitle };

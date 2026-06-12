@@ -28,11 +28,16 @@ export function getPreviousDateRange(type, customFrom, customTo) {
   };
 }
 
+// Normalised field accessors — prefer restaurant_ fields (new schema),
+// fall back to legacy cash / network for older records.
+export const getSaleCash    = r => Number(r.restaurant_cash    ?? r.cash    ?? 0);
+export const getSaleNetwork = r => Number(r.restaurant_network ?? r.network ?? 0);
+
 export function computeDashboardMetrics(sales, purchases, expenses = []) {
-  const totalSales = sales.reduce((s, r) => s + (r.cash || 0) + (r.network || 0) + (r.credit || 0), 0);
-  const totalCredit = sales.reduce((s, r) => s + (r.credit || 0), 0);
-  const totalCash = sales.reduce((s, r) => s + (r.cash || 0), 0);
-  const totalNetwork = sales.reduce((s, r) => s + (r.network || 0), 0);
+  const totalSales   = sales.reduce((s, r) => s + getSaleCash(r) + getSaleNetwork(r) + (Number(r.credit) || 0), 0);
+  const totalCredit  = sales.reduce((s, r) => s + (Number(r.credit) || 0), 0);
+  const totalCash    = sales.reduce((s, r) => s + getSaleCash(r), 0);
+  const totalNetwork = sales.reduce((s, r) => s + getSaleNetwork(r), 0);
   const totalPurchaseCost = purchases.reduce((s, r) => s + ((r.qty || 0) * (r.used_price || r.current_price || 0)), 0);
   const totalExpenses = expenses.reduce((s, r) => s + (r.amount || 0), 0);
   const grossProfit = totalSales - totalPurchaseCost;
@@ -77,7 +82,7 @@ export function buildDailyProfitTrend(sales, purchases) {
   const map = {};
   sales.forEach(s => {
     if (!map[s.date]) map[s.date] = { sales: 0, cost: 0 };
-    map[s.date].sales += (s.cash || 0) + (s.network || 0) + (s.credit || 0);
+    map[s.date].sales += getSaleCash(s) + getSaleNetwork(s) + (Number(s.credit) || 0);
   });
   purchases.forEach(p => {
     if (!map[p.date]) map[p.date] = { sales: 0, cost: 0 };

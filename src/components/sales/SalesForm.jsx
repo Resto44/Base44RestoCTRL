@@ -64,12 +64,11 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
   const [form, setForm] = useState({
     date: format(new Date(), 'yyyy-MM-dd'),
     branch: defaultBranch,
-    restaurant_cash: 0,
-    restaurant_network: 0,
     restaurant_network_account_id: '',
     credit: 0,
     notes: '',
     ...initial,
+    // Normalise: prefer restaurant_ fields, fall back to legacy cash/network
     restaurant_cash: initial?.restaurant_cash ?? initial?.cash ?? 0,
     restaurant_network: initial?.restaurant_network ?? initial?.network ?? 0,
   });

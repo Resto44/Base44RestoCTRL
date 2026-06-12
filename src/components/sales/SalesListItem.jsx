@@ -18,13 +18,15 @@ const SETTLE_BADGE = {
 export default function SalesListItem({ sale, onEdit, onDelete }) {
   const { t, currency } = useLanguage();
   const { branches } = useTenant();
-  const total = (sale.cash || 0) + (sale.network || 0) + (sale.credit || 0);
-  const creditPct = total === 0 ? null : (sale.credit || 0) / total;
-  const branchLabel = branches.find(b => b.key === sale.branch)?.label || sale.branch;
-  const hasNetwork = (sale.network || 0) > 0;
 
-  const rCash = sale.restaurant_cash ?? sale.cash ?? 0;
-  const rNet = sale.restaurant_network ?? sale.network ?? 0;
+  // Prefer restaurant_ fields (new schema); fall back to legacy cash/network
+  const rCash = Number(sale.restaurant_cash ?? sale.cash ?? 0);
+  const rNet  = Number(sale.restaurant_network ?? sale.network ?? 0);
+  const credit = Number(sale.credit) || 0;
+  const total = rCash + rNet + credit;
+  const creditPct = total === 0 ? null : credit / total;
+  const branchLabel = branches.find(b => b.key === sale.branch)?.label || sale.branch;
+  const hasNetwork = rNet > 0;
 
   const { data: settlements = [] } = useQuery({
     queryKey: ['settlement_for_sale', sale.id],
@@ -56,8 +58,8 @@ export default function SalesListItem({ sale, onEdit, onDelete }) {
         <Store className="w-3.5 h-3.5 text-primary shrink-0" />
         <span className="text-[10px] text-muted-foreground flex-1">{t('cash')}: <span className="font-semibold text-foreground">{currency}{rCash.toLocaleString()}</span></span>
         <span className="text-[10px] text-muted-foreground">Net: <span className="font-semibold text-foreground">{currency}{rNet.toLocaleString()}</span></span>
-        {(sale.credit || 0) > 0 && (
-          <span className="text-[10px] text-muted-foreground ms-2">Credit: <span className="font-semibold text-foreground">{currency}{(sale.credit || 0).toLocaleString()}</span></span>
+        {credit > 0 && (
+          <span className="text-[10px] text-muted-foreground ms-2">Credit: <span className="font-semibold text-foreground">{currency}{credit.toLocaleString()}</span></span>
         )}
         <span className="text-xs font-bold text-primary ms-2">{currency}{total.toLocaleString()}</span>
       </div>

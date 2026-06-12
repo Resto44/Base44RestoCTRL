@@ -742,7 +742,7 @@ export async function generateUltimatePDF({
     const d = new Date(s.date);
     const wk = `${d.getFullYear()}-W${Math.ceil((d.getDate()) / 7)}`;
     if (!weeklyMap[wk]) weeklyMap[wk] = 0;
-    weeklyMap[wk] += (s.cash || 0) + (s.network || 0) + (s.credit || 0);
+    weeklyMap[wk] += (Number(s.restaurant_cash ?? s.cash ?? 0)) + (Number(s.restaurant_network ?? s.network ?? 0)) + (Number(s.credit) || 0);
   });
   const weeklyData = Object.entries(weeklyMap).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => ({ name: k.slice(5), value: v }));
   y = await sectionHeader(doc, l.weeklyTrend, y, dir, W, ML);
@@ -754,7 +754,7 @@ export async function generateUltimatePDF({
     const mo = s.date?.slice(0, 7);
     if (!mo) return;
     if (!monthlyMap[mo]) monthlyMap[mo] = 0;
-    monthlyMap[mo] += (s.cash || 0) + (s.network || 0) + (s.credit || 0);
+    monthlyMap[mo] += (Number(s.restaurant_cash ?? s.cash ?? 0)) + (Number(s.restaurant_network ?? s.network ?? 0)) + (Number(s.credit) || 0);
   });
   const monthlyData = Object.entries(monthlyMap).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => ({ name: k.slice(5), value: v }));
   y = await sectionHeader(doc, l.monthlyTrend, y, dir, W, ML);
@@ -765,8 +765,10 @@ export async function generateUltimatePDF({
   const sHeaders = [l.date, l.branch, l.cash, l.network, l.credit, l.totalSales];
   const sRows = fSales.slice(0, 25).map(s => {
     const brLabel = branches.find(b => b.key === s.branch)?.label || s.branch;
-    const total = (s.cash || 0) + (s.network || 0) + (s.credit || 0);
-    return [s.date, brLabel, formatCurrency(s.cash || 0, currency), formatCurrency(s.network || 0, currency), formatCurrency(s.credit || 0, currency), formatCurrency(total, currency)];
+    const sCash = Number(s.restaurant_cash ?? s.cash ?? 0);
+    const sNet  = Number(s.restaurant_network ?? s.network ?? 0);
+    const total = sCash + sNet + (Number(s.credit) || 0);
+    return [s.date, brLabel, formatCurrency(sCash, currency), formatCurrency(sNet, currency), formatCurrency(Number(s.credit) || 0, currency), formatCurrency(total, currency)];
   });
   y = await drawTable(doc, sHeaders, sRows, ML, y, [24, 30, 22, 22, 22, 26], dir, null);
 
