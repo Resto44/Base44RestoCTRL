@@ -62,11 +62,11 @@ export default function BonusDeductionTab() {
       qc.invalidateQueries({ queryKey: ['employee_bonuses'] });
       setShowBonusForm(false);
       setBonusForm(emptyBonus);
-      notif.success('Bonus saved successfully');
+      // notif.success removed: useNotify does not expose a .success() method
     },
     onError: (error) => {
       console.error('BONUS ERROR', error);
-      notif.error('Failed to save bonus');
+      // notif.error removed: useNotify does not expose a .error() method
     },
   });
   const deleteBonus = useMutation({
@@ -102,9 +102,9 @@ export default function BonusDeductionTab() {
     const payload = { 
       ...bonusForm, 
       employee_name: emp?.full_name || '', 
-      branch: emp?.branch || '', 
       amount: Number(bonusForm.amount) 
     };
+    delete payload.branch;
     console.log('BONUS PAYLOAD', payload);
     createBonus.mutate(payload);
   };
