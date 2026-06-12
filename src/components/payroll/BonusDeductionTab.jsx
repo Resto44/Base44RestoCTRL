@@ -31,7 +31,7 @@ function EmployeeSelect({ employees, value, onChange }) {
       <SelectTrigger><SelectValue placeholder="Select employee" /></SelectTrigger>
       <SelectContent>
         {employees.filter(e => e.is_active !== false).map(e => (
-          <SelectItem key={e.id} value={e.id}>{e.name} — {e.branch}</SelectItem>
+          <SelectItem key={e.id} value={e.id}>{e.full_name} — {e.branch}</SelectItem>
         ))}
       </SelectContent>
     </Select>
@@ -49,7 +49,7 @@ export default function BonusDeductionTab() {
   const setB = (k, v) => setBonusForm(f => ({ ...f, [k]: v }));
   const setA = (k, v) => setAdvanceForm(f => ({ ...f, [k]: v }));
 
-  const { data: employees = [] } = useQuery({ queryKey: ['employees'], queryFn: () => base44.entities.Employee.list('name', 500) });
+  const { data: employees = [] } = useQuery({ queryKey: ['employees'], queryFn: () => base44.entities.Employee.list('full_name', 500) });
   const { data: bonuses = [] } = useQuery({ queryKey: ['employee_bonuses'], queryFn: () => base44.entities.EmployeeBonus.list('-date', 1000) });
   const { data: advances = [] } = useQuery({ queryKey: ['salary_advances'], queryFn: () => base44.entities.SalaryAdvance.list('-date', 1000) });
 
@@ -83,13 +83,13 @@ export default function BonusDeductionTab() {
   const submitBonus = () => {
     if (!bonusForm.employee_id || !bonusForm.amount) return;
     const emp = employees.find(e => e.id === bonusForm.employee_id);
-    createBonus.mutate({ ...bonusForm, employee_name: emp?.name || '', branch: emp?.branch || '', amount: Number(bonusForm.amount) });
+    createBonus.mutate({ ...bonusForm, employee_name: emp?.full_name || '', branch: emp?.branch || '', amount: Number(bonusForm.amount) });
   };
 
   const submitAdvance = () => {
     if (!advanceForm.employee_id || !advanceForm.amount) return;
     const emp = employees.find(e => e.id === advanceForm.employee_id);
-    createAdvance.mutate({ ...advanceForm, employee_name: emp?.name || '', branch: emp?.branch || '', amount: Number(advanceForm.amount) });
+    createAdvance.mutate({ ...advanceForm, employee_name: emp?.full_name || '', branch: emp?.branch || '', amount: Number(advanceForm.amount) });
   };
 
   return (
