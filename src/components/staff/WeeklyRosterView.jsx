@@ -39,8 +39,9 @@ export default function WeeklyRosterView() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['staff_rosters'] }),
   });
 
+  // DB column is week_starting (not week_start)
   const filtered = useMemo(() => rosters.filter(r =>
-    r.week_start === weekStart && (branch === 'all' || r.branch === branch)
+    (r.week_starting || r.week_start) === weekStart && (branch === 'all' || r.branch === branch)
   ), [rosters, weekStart, branch]);
 
   const totalHours = filtered.reduce((s, r) => s + (r.total_hours || 0), 0);

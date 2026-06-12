@@ -83,20 +83,24 @@ export function calcDeductions(summary = {}, baseSalary = 0, workingDaysInMonth 
   const dailySalary = safeWorkingDays > 0 ? safeBaseSalary / safeWorkingDays : 0;
   let total = 0;
 
-  safeArray(rules).filter(r => r?.is_active !== false).forEach(rule => {
-    if (rule.type === 'absent') {
+  // DB columns: applies_to (not type), rule_name (not name), late_threshold (not late_threshold_minutes)
+  // There is no is_active column in deduction_rules — all stored rules are active.
+  safeArray(rules).forEach(rule => {
+    // Support both legacy field name (type) and DB field name (applies_to) for safety
+    const ruleType = rule.applies_to || rule.type;
+    if (ruleType === 'absent') {
       const amount = rule.deduction_type === 'fixed'
         ? toNumber(rule.amount) * toNumber(summary.absent)
         : dailySalary * toNumber(rule.fraction ?? 1) * toNumber(summary.absent);
       total += amount;
     }
-    if (rule.type === 'late') {
+    if (ruleType === 'late') {
       const amount = rule.deduction_type === 'fixed'
         ? toNumber(rule.amount) * toNumber(summary.late)
         : dailySalary * toNumber(rule.fraction ?? 0.5) * toNumber(summary.late);
       total += amount;
     }
-    if (rule.type === 'half_day') {
+    if (ruleType === 'half_day') {
       const amount = rule.deduction_type === 'fixed'
         ? toNumber(rule.amount) * toNumber(summary.halfDay)
         : dailySalary * toNumber(rule.fraction ?? 0.5) * toNumber(summary.halfDay);

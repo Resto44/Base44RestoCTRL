@@ -28,13 +28,17 @@ function calcTotal(shifts) {
 export default function RosterForm({ initial, onSubmit, onCancel }) {
   const monday = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
   const [form, setForm] = useState({
-    week_start: initial?.week_start || monday,
+    // Support both DB column names (week_starting, email, whatsapp) and legacy names for edits
+    week_start: initial?.week_starting || initial?.week_start || monday,
     branch: initial?.branch || '',
     staff_name: initial?.staff_name || '',
-    staff_email: initial?.staff_email || '',
-    staff_phone: initial?.staff_phone || '',
+    staff_email: initial?.email || initial?.staff_email || '',
+    staff_phone: initial?.whatsapp || initial?.staff_phone || '',
     notes: initial?.notes || '',
-    shifts: initial?.shifts ? JSON.parse(initial.shifts) : [],
+    // DB stores shifts as jsonb (array); fall back to JSON.parse for legacy string values
+    shifts: Array.isArray(initial?.shifts)
+      ? initial.shifts
+      : (initial?.shifts ? (() => { try { return JSON.parse(initial.shifts); } catch { return []; } })() : []),
   });
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
