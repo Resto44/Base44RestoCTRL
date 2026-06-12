@@ -54,8 +54,20 @@ export default function BonusDeductionTab() {
   const { data: advances = [] } = useQuery({ queryKey: ['salary_advances'], queryFn: () => base44.entities.SalaryAdvance.list('-date', 1000) });
 
   const createBonus = useMutation({
-    mutationFn: d => base44.entities.EmployeeBonus.create(d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['employee_bonuses'] }); setShowBonusForm(false); setBonusForm(emptyBonus); },
+    mutationFn: (d) => {
+      console.log('Bonus Payload:', d);
+      return base44.entities.EmployeeBonus.create(d);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['employee_bonuses'] });
+      setShowBonusForm(false);
+      setBonusForm(emptyBonus);
+      notif.success('Bonus saved successfully');
+    },
+    onError: (error) => {
+      console.error('Bonus Create Error:', error);
+      notif.error('Failed to save bonus');
+    },
   });
   const deleteBonus = useMutation({
     mutationFn: id => base44.entities.EmployeeBonus.delete(id),
@@ -82,14 +94,24 @@ export default function BonusDeductionTab() {
 
   const submitBonus = () => {
     if (!bonusForm.employee_id || !bonusForm.amount) return;
-    const emp = employees.find(e => e.id === bonusForm.employee_id);
-    createBonus.mutate({ ...bonusForm, employee_name: emp?.full_name || '', branch: emp?.branch || '', amount: Number(bonusForm.amount) });
+    const emp = employees.find(e => String(e.id) === String(bonusForm.employee_id));
+    createBonus.mutate({ 
+      ...bonusForm, 
+      employee_name: emp?.full_name || '', 
+      branch: emp?.branch || '', 
+      amount: Number(bonusForm.amount) 
+    });
   };
 
   const submitAdvance = () => {
     if (!advanceForm.employee_id || !advanceForm.amount) return;
-    const emp = employees.find(e => e.id === advanceForm.employee_id);
-    createAdvance.mutate({ ...advanceForm, employee_name: emp?.full_name || '', branch: emp?.branch || '', amount: Number(advanceForm.amount) });
+    const emp = employees.find(e => String(e.id) === String(advanceForm.employee_id));
+    createAdvance.mutate({ 
+      ...advanceForm, 
+      employee_name: emp?.full_name || '', 
+      branch: emp?.branch || '', 
+      amount: Number(advanceForm.amount) 
+    });
   };
 
   return (
