@@ -80,6 +80,7 @@ export default function BonusDeductionTab() {
       return adv;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['salary_advances'] }); setShowAdvanceForm(false); setAdvanceForm(emptyAdvance); },
+    onError: (error) => { console.error('INSERT FAILED', error); },
   });
   const deleteAdvance = useMutation({
     mutationFn: async (advance) => {
@@ -112,12 +113,14 @@ export default function BonusDeductionTab() {
   const submitAdvance = () => {
     if (!advanceForm.employee_id || !advanceForm.amount) return;
     const emp = employees.find(e => String(e.id) === String(advanceForm.employee_id));
-    createAdvance.mutate({ 
+    const payload = { 
       ...advanceForm, 
       employee_name: emp?.full_name || '', 
-      branch: emp?.branch || '', 
       amount: Number(advanceForm.amount) 
-    });
+    };
+    delete payload.branch;
+    delete payload.date;
+    createAdvance.mutate(payload);
   };
 
   return (

@@ -31,6 +31,7 @@ export default function DeductionRulesSettings() {
   const createMut = useMutation({
     mutationFn: d => base44.entities.DeductionRule.create(d),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['deduction_rules'] }); setShowForm(false); setForm(emptyRule); },
+    onError: (error) => { console.error('INSERT FAILED', error); },
   });
 
   const toggleMut = useMutation({
@@ -45,12 +46,20 @@ export default function DeductionRulesSettings() {
 
   const handleSave = () => {
     if (!form.name || !form.type) return;
-    createMut.mutate({
+    const payload = {
       ...form,
+      rule_name: form.name,
+      applies_to: form.type,
+      deduction_type: form.deduction_type,
       amount: Number(form.amount) || 0,
-      fraction: Number(form.fraction) || 1,
-      late_threshold_minutes: Number(form.late_threshold_minutes) || 15,
-    });
+      late_threshold: Number(form.late_threshold_minutes) || 15,
+    };
+    delete payload.name;
+    delete payload.type;
+    delete payload.fraction;
+    delete payload.late_threshold_minutes;
+    
+    createMut.mutate(payload);
   };
 
   return (

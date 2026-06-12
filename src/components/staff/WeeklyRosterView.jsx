@@ -25,11 +25,13 @@ export default function WeeklyRosterView() {
   const createMut = useMutation({
     mutationFn: d => base44.entities.StaffRoster.create(d),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['staff_rosters'] }); setShowForm(false); },
+    onError: (error) => { console.error('INSERT FAILED', error); },
   });
 
   const updateMut = useMutation({
     mutationFn: ({ id, data }) => base44.entities.StaffRoster.update(id, data),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['staff_rosters'] }); setEditing(null); },
+    onError: (error) => { console.error('UPDATE FAILED', error); },
   });
 
   const deleteMut = useMutation({
@@ -48,8 +50,19 @@ export default function WeeklyRosterView() {
 
   const handleEdit = (r) => { setEditing(r); setShowForm(false); };
   const handleSubmit = (data) => {
-    if (editing) updateMut.mutate({ id: editing.id, data });
-    else createMut.mutate(data);
+    const payload = {
+      ...data,
+      week_starting: data.week_start,
+      email: data.staff_email,
+      whatsapp: data.staff_phone,
+    };
+    delete payload.week_start;
+    delete payload.staff_email;
+    delete payload.staff_phone;
+    delete payload.total_hours;
+
+    if (editing) updateMut.mutate({ id: editing.id, data: payload });
+    else createMut.mutate(payload);
   };
 
   return (

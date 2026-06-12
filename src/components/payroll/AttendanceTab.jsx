@@ -59,6 +59,7 @@ export default function AttendanceTab() {
   const createMut = useMutation({
     mutationFn: d => base44.entities.Attendance.create(d),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['attendance'] }); setShowForm(false); setForm(emptyForm); },
+    onError: (error) => { console.error('INSERT FAILED', error); },
   });
 
   const deleteMut = useMutation({
@@ -82,13 +83,15 @@ export default function AttendanceTab() {
     if (!form.employee_id || !form.date || !form.status) return;
     const emp = employees.find(e => e.id === form.employee_id);
     const hours = calcHours(form.check_in, form.check_out);
-    createMut.mutate({
+    const payload = {
       ...form,
       employee_name: emp?.full_name || form.employee_name,
       branch: emp?.branch || form.branch,
       hours_worked: hours,
       late_minutes: Number(form.late_minutes) || 0,
-    });
+    };
+    delete payload.notes;
+    createMut.mutate(payload);
   };
 
   const exportCSV = () => {
