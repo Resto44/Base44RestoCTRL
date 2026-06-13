@@ -155,6 +155,7 @@ function createEntity(tableName) {
     },
 
     async create(record) {
+      console.log(`[entity:${tableName}] create() FIRED — raw record:`, record);
       const email = await getCurrentUserEmail();
       const now = new Date().toISOString();
       // Strip server-generated / computed columns that cannot be inserted by the client.
