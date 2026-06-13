@@ -77,6 +77,7 @@ import LandingPage from '@/pages/LandingPage';
 import PurchasesV2 from '@/pages/PurchasesV2';
 import ProcurementDashboard from '@/pages/ProcurementDashboard';
 import SupplierLedger from '@/pages/SupplierLedger';
+import ExecutiveCommandCenter from '@/pages/ExecutiveCommandCenter';
 
 // Route-level error boundary — catches crashes in individual pages
 class RouteErrorBoundary extends React.Component {
@@ -184,6 +185,7 @@ const SubscribedRoutes = () => {
         <Route element={<AppLayout />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/dashboard" element={<RoleGuard permission="viewDashboard"><Dashboard /></RoleGuard>} />
+          <Route path="/executive-command-center" element={<RoleGuard permission="viewDashboard"><ExecutiveCommandCenter /></RoleGuard>} />
           <Route path="/staff-upload" element={<RoleGuard permission="uploadSales"><StaffUpload /></RoleGuard>} />
           <Route path="/sales" element={<RoleGuard permission="viewSales"><Sales /></RoleGuard>} />
           <Route path="/purchases" element={<RoleGuard permission="viewPurchases"><PurchasesV2 /></RoleGuard>} />
