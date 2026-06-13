@@ -141,9 +141,12 @@ export default function SupplierPaymentForm({ date: defaultDate, branch: default
       const amount = Number(data.amount);
       if (!amount || amount <= 0) throw new Error('Amount must be greater than 0');
 
+      // Sanitize UUID: never send empty string to supplier_id UUID column
+      const supplierId = data.supplier_id && data.supplier_id.trim() !== '' ? data.supplier_id : null;
+
       // Find the oldest unpaid invoice for this supplier and apply payment
       const supplierInvoices = invoices
-        .filter(inv => inv.supplier_id === data.supplier_id && inv.status !== 'paid')
+        .filter(inv => supplierId && inv.supplier_id === supplierId && inv.status !== 'paid')
         .sort((a, b) => a.date.localeCompare(b.date));
 
       let remaining = amount;
@@ -168,8 +171,7 @@ export default function SupplierPaymentForm({ date: defaultDate, branch: default
       // If no invoices found or excess, create a credit note / general payment record
       if (updates.length === 0 || remaining > 0) {
         // Create a general payment record as a new invoice with negative or zero balance
-        updates.push(base44.entities.SupplierInvoice.create({
-          supplier_id: data.supplier_id,
+        const generalPayload = {
           supplier_name: data.supplier_name,
           invoice_number: `PAY-${data.date}`,
           date: data.date,
@@ -179,7 +181,10 @@ export default function SupplierPaymentForm({ date: defaultDate, branch: default
           notes: `Payment: ${data.notes || ''}`,
           last_payment_date: data.date,
           ...(ownerFilter || {}),
-        }));
+        };
+        // Only include supplier_id when it is a real UUID
+        if (supplierId) generalPayload.supplier_id = supplierId;
+        updates.push(base44.entities.SupplierInvoice.create(generalPayload));
       }
 
       await Promise.all(updates);

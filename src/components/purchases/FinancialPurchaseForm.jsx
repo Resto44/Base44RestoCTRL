@@ -124,8 +124,11 @@ export default function FinancialPurchaseForm({ initial, onSuccess, onCancel }) 
 
   const saveMut = useMutation({
     mutationFn: async (data) => {
+      // Sanitize UUID: never send empty string to supplier_id UUID column
+      const supplierId = data.supplier_id && data.supplier_id.trim() !== '' ? data.supplier_id : null;
+
       const invoiceData = {
-        supplier_id: data.supplier_id,
+        ...(supplierId ? { supplier_id: supplierId } : {}),
         supplier_name: data.supplier_name,
         invoice_number: data.invoice_number,
         date: data.date,

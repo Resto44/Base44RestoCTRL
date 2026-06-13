@@ -149,28 +149,34 @@ export default function CustomerCollections({ branch: defaultBranch, date: defau
 
   const saveMut = useMutation({
     mutationFn: async (data) => {
+      // Sanitize UUID fields: never send empty string to UUID columns
+      const debtId = data.debt_id && data.debt_id.trim() !== '' ? data.debt_id : null;
+
       // 1. Create CreditCollection record
-      const collection = await base44.entities.CreditCollection.create({
+      const collectionPayload = {
         date: data.date,
         branch: data.branch || defaultBranch || '',
         amount: Number(data.amount),
         payment_method: data.payment_method,
         notes: data.notes,
         customer_name: data.customer_name,
-        debt_id: data.debt_id,
         ...(ownerFilter || {}),
-      });
+      };
+      // Only include debt_id when it is a real UUID
+      if (debtId) collectionPayload.debt_id = debtId;
+
+      const collection = await base44.entities.CreditCollection.create(collectionPayload);
 
       // 2. If linked to a DebtRecord, create a DebtPayment and update the debt
-      if (data.debt_id) {
-        const debt = openDebts.find(d => d.id === data.debt_id);
+      if (debtId) {
+        const debt = openDebts.find(d => d.id === debtId);
         if (debt) {
           const paid = (Number(debt.paid_amount) || 0) + Number(data.amount);
           const remaining = Math.max(0, (Number(debt.total_amount) || 0) - paid);
           const status = remaining <= 0 ? 'paid' : paid > 0 ? 'partial' : 'open';
 
           await base44.entities.DebtPayment.create({
-            debt_id: data.debt_id,
+            debt_id: debtId,
             party_name: debt.party_name,
             date: data.date,
             amount: Number(data.amount),
@@ -178,7 +184,7 @@ export default function CustomerCollections({ branch: defaultBranch, date: defau
             notes: data.notes,
           });
 
-          await base44.entities.DebtRecord.update(data.debt_id, {
+          await base44.entities.DebtRecord.update(debtId, {
             paid_amount: paid,
             remaining_amount: remaining,
             status,

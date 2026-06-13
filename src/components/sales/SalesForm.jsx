@@ -15,7 +15,6 @@ import SmartUploadZone from '@/components/shared/SmartUploadZone';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { format } from 'date-fns';
 import { Store, Receipt, Plus, Trash2, Wifi, Users } from 'lucide-react';
-import DeliverySummaryPanel from '@/components/sales/DeliverySummaryPanel';
 
 const LABELS = {
   en: {
@@ -147,6 +146,16 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+
+    // Issue 2: Customer name required when credit amount > 0
+    const invalidCredit = creditEntries.find(
+      entry => Number(entry.amount) > 0 && (!entry.customer || entry.customer.trim() === '')
+    );
+    if (invalidCredit) {
+      alert('Customer name is required for each credit sale entry.');
+      return;
+    }
+
     const firstPos = posEntries[0];
     const payload = {
       ...form,
@@ -275,8 +284,6 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
           )}
         </div>
       </div>
-
-      <DeliverySummaryPanel branch={form.branch} date={form.date} />
 
       {/* SALES TOTAL SUMMARY */}
       <div className="rounded-xl border border-primary/20 bg-primary/5 overflow-hidden">

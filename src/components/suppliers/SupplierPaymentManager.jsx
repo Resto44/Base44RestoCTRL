@@ -240,7 +240,12 @@ export default function SupplierPaymentManager() {
             </div>
             <div><Label className="text-xs">Notes</Label><Input value={form.notes} onChange={e => set('notes', e.target.value)} /></div>
             <div className="flex gap-2 pt-1">
-              <Button className="flex-1" onClick={() => createMut.mutate({ ...form, amount: parseFloat(form.amount) || 0 })} disabled={createMut.isPending || !form.supplier_id || !form.amount}>Save</Button>
+              <Button className="flex-1" onClick={() => {
+                const supplierId = form.supplier_id && form.supplier_id.trim() !== '' ? form.supplier_id : null;
+                const payload = { ...form, amount: parseFloat(form.amount) || 0 };
+                if (!supplierId) delete payload.supplier_id; else payload.supplier_id = supplierId;
+                createMut.mutate(payload);
+              }} disabled={createMut.isPending || !form.supplier_id || !form.amount}>Save</Button>
               <Button variant="outline" className="flex-1" onClick={() => setShowCreate(false)}>Cancel</Button>
             </div>
           </div>
