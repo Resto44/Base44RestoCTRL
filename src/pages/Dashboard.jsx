@@ -27,6 +27,7 @@ import SalesTrendsChart from '@/components/dashboard/SalesTrendsChart';
 import WelcomeDashboard from '@/components/dashboard/WelcomeDashboard';
 import ExecutiveSummaryBar from '@/components/dashboard/ExecutiveSummaryBar';
 import ManagerWorkspace from '@/components/dashboard/ManagerWorkspace';
+import FinancialKPIs from '@/components/dashboard/FinancialKPIs';
 import { useRole, ROLES } from '@/lib/RoleContext';
 
 const FETCH_DAYS = 90;
@@ -247,6 +248,7 @@ export default function Dashboard() {
         currency={currency}
       />
 
+      <FinancialKPIs branch={branch} />
       <ExecutiveSummaryBar />
 
       <SmartInsights

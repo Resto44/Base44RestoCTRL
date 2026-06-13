@@ -4,11 +4,12 @@ import { base44 } from '@/api/base44Client';
 import { useLanguage } from '@/lib/LanguageContext';
 import PageHeader from '@/components/shared/PageHeader';
 import PurchaseForm from '@/components/purchases/PurchaseForm.jsx';
+import FinancialPurchaseForm from '@/components/purchases/FinancialPurchaseForm';
 import PurchaseListItem from '@/components/purchases/PurchaseListItem';
 import EmptyState from '@/components/shared/EmptyState';
 import BranchSelect from '@/components/shared/BranchSelect';
 import { Button } from '@/components/ui/button';
-import { Plus, Download, Settings2 } from 'lucide-react';
+import { Plus, Download, Settings2, Receipt } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -24,6 +25,7 @@ export default function Purchases() {
   const notif = useNotify();
   const { ownerFilter } = useTenant();
   const [showForm, setShowForm] = useState(false);
+  const [showFinancialForm, setShowFinancialForm] = useState(false);
   const [editing, setEditing] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [filterBranch, setFilterBranch] = useState('all');
@@ -106,6 +108,9 @@ export default function Purchases() {
                 <Settings2 className="w-4 h-4" />
               </Button>
             </Link>
+            <Button size="sm" variant="outline" onClick={() => setShowFinancialForm(true)}>
+              <Receipt className="w-4 h-4 mr-1" /> Invoice
+            </Button>
             <Button size="sm" onClick={() => { setShowForm(true); setEditing(null); }}>
               <Plus className="w-4 h-4 mr-1" />{t('add_purchase')}
             </Button>
@@ -134,12 +139,28 @@ export default function Purchases() {
         </div>
       )}
 
+      {/* Standard item-level purchase form */}
       <Dialog open={showForm} onOpenChange={setShowForm}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>{t('add_purchase')}</DialogTitle>
           </DialogHeader>
           <PurchaseForm onSubmit={handleSave} onCancel={() => setShowForm(false)} />
+        </DialogContent>
+      </Dialog>
+
+      {/* Financial invoice-level purchase form */}
+      <Dialog open={showFinancialForm} onOpenChange={setShowFinancialForm}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Receipt className="w-4 h-4 text-primary" /> Supplier Invoice
+            </DialogTitle>
+          </DialogHeader>
+          <FinancialPurchaseForm
+            onSuccess={() => setShowFinancialForm(false)}
+            onCancel={() => setShowFinancialForm(false)}
+          />
         </DialogContent>
       </Dialog>
 

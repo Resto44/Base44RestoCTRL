@@ -15,6 +15,7 @@ import { Plus, Pencil, Trash2, Truck, Phone, CreditCard, MapPin } from 'lucide-r
 import { useTenant } from '@/lib/TenantContext';
 import SupplierDetail from '@/components/suppliers/SupplierDetail';
 import SupplierPaymentManager from '@/components/suppliers/SupplierPaymentManager';
+import SupplierPaymentForm from '@/components/suppliers/SupplierPaymentForm';
 
 const ui = {
   en: { suppliers: 'Suppliers', add_supplier: 'Add Supplier', edit_supplier: 'Edit Supplier', name: 'Supplier Name', phone: 'Phone', email: 'Email', address: 'Address', notes: 'Notes', save: 'Save', cancel: 'Cancel', confirm_delete: 'Confirm Delete' },
@@ -73,7 +74,10 @@ export default function Suppliers() {
         </TabsList>
 
         <TabsContent value="payments" className="mt-3">
-          <SupplierPaymentManager />
+          <div className="space-y-4">
+            <SupplierPaymentForm />
+            <SupplierPaymentManager />
+          </div>
         </TabsContent>
 
         <TabsContent value="list" className="mt-3">

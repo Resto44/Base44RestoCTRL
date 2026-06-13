@@ -7,7 +7,7 @@ import SalesForm from '@/components/sales/SalesForm';
 import SalesListItem from '@/components/sales/SalesListItem';
 import EmptyState from '@/components/shared/EmptyState';
 import { Button } from '@/components/ui/button';
-import { Plus, Download, SlidersHorizontal } from 'lucide-react';
+import { Plus, Download, SlidersHorizontal, BarChart3 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { downloadCSV, downloadPDF, buildSalesCSV, buildSalesPDF } from '@/lib/exportUtils';
@@ -17,6 +17,11 @@ import { useNotify } from '@/lib/useNotify';
 import { useNetworkSettlement } from '@/hooks/useNetworkSettlement';
 import { useAuth } from '@/lib/AuthContext';
 import { useTenant } from '@/lib/TenantContext';
+import { format } from 'date-fns';
+import CustomerCollections from '@/components/sales/CustomerCollections';
+import DailySummary from '@/components/sales/DailySummary';
+import CashRegister from '@/components/sales/CashRegister';
+import POSReconciliation from '@/components/sales/POSReconciliation';
 
 export default function Sales() {
   const { t, currency } = useLanguage();
@@ -31,7 +36,9 @@ export default function Sales() {
   const [deleting, setDeleting] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
   const [showExport, setShowExport] = useState(false);
+  const [showFinancialPanel, setShowFinancialPanel] = useState(false);
   const [filters, setFilters] = useState({ branch: 'all', from: '', to: '', minTotal: '', maxTotal: '' });
+  const todayStr = format(new Date(), 'yyyy-MM-dd');
 
   const { data: sales = [], isLoading } = useQuery({
     queryKey: ['sales', ownerFilter],
@@ -87,6 +94,7 @@ export default function Sales() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['sales'] });
+      qc.invalidateQueries({ queryKey: ['sales_daily'] });
       qc.invalidateQueries({ queryKey: ['settlements_all'] });
       qc.invalidateQueries({ queryKey: ['settlements_mgr'] });
       qc.invalidateQueries({ queryKey: ['wallet_transactions'] });
@@ -105,6 +113,7 @@ export default function Sales() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['sales'] });
+      qc.invalidateQueries({ queryKey: ['sales_daily'] });
       qc.invalidateQueries({ queryKey: ['settlements_all'] });
       qc.invalidateQueries({ queryKey: ['settlements_mgr'] });
       setEditing(null);
@@ -179,6 +188,13 @@ export default function Sales() {
             <Button size="sm" variant="outline" onClick={() => setShowExport(true)}>
               <Download className="w-4 h-4 mr-1" /> Export
             </Button>
+            <Button
+              size="sm"
+              variant={showFinancialPanel ? 'default' : 'outline'}
+              onClick={() => setShowFinancialPanel(v => !v)}
+            >
+              <BarChart3 className="w-4 h-4 mr-1" /> Summary
+            </Button>
             <Button size="sm" variant="outline" onClick={() => setShowFilters(v => !v)} className="relative">
               <SlidersHorizontal className="w-4 h-4" />
               {activeFilterCount > 0 && (
@@ -193,6 +209,16 @@ export default function Sales() {
           </div>
         }
       />
+
+      {/* Financial Panel — toggled by Summary button */}
+      {showFinancialPanel && (
+        <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+          <CustomerCollections date={todayStr} branch={filters.branch} />
+          <DailySummary date={todayStr} branch={filters.branch} />
+          <CashRegister date={todayStr} branch={filters.branch} />
+          <POSReconciliation date={todayStr} branch={filters.branch} />
+        </div>
+      )}
 
       <div className="flex gap-4">
         {showFilters && (
