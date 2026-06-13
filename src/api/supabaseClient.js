@@ -283,7 +283,7 @@ const entities = {
   PurchaseOrder: createEntity('purchase_orders'), Purchase: createEntity('purchases'),
   PurchaseCategory: createEntity('purchase_categories'), Notification: createEntity('notifications'),
   DailySales: createEntity('daily_sales'), DebtRecord: createEntity('debt_records'),
-  DebtPayment: createEntity('debt_payments'), CreditCollection: createEntity('credit_collections'),
+  DebtPayment: createEntity('debt_payments'), CreditCollection: createEntity('customer_collections'),
   CollectionAction: createEntity('collection_actions'), Restaurant: createEntity('restaurants'),
   NetworkAccount: createEntity('network_accounts'), SettlementRecord: createEntity('settlement_records'),
   Subscription: createEntity('subscriptions'), WalletTransaction: createEntity('wallet_transactions'),

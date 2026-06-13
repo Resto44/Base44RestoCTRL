@@ -97,7 +97,7 @@ export default function CashRegister({ date, branch }) {
   });
 
   const { data: collections = [] } = useQuery({
-    queryKey: ['credit_collections_daily', ownerFilter, todayStr],
+    queryKey: ['customer_collections_daily', ownerFilter, todayStr],
     queryFn: () => base44.entities.CreditCollection.filter({ ...(ownerFilter || {}), date: todayStr }, '-date', 100),
     enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
     staleTime: 15000,
@@ -124,7 +124,7 @@ export default function CashRegister({ date, branch }) {
 
     const cashSales = daySales.reduce((s, r) => s + (Number(r.restaurant_cash) || Number(r.cash) || 0), 0);
     const customerCollections = dayCollections
-      .filter(c => c.received_via === 'cash')
+      .filter(c => c.payment_method === 'cash')
       .reduce((s, c) => s + (Number(c.amount) || 0), 0);
 
     const expensesTotal = dayExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);

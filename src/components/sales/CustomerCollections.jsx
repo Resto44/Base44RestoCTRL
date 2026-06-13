@@ -120,7 +120,7 @@ export default function CustomerCollections({ branch: defaultBranch, date: defau
   // Load today's collections (CreditCollection records)
   const todayStr = defaultDate || format(new Date(), 'yyyy-MM-dd');
   const { data: collections = [] } = useQuery({
-    queryKey: ['credit_collections', ownerFilter, todayStr],
+    queryKey: ['customer_collections', ownerFilter, todayStr],
     queryFn: () => base44.entities.CreditCollection.filter({ ...(ownerFilter || {}), date: todayStr }, '-date', 200),
     enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
     staleTime: 15000,
@@ -154,7 +154,7 @@ export default function CustomerCollections({ branch: defaultBranch, date: defau
         date: data.date,
         branch: data.branch || defaultBranch || '',
         amount: Number(data.amount),
-        received_via: data.payment_method,
+        payment_method: data.payment_method,
         notes: data.notes,
         customer_name: data.customer_name,
         debt_id: data.debt_id,
@@ -189,7 +189,7 @@ export default function CustomerCollections({ branch: defaultBranch, date: defau
       return collection;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['credit_collections'] });
+      qc.invalidateQueries({ queryKey: ['customer_collections'] });
       qc.invalidateQueries({ queryKey: ['debts'] });
       setShowForm(false);
       setForm({ ...emptyForm, branch: defaultBranch || managerBranch || '', date: defaultDate || format(new Date(), 'yyyy-MM-dd') });
@@ -225,7 +225,7 @@ export default function CustomerCollections({ branch: defaultBranch, date: defau
               <div key={c.id} className="flex items-center gap-2 bg-emerald-50/60 rounded-lg px-3 py-2">
                 <User className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                 <span className="text-xs font-medium flex-1">{c.customer_name || 'Customer'}</span>
-                <Badge variant="outline" className="text-[10px] text-emerald-700 border-emerald-300">{c.received_via}</Badge>
+                <Badge variant="outline" className="text-[10px] text-emerald-700 border-emerald-300">{c.payment_method}</Badge>
                 <span className="text-xs font-bold text-emerald-700">{currency}{Number(c.amount).toLocaleString()}</span>
               </div>
             ))}

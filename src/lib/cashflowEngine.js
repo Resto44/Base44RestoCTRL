@@ -52,8 +52,8 @@ export function computeRunningCashflow({
     const networkIn = daySales.reduce((s, r) => s + (r.network || 0), 0);
     const creditIn = daySales.reduce((s, r) => s + (r.credit || 0), 0);
 
-    const collCash = dayColl.filter(c => c.received_via === 'cash').reduce((s, c) => s + (c.amount || 0), 0);
-    const collNetwork = dayColl.filter(c => c.received_via === 'network').reduce((s, c) => s + (c.amount || 0), 0);
+    const collCash = dayColl.filter(c => c.payment_method === 'cash').reduce((s, c) => s + (c.amount || 0), 0);
+    const collNetwork = dayColl.filter(c => c.payment_method === 'network').reduce((s, c) => s + (c.amount || 0), 0);
 
     const cashExpOut = dayExp.filter(e => !e.payment_method || e.payment_method === 'cash').reduce((s, e) => s + (e.amount || 0), 0);
     const networkExpOut = dayExp.filter(e => e.payment_method === 'network').reduce((s, e) => s + (e.amount || 0), 0);

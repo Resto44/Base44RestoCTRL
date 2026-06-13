@@ -98,7 +98,7 @@ export default function DailySummary({ date, branch }) {
 
   // Today's collections
   const { data: collections = [] } = useQuery({
-    queryKey: ['credit_collections_daily', ownerFilter, todayStr],
+    queryKey: ['customer_collections_daily', ownerFilter, todayStr],
     queryFn: () => base44.entities.CreditCollection.filter({ ...(ownerFilter || {}), date: todayStr }, '-date', 100),
     enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
     staleTime: 15000,

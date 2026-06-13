@@ -417,7 +417,7 @@ CREATE TABLE IF NOT EXISTS debt_payments (
 );
 
 -- ── CREDIT COLLECTIONS ────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS credit_collections (
+CREATE TABLE IF NOT EXISTS customer_collections (
   id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   branch       TEXT,
   date         DATE,
