@@ -13,7 +13,7 @@ import LowStockWidget from '@/components/dashboard/LowStockWidget';
 import AccountsPayableWidget from '@/components/dashboard/AccountsPayableWidget';
 import SmartInsights from '@/components/dashboard/SmartInsights';
 import { Card } from '@/components/ui/card';
-import { DollarSign, TrendingUp, TrendingDown, Percent, ShoppingCart, AlertTriangle, Receipt, Flame, Wallet, Scale, ShoppingBag, Package } from 'lucide-react';
+import { DollarSign, TrendingUp, TrendingDown, Percent, ShoppingCart, AlertTriangle, Receipt, Flame, Wallet, Scale, ShoppingBag, Package, BarChart3 } from 'lucide-react';
 import { computeBranchSettlements } from '@/components/treasury/BranchSettlementLedger';
 import { format } from 'date-fns';
 import { Link } from 'react-router-dom';
@@ -168,21 +168,42 @@ export default function Dashboard() {
 
   return (
     <div>
-      {/* ── Quick Action Buttons ── */}
-      <div className="grid grid-cols-2 gap-3 mb-4">
-        <button
-          onClick={() => setShowQuickPurchase(true)}
-          className="flex items-center justify-center gap-2 h-14 rounded-xl bg-amber-500 text-white font-bold text-base shadow-md active:scale-95 transition-transform"
-        >
-          <Package className="w-5 h-5" />
-          {t('add_purchase')}
-        </button>
+      {/* ── Quick Action Buttons (Mobile-First) ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 mb-4">
+        {/* Daily Sales Button */}
         <Link
           to="/sales"
-          className="flex items-center justify-center gap-2 h-14 rounded-xl bg-primary/10 text-primary border border-primary/20 font-bold text-base shadow-sm active:scale-95 transition-transform"
+          className="flex items-center justify-center gap-2 h-12 sm:h-14 rounded-lg bg-blue-500 hover:bg-blue-600 text-white font-bold text-sm sm:text-base shadow-md active:scale-95 transition-all"
         >
-          <ShoppingBag className="w-5 h-5" />
-          {t('daily_sales')}
+          <DollarSign className="w-4 sm:w-5 h-4 sm:h-5" />
+          <span>{t('daily_sales')}</span>
+        </Link>
+
+        {/* Purchases Button */}
+        <Link
+          to="/purchases"
+          className="flex items-center justify-center gap-2 h-12 sm:h-14 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm sm:text-base shadow-md active:scale-95 transition-all"
+        >
+          <Receipt className="w-4 sm:w-5 h-4 sm:h-5" />
+          <span>{t('purchases')}</span>
+        </Link>
+
+        {/* Quick Add Purchase Button */}
+        <button
+          onClick={() => setShowQuickPurchase(true)}
+          className="flex items-center justify-center gap-2 h-12 sm:h-14 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-sm sm:text-base shadow-md active:scale-95 transition-all"
+        >
+          <Package className="w-4 sm:w-5 h-4 sm:h-5" />
+          <span>{t('add_purchase')}</span>
+        </button>
+
+        {/* Treasury Button */}
+        <Link
+          to="/treasury"
+          className="flex items-center justify-center gap-2 h-12 sm:h-14 rounded-lg bg-violet-500 hover:bg-violet-600 text-white font-bold text-sm sm:text-base shadow-md active:scale-95 transition-all"
+        >
+          <Wallet className="w-4 sm:w-5 h-4 sm:h-5" />
+          <span>{t('treasury')}</span>
         </Link>
       </div>
 
@@ -191,8 +212,8 @@ export default function Dashboard() {
         title={t('dashboard')}
         action={
           <Button size="sm" variant="outline" asChild>
-            <Link to="/treasury">
-              <Wallet className="w-3.5 h-3.5 mr-1" /> {t('treasury')}
+            <Link to="/executive-command-center">
+              <BarChart3 className="w-3.5 h-3.5 mr-1" /> {t('executive_command_center')}
             </Link>
           </Button>
         }
