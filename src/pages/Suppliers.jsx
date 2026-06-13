@@ -45,7 +45,7 @@ export default function Suppliers() {
   const { activeRestaurantId, orgId } = useTenant();
 
   const saveMutation = useMutation({
-    mutationFn: (data) => {
+    mutationFn: async (data) => {
       const payload = {
         ...data,
         ...(ownerFilter || {}),
@@ -54,11 +54,26 @@ export default function Suppliers() {
         created_by: orgId,
         status: true, // Default to active
       };
-      return editing 
-        ? base44.entities.Supplier.update(editing.id, data) 
-        : base44.entities.Supplier.create(payload);
+      console.log('[Suppliers] Creating/Updating supplier with payload:', payload);
+      try {
+        const result = editing 
+          ? await base44.entities.Supplier.update(editing.id, data) 
+          : await base44.entities.Supplier.create(payload);
+        console.log('[Suppliers] Success result:', result);
+        return result;
+      } catch (err) {
+        console.error('[Suppliers] Error:', err);
+        throw err;
+      }
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['suppliers'] }); closeForm(); },
+    onSuccess: () => { 
+      console.log('[Suppliers] Mutation success, invalidating queries...');
+      qc.invalidateQueries({ queryKey: ['suppliers'] }); 
+      closeForm(); 
+    },
+    onError: (err) => {
+      console.error('[Suppliers] Mutation error:', err);
+    }
   });
   const deleteMutation = useMutation({
     mutationFn: (id) => base44.entities.Supplier.delete(id),
