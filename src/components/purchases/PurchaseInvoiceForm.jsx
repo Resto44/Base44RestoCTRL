@@ -209,7 +209,16 @@ export default function PurchaseInvoiceForm({ invoice = null, onSuccess, onCance
     setError('');
 
     if (!form.branch) { setError('Branch is required'); return; }
-    if (!form.supplier_id && !form.supplier_name) { setError('Supplier is required'); return; }
+    
+    // Minimal validation: must have either a selected supplier or a typed name
+    const supplierId = form.supplier_id && form.supplier_id.trim() !== '' ? form.supplier_id : null;
+    const supplierName = form.supplier_name && form.supplier_name.trim() !== '' ? form.supplier_name : null;
+    
+    if (!supplierId && !supplierName) { 
+      setError('Supplier selection or name is required'); 
+      return; 
+    }
+
     if (items.length === 0 || items.every(i => !i.product_name && !i.product_id)) {
       setError('At least one line item is required'); return;
     }
@@ -224,6 +233,8 @@ export default function PurchaseInvoiceForm({ invoice = null, onSuccess, onCance
 
       const invoicePayload = {
         ...form,
+        supplier_id: supplierId, // Sanitize: ensure "" becomes null for UUID column
+        supplier_name: supplierName || form.supplier_name,
         attachment_urls: attachments,
       };
 

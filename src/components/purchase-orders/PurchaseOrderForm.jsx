@@ -53,8 +53,18 @@ export default function PurchaseOrderForm({ order, onClose, onSaved }) {
 
   const handleSave = () => {
     if (!form.supplier_id || !form.branch) return;
+    
+    // Sanitize UUID: ensure "" becomes null for UUID column
+    const supplierId = form.supplier_id && form.supplier_id.trim() !== '' ? form.supplier_id : null;
+    
     const orderNum = order?.order_number || `PO-${Date.now().toString().slice(-6)}`;
-    saveMutation.mutate({ ...form, items: JSON.stringify(items), total_amount: total, order_number: orderNum });
+    saveMutation.mutate({ 
+      ...form, 
+      supplier_id: supplierId,
+      items: JSON.stringify(items), 
+      total_amount: total, 
+      order_number: orderNum 
+    });
   };
 
   return (

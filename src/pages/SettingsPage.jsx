@@ -26,6 +26,7 @@ const SECTIONS = [
       { path: '/purchases',          icon: Receipt,      label: 'Purchases' },
       { path: '/procurement-dashboard', icon: BarChart3,   label: 'Procurement Analytics' },
       { path: '/supplier-ledger',      icon: BookOpen,     label: 'Supplier Ledger' },
+      { path: '/suppliers',            icon: Truck,        label: 'Suppliers' },
       { path: '/expenses',           icon: Wallet,       label: 'Expenses' },
       { path: '/delivery',           icon: Truck,        label: 'Delivery' },
       { path: '/driver-settlements', icon: CheckSquare,  label: 'Settlements' },
