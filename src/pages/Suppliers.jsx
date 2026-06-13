@@ -57,6 +57,8 @@ export default function Suppliers() {
       };
       console.log('[Suppliers] Creating/Updating supplier with payload:', payload);
       console.log('SUPPLIER PAYLOAD', payload);
+      console.log('ACTIVE RESTAURANT', activeRestaurantId);
+      console.log('ORG ID', orgId);
       try {
         const result = editing 
           ? await base44.entities.Supplier.update(editing.id, data) 
@@ -77,6 +79,7 @@ export default function Suppliers() {
     },
     onError: (err) => {
       console.error('[Suppliers] Mutation error:', err);
+      alert(err.message || 'An unknown error occurred during save');
     }
   });
   const deleteMutation = useMutation({
