@@ -14,7 +14,7 @@ import {
   Building2, CreditCard, ChefHat, Users, CalendarCheck, Landmark,
   Smartphone, BarChart, GitBranch, UtensilsCrossed, Shield,
   Truck, FileText, History, ArrowLeftRight, Flame, CheckSquare,
-  BarChart2, TrendingUp, ShieldCheck, Clock, Send
+  BarChart2, TrendingUp, ShieldCheck, Clock, Send, BarChart3, BookOpen, Receipt
 } from 'lucide-react';
 
 const SECTIONS = [
@@ -23,7 +23,9 @@ const SECTIONS = [
     roles: [ROLES.OWNER, ROLES.MANAGER],
     links: [
       { path: '/sales',              icon: DollarSign,   label: 'Daily Sales' },
-      { path: '/purchases',          icon: Package,      label: 'Purchases' },
+      { path: '/purchases',          icon: Receipt,      label: 'Purchases' },
+      { path: '/procurement-dashboard', icon: BarChart3,   label: 'Procurement Analytics' },
+      { path: '/supplier-ledger',      icon: BookOpen,     label: 'Supplier Ledger' },
       { path: '/expenses',           icon: Wallet,       label: 'Expenses' },
       { path: '/delivery',           icon: Truck,        label: 'Delivery' },
       { path: '/driver-settlements', icon: CheckSquare,  label: 'Settlements' },

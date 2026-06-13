@@ -288,6 +288,7 @@ const entities = {
   NetworkAccount: createEntity('network_accounts'), SettlementRecord: createEntity('settlement_records'),
   Subscription: createEntity('subscriptions'), WalletTransaction: createEntity('wallet_transactions'),
   Supplier: createEntity('suppliers'), SupplierInvoice: createEntity('supplier_invoices'),
+  SupplierPayment: createEntity('supplier_payments'), OcrLog: createEntity('ocr_logs'),
   SupportTicket: createEntity('support_tickets'), AuditLog: createEntity('audit_logs'),
   Task: createEntity('tasks'), StaffRoster: createEntity('staff_rosters'),
   StaffAttendance: createEntity('staff_attendance'), BrandSettings: createEntity('brand_settings'),

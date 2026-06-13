@@ -1,0 +1,458 @@
+/**
+ * Procurement Engine — Phase 7
+ * Enterprise Accounts Payable & Inventory Integration Logic
+ *
+ * Handles:
+ * - Invoice creation with approval workflow
+ * - Inventory stock update on approval
+ * - Supplier liability (debt record) creation
+ * - Partial payment processing
+ * - Cash flow integration
+ * - Overdue detection
+ */
+
+import { supabase } from '@/api/supabaseClient';
+
+// ── Approval Threshold ─────────────────────────────────────────────────────
+const AUTO_APPROVE_THRESHOLD = 5000;
+
+// ── Status helpers ─────────────────────────────────────────────────────────
+export function computeInvoiceStatus(totalAmount, paidAmount) {
+  const remaining = (totalAmount || 0) - (paidAmount || 0);
+  if (remaining <= 0) return 'paid';
+  if (paidAmount > 0) return 'partial';
+  return 'unpaid';
+}
+
+export function computeApprovalStatus(totalAmount) {
+  return totalAmount < AUTO_APPROVE_THRESHOLD ? 'auto_approved' : 'pending';
+}
+
+// ── Line item calculations ─────────────────────────────────────────────────
+export function calcLineTotal({ quantity = 0, unit_cost = 0, discount = 0, tax = 0 }) {
+  const base = quantity * unit_cost;
+  const afterDiscount = base - (discount || 0);
+  const taxAmount = afterDiscount * ((tax || 0) / 100);
+  return Math.max(0, afterDiscount + taxAmount);
+}
+
+export function calcInvoiceTotals(items = [], additionalCosts = []) {
+  const subtotal = items.reduce((sum, item) => sum + (item.line_total || calcLineTotal(item)), 0);
+  const taxAmount = items.reduce((sum, item) => {
+    const base = (item.quantity || 0) * (item.unit_cost || 0) - (item.discount || 0);
+    return sum + base * ((item.tax || 0) / 100);
+  }, 0);
+  const discountAmount = items.reduce((sum, item) => sum + (item.discount || 0), 0);
+  const additionalTotal = additionalCosts.reduce((sum, c) => sum + (c.amount || 0), 0);
+  const grandTotal = subtotal + additionalTotal;
+  return { subtotal, taxAmount, discountAmount, additionalTotal, grandTotal };
+}
+
+// ── Create Purchase Invoice ────────────────────────────────────────────────
+export async function createPurchaseInvoice({
+  invoiceData,
+  items,
+  additionalCosts,
+  createdBy,
+}) {
+  const { grandTotal, subtotal, taxAmount, discountAmount } = calcInvoiceTotals(items, additionalCosts);
+  const approvalStatus = computeApprovalStatus(grandTotal);
+  const status = approvalStatus === 'auto_approved' ? 'approved' : 'pending';
+
+  const payload = {
+    ...invoiceData,
+    items: items || [],
+    additional_costs: additionalCosts || [],
+    total_amount: grandTotal,
+    subtotal,
+    tax_amount: taxAmount,
+    discount_amount: discountAmount,
+    paid_amount: invoiceData.paid_amount || 0,
+    approval_status: approvalStatus,
+    status,
+    created_by: createdBy,
+  };
+
+  const { data: invoice, error } = await supabase
+    .from('supplier_invoices')
+    .insert(payload)
+    .select()
+    .single();
+
+  if (error) throw new Error(`Invoice creation failed: ${error.message}`);
+
+  // If auto-approved, process inventory and create debt record immediately
+  if (approvalStatus === 'auto_approved') {
+    await processApprovedInvoice(invoice, createdBy);
+  }
+
+  return invoice;
+}
+
+// ── Update Purchase Invoice ────────────────────────────────────────────────
+export async function updatePurchaseInvoice({
+  invoiceId,
+  invoiceData,
+  items,
+  additionalCosts,
+  createdBy,
+}) {
+  const { grandTotal, subtotal, taxAmount, discountAmount } = calcInvoiceTotals(items, additionalCosts);
+
+  const payload = {
+    ...invoiceData,
+    items: items || [],
+    additional_costs: additionalCosts || [],
+    total_amount: grandTotal,
+    subtotal,
+    tax_amount: taxAmount,
+    discount_amount: discountAmount,
+    updated_date: new Date().toISOString(),
+  };
+
+  const { data: invoice, error } = await supabase
+    .from('supplier_invoices')
+    .update(payload)
+    .eq('id', invoiceId)
+    .select()
+    .single();
+
+  if (error) throw new Error(`Invoice update failed: ${error.message}`);
+  return invoice;
+}
+
+// ── Approve Invoice (manager action) ──────────────────────────────────────
+export async function approveInvoice(invoiceId, createdBy) {
+  const { data: invoice, error } = await supabase
+    .from('supplier_invoices')
+    .update({ approval_status: 'approved', status: 'approved', updated_date: new Date().toISOString() })
+    .eq('id', invoiceId)
+    .select()
+    .single();
+
+  if (error) throw new Error(`Approval failed: ${error.message}`);
+
+  await processApprovedInvoice(invoice, createdBy);
+  return invoice;
+}
+
+// ── Process Approved Invoice: Inventory + Debt Record ─────────────────────
+export async function processApprovedInvoice(invoice, createdBy) {
+  const items = invoice.items || [];
+  const additionalCosts = invoice.additional_costs || [];
+  const { grandTotal } = calcInvoiceTotals(items, additionalCosts);
+
+  // 1. Update inventory for each line item
+  for (const item of items) {
+    if (!item.product_id) continue;
+    await updateInventoryOnPurchase({
+      productId: item.product_id,
+      productName: item.product_name,
+      branch: invoice.branch,
+      quantity: item.quantity || 0,
+      unitCost: item.unit_cost || 0,
+      unit: item.unit,
+      createdBy,
+    });
+  }
+
+  // 2. Create supplier debt record if not fully paid
+  const paidAmount = invoice.paid_amount || 0;
+  const remaining = grandTotal - paidAmount;
+
+  if (remaining > 0) {
+    await createSupplierDebtRecord({
+      invoice,
+      totalAmount: grandTotal,
+      paidAmount,
+      remaining,
+      createdBy,
+    });
+  }
+
+  // 3. Update invoice with debt_record_id if created
+  return invoice;
+}
+
+// ── Inventory Update ───────────────────────────────────────────────────────
+export async function updateInventoryOnPurchase({
+  productId,
+  productName,
+  branch,
+  quantity,
+  unitCost,
+  unit,
+  createdBy,
+}) {
+  // Find existing inventory record
+  const { data: existing } = await supabase
+    .from('inventory')
+    .select('*')
+    .eq('product_id', productId)
+    .eq('branch', branch)
+    .single();
+
+  if (existing) {
+    // Update: recalculate average cost
+    const oldQty = existing.quantity || 0;
+    const oldCost = existing.average_cost || existing.last_purchase_price || 0;
+    const newQty = oldQty + quantity;
+    const newAvgCost = newQty > 0 ? ((oldQty * oldCost) + (quantity * unitCost)) / newQty : unitCost;
+    const newTotalValue = newQty * newAvgCost;
+
+    const { error } = await supabase
+      .from('inventory')
+      .update({
+        quantity: newQty,
+        average_cost: newAvgCost,
+        last_purchase_price: unitCost,
+        total_value: newTotalValue,
+        last_updated: new Date().toISOString(),
+        updated_date: new Date().toISOString(),
+      })
+      .eq('id', existing.id);
+
+    if (error) console.error('[procurementEngine] inventory update error:', error.message);
+  } else {
+    // Create new inventory record
+    const { error } = await supabase
+      .from('inventory')
+      .insert({
+        product_id: productId,
+        product_name: productName,
+        branch,
+        quantity,
+        opening_stock: 0,
+        average_cost: unitCost,
+        last_purchase_price: unitCost,
+        total_value: quantity * unitCost,
+        unit: unit || '',
+        date: new Date().toISOString().split('T')[0],
+        created_by: createdBy,
+      });
+
+    if (error) console.error('[procurementEngine] inventory create error:', error.message);
+  }
+
+  // Also update product default_cost if this is a better price signal
+  if (unitCost > 0) {
+    await supabase
+      .from('products')
+      .update({ default_cost: unitCost, updated_date: new Date().toISOString() })
+      .eq('id', productId);
+  }
+}
+
+// ── Create Supplier Debt Record ────────────────────────────────────────────
+export async function createSupplierDebtRecord({
+  invoice,
+  totalAmount,
+  paidAmount,
+  remaining,
+  createdBy,
+}) {
+  const status = paidAmount > 0 ? 'partial' : 'open';
+
+  const { data: debtRecord, error } = await supabase
+    .from('debt_records')
+    .insert({
+      type: 'liability',
+      party_type: 'supplier',
+      party_name: invoice.supplier_name || 'Unknown Supplier',
+      branch: invoice.branch,
+      invoice_number: invoice.invoice_number,
+      date: invoice.date,
+      due_date: invoice.due_date,
+      total_amount: totalAmount,
+      paid_amount: paidAmount,
+      remaining_amount: remaining,
+      status,
+      supplier_invoice_id: invoice.id,
+      description: `Purchase Invoice ${invoice.invoice_number || invoice.id}`,
+      created_by: createdBy,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('[procurementEngine] debt record error:', error.message);
+    return null;
+  }
+
+  // Link debt record back to invoice
+  await supabase
+    .from('supplier_invoices')
+    .update({ debt_record_id: debtRecord.id })
+    .eq('id', invoice.id);
+
+  return debtRecord;
+}
+
+// ── Add Payment to Invoice ─────────────────────────────────────────────────
+export async function addInvoicePayment({
+  invoiceId,
+  amount,
+  paymentMethod,
+  notes,
+  date,
+  createdBy,
+}) {
+  // 1. Get current invoice
+  const { data: invoice, error: fetchError } = await supabase
+    .from('supplier_invoices')
+    .select('*')
+    .eq('id', invoiceId)
+    .single();
+
+  if (fetchError) throw new Error(`Invoice fetch failed: ${fetchError.message}`);
+
+  const newPaidAmount = (invoice.paid_amount || 0) + amount;
+  const remaining = (invoice.total_amount || 0) - newPaidAmount;
+  const newStatus = computeInvoiceStatus(invoice.total_amount, newPaidAmount);
+
+  // 2. Insert payment record
+  const { data: payment, error: payError } = await supabase
+    .from('supplier_payments')
+    .insert({
+      invoice_id: invoiceId,
+      supplier_id: invoice.supplier_id,
+      supplier_name: invoice.supplier_name,
+      branch: invoice.branch,
+      amount,
+      payment_method: paymentMethod || 'cash',
+      notes,
+      date: date || new Date().toISOString().split('T')[0],
+      created_by: createdBy,
+    })
+    .select()
+    .single();
+
+  if (payError) throw new Error(`Payment creation failed: ${payError.message}`);
+
+  // 3. Update invoice paid_amount and status
+  await supabase
+    .from('supplier_invoices')
+    .update({
+      paid_amount: newPaidAmount,
+      status: newStatus,
+      updated_date: new Date().toISOString(),
+    })
+    .eq('id', invoiceId);
+
+  // 4. Update debt record if exists
+  if (invoice.debt_record_id) {
+    await supabase
+      .from('debt_records')
+      .update({
+        paid_amount: newPaidAmount,
+        remaining_amount: Math.max(0, remaining),
+        status: newStatus === 'paid' ? 'paid' : 'partial',
+        updated_date: new Date().toISOString(),
+      })
+      .eq('id', invoice.debt_record_id);
+  }
+
+  return { payment, newStatus, remaining: Math.max(0, remaining) };
+}
+
+// ── Overdue Detection ──────────────────────────────────────────────────────
+export function getOverdueInfo(invoice) {
+  if (!invoice.due_date || invoice.status === 'paid' || invoice.status === 'cancelled') {
+    return { isOverdue: false, daysOverdue: 0, color: null };
+  }
+
+  const today = new Date();
+  const due = new Date(invoice.due_date);
+  const diffMs = today - due;
+  const daysOverdue = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (daysOverdue <= 0) return { isOverdue: false, daysOverdue: 0, color: null };
+
+  let color;
+  if (daysOverdue <= 7) color = 'yellow';
+  else if (daysOverdue <= 30) color = 'orange';
+  else color = 'red';
+
+  return { isOverdue: true, daysOverdue, color };
+}
+
+// ── Procurement KPIs ───────────────────────────────────────────────────────
+export function computeProcurementKPIs(invoices = [], payments = []) {
+  const today = new Date().toISOString().split('T')[0];
+  const thisMonthStart = today.substring(0, 7) + '-01';
+
+  const purchasesToday = invoices
+    .filter(i => i.date === today)
+    .reduce((s, i) => s + (i.total_amount || 0), 0);
+
+  const purchasesThisMonth = invoices
+    .filter(i => i.date >= thisMonthStart)
+    .reduce((s, i) => s + (i.total_amount || 0), 0);
+
+  const outstandingPayables = invoices
+    .filter(i => i.status !== 'paid' && i.status !== 'cancelled')
+    .reduce((s, i) => s + ((i.total_amount || 0) - (i.paid_amount || 0)), 0);
+
+  const overduePayables = invoices
+    .filter(i => {
+      const { isOverdue } = getOverdueInfo(i);
+      return isOverdue;
+    })
+    .reduce((s, i) => s + ((i.total_amount || 0) - (i.paid_amount || 0)), 0);
+
+  // Top supplier by total spend
+  const supplierSpend = {};
+  invoices.forEach(i => {
+    const name = i.supplier_name || 'Unknown';
+    supplierSpend[name] = (supplierSpend[name] || 0) + (i.total_amount || 0);
+  });
+  const topSupplier = Object.entries(supplierSpend).sort((a, b) => b[1] - a[1])[0]?.[0] || '—';
+
+  // Most purchased product
+  const productQty = {};
+  invoices.forEach(i => {
+    (i.items || []).forEach(item => {
+      const name = item.product_name || 'Unknown';
+      productQty[name] = (productQty[name] || 0) + (item.quantity || 0);
+    });
+  });
+  const mostPurchasedProduct = Object.entries(productQty).sort((a, b) => b[1] - a[1])[0]?.[0] || '—';
+
+  const avgPurchaseCost = invoices.length > 0
+    ? invoices.reduce((s, i) => s + (i.total_amount || 0), 0) / invoices.length
+    : 0;
+
+  const inventoryValueAdded = invoices
+    .filter(i => i.status === 'approved' || i.status === 'paid' || i.status === 'partial')
+    .reduce((s, i) => s + (i.subtotal || i.total_amount || 0), 0);
+
+  return {
+    purchasesToday,
+    purchasesThisMonth,
+    outstandingPayables,
+    overduePayables,
+    topSupplier,
+    mostPurchasedProduct,
+    avgPurchaseCost,
+    inventoryValueAdded,
+  };
+}
+
+// ── Distribute Additional Costs Proportionally ────────────────────────────
+export function distributeAdditionalCosts(items = [], additionalCosts = []) {
+  const totalAdditional = additionalCosts.reduce((s, c) => s + (c.amount || 0), 0);
+  if (totalAdditional === 0 || items.length === 0) return items;
+
+  const subtotal = items.reduce((s, i) => s + (i.line_total || 0), 0);
+  if (subtotal === 0) return items;
+
+  return items.map(item => {
+    const share = (item.line_total || 0) / subtotal;
+    const allocatedCost = totalAdditional * share;
+    return {
+      ...item,
+      allocated_additional_cost: allocatedCost,
+      effective_unit_cost: ((item.line_total || 0) + allocatedCost) / (item.quantity || 1),
+    };
+  });
+}

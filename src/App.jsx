@@ -74,6 +74,9 @@ import KitchenInvitePage from '@/pages/KitchenInvitePage';
 import AuthPage from '@/pages/AuthPage';
 import TelegramSettings from '@/pages/TelegramSettings';
 import LandingPage from '@/pages/LandingPage';
+import PurchasesV2 from '@/pages/PurchasesV2';
+import ProcurementDashboard from '@/pages/ProcurementDashboard';
+import SupplierLedger from '@/pages/SupplierLedger';
 
 // Route-level error boundary — catches crashes in individual pages
 class RouteErrorBoundary extends React.Component {
@@ -183,7 +186,10 @@ const SubscribedRoutes = () => {
           <Route path="/dashboard" element={<RoleGuard permission="viewDashboard"><Dashboard /></RoleGuard>} />
           <Route path="/staff-upload" element={<RoleGuard permission="uploadSales"><StaffUpload /></RoleGuard>} />
           <Route path="/sales" element={<RoleGuard permission="viewSales"><Sales /></RoleGuard>} />
-          <Route path="/purchases" element={<RoleGuard permission="viewPurchases"><Purchases /></RoleGuard>} />
+          <Route path="/purchases" element={<RoleGuard permission="viewPurchases"><PurchasesV2 /></RoleGuard>} />
+          <Route path="/purchases-legacy" element={<RoleGuard permission="viewPurchases"><Purchases /></RoleGuard>} />
+          <Route path="/procurement-dashboard" element={<RoleGuard permission="viewPurchases"><ProcurementDashboard /></RoleGuard>} />
+          <Route path="/supplier-ledger" element={<RoleGuard permission="viewSuppliers"><SupplierLedger /></RoleGuard>} />
           <Route path="/products" element={<RoleGuard permission="viewInventory"><Products /></RoleGuard>} />
           <Route path="/settings" element={<RoleGuard permission="manageSettings"><SettingsPage /></RoleGuard>} />
           <Route path="/expenses" element={<RoleGuard permission="viewExpenses"><Expenses /></RoleGuard>} />
