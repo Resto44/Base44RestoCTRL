@@ -42,10 +42,22 @@ export default function Suppliers() {
     enabled: !!(ownerFilter?.created_by || ownerFilter?.branch) 
   });
 
+  const { activeRestaurantId, orgId } = useTenant();
+
   const saveMutation = useMutation({
-    mutationFn: (data) => editing 
-      ? base44.entities.Supplier.update(editing.id, data) 
-      : base44.entities.Supplier.create({ ...data, ...(ownerFilter || {}) }),
+    mutationFn: (data) => {
+      const payload = {
+        ...data,
+        ...(ownerFilter || {}),
+        // Ensure critical visibility fields are explicitly set
+        restaurant_id: activeRestaurantId,
+        created_by: orgId,
+        status: true, // Default to active
+      };
+      return editing 
+        ? base44.entities.Supplier.update(editing.id, data) 
+        : base44.entities.Supplier.create(payload);
+    },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['suppliers'] }); closeForm(); },
   });
   const deleteMutation = useMutation({
