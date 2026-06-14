@@ -27,6 +27,19 @@ const SponsorDashboard    = lazy(() => import('./pages/SponsorDashboard'));
 const DriverPortal        = lazy(() => import('./pages/DriverPortal'));
 const EmployeePortal      = lazy(() => import('./pages/EmployeePortal'));
 const ExecutiveCommandCenter = lazy(() => import('./pages/ExecutiveCommandCenter'));
+const OwnerDashboard         = lazy(() => import('./pages/OwnerDashboard'));
+const CashRegisterCenter     = lazy(() => import('./pages/CashRegisterCenter'));
+const KitchenDisplaySystem   = lazy(() => import('./pages/KitchenDisplaySystem'));
+const OnlineOrdering         = lazy(() => import('./pages/OnlineOrdering'));
+const DriverManagement       = lazy(() => import('./pages/DriverManagement'));
+const CustomerManagement     = lazy(() => import('./pages/CustomerManagement'));
+const BranchCommandCenter    = lazy(() => import('./pages/BranchCommandCenter'));
+const InventoryCommandCenter = lazy(() => import('./pages/InventoryCommandCenter'));
+const RecipeFoodCosting      = lazy(() => import('./pages/RecipeFoodCosting'));
+const SmartAlertCenter       = lazy(() => import('./pages/SmartAlertCenter'));
+const AIBusinessCopilot      = lazy(() => import('./pages/AIBusinessCopilot'));
+const BICenter               = lazy(() => import('./pages/BICenter'));
+const ReservationTableManagement = lazy(() => import('./pages/ReservationTableManagement'));
 
 const Sales               = lazy(() => import('./pages/Sales'));
 const Purchases           = lazy(() => import('./pages/Purchases'));
@@ -266,6 +279,21 @@ const SubscribedRoutes = () => {
         <Route path="/sponsor-dashboard" element={<SponsorDashboard />} />
         <Route path="/kitchen-dashboard" element={<KitchenDashboard />} />
         <Route path="/customer-dashboard" element={<CustomerDashboard />} />
+
+        {/* ── New Enterprise Modules ── */}
+        <Route path="/owner-command-center" element={<RoleGuard permission="viewDashboard"><OwnerDashboard /></RoleGuard>} />
+        <Route path="/cash-register" element={<RoleGuard permission="viewSales"><CashRegisterCenter /></RoleGuard>} />
+        <Route path="/kds" element={<RoleGuard permission="viewSales"><KitchenDisplaySystem /></RoleGuard>} />
+        <Route path="/online-ordering" element={<RoleGuard permission="viewSales"><OnlineOrdering /></RoleGuard>} />
+        <Route path="/driver-management" element={<RoleGuard permission="viewEmployees"><DriverManagement /></RoleGuard>} />
+        <Route path="/customer-management" element={<RoleGuard permission="viewDebts"><CustomerManagement /></RoleGuard>} />
+        <Route path="/branch-command-center" element={<RoleGuard permission="viewDashboard"><BranchCommandCenter /></RoleGuard>} />
+        <Route path="/inventory-command-center" element={<RoleGuard permission="viewInventory"><InventoryCommandCenter /></RoleGuard>} />
+        <Route path="/recipe-food-costing" element={<RoleGuard permission="viewInventory"><RecipeFoodCosting /></RoleGuard>} />
+        <Route path="/smart-alerts" element={<RoleGuard permission="viewAlerts"><SmartAlertCenter /></RoleGuard>} />
+        <Route path="/ai-copilot" element={<RoleGuard permission="viewDashboard"><AIBusinessCopilot /></RoleGuard>} />
+        <Route path="/bi-center" element={<RoleGuard permission="viewReports"><BICenter /></RoleGuard>} />
+        <Route path="/reservations" element={<RoleGuard permission="viewSales"><ReservationTableManagement /></RoleGuard>} />
 
         {/* ── Short aliases ── */}
         <Route path="/employee" element={<EmployeePortal />} />
