@@ -177,9 +177,9 @@ export default function Dashboard() {
           <span>{t('daily_sales')}</span>
         </Link>
 
-        {/* Purchases */}
+        {/* Purchases — Enterprise Purchase Command Center */}
         <Link
-          to="/purchases"
+          to="/enterprise-purchases"
           className="flex items-center justify-center gap-2 h-12 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm shadow-md active:scale-95 transition-all"
         >
           <Receipt className="w-4 h-4" />

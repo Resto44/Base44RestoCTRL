@@ -136,7 +136,7 @@ export default function ManagerWorkspace() {
 
   const quickActions = [
     { to: '/sales', label: u.add_sales, icon: ShoppingBag, color: 'bg-primary/10 text-primary border-primary/20' },
-    { to: '/purchases', label: u.add_purchase, icon: Package, color: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20' },
+    { to: '/enterprise-purchases', label: u.add_purchase, icon: Package, color: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20' },
     { to: '/expenses', label: u.add_expense, icon: Receipt, color: 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/20' },
     { to: '/employees', label: u.view_employees, icon: Users, color: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/20' },
     { to: '/employee-attendance', label: u.view_attendance, icon: CheckCircle2, color: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20' },

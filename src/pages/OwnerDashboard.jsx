@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { useLanguage } from '@/lib/LanguageContext';
@@ -22,7 +23,6 @@ import {
 } from 'recharts';
 import { format, subDays } from 'date-fns';
 import SalesForm from '@/components/sales/SalesForm';
-import PurchaseForm from '@/components/purchases/PurchaseForm';
 
 // ── KPI Card Component ────────────────────────────────────────────────────────
 function KPICard({ title, value, subtitle, icon: Icon, trend, trendValue, color = 'blue', onClick }) {
@@ -110,9 +110,9 @@ export default function OwnerDashboard() {
   const { t, currency, lang } = useLanguage();
   const { branches, ownerFilter } = useTenant();
   const { role } = useRole();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('overview');
   const [showSaleModal, setShowSaleModal] = useState(false);
-  const [showPurchaseModal, setShowPurchaseModal] = useState(false);
   const today = format(new Date(), 'yyyy-MM-dd');
   const monthStart = format(new Date(new Date().getFullYear(), new Date().getMonth(), 1), 'yyyy-MM-dd');
 
@@ -237,7 +237,7 @@ export default function OwnerDashboard() {
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2.5">{t('quick_actions')}</p>
           <div className="grid grid-cols-5 gap-2">
             <QuickActionBtn icon={Plus}        label={t('add_sale')}           color="green"  onClick={() => setShowSaleModal(true)} />
-            <QuickActionBtn icon={ShoppingCart} label={t('add_purchase')}      color="blue"   onClick={() => setShowPurchaseModal(true)} />
+            <QuickActionBtn icon={ShoppingCart} label={t('add_purchase')}      color="blue"   onClick={() => { console.log('PURCHASE COMPONENT LOADED: EnterprisePurchaseCommandCenter'); navigate('/enterprise-purchases'); }} />
             <QuickActionBtn icon={Receipt}      label={t('add_expense')}        color="amber"  onClick={() => {}} />
             <QuickActionBtn icon={CreditCard}   label={t('customer_collection')} color="purple" onClick={() => {}} />
             <QuickActionBtn icon={Wallet}       label={t('supplier_payment')}  color="red"    onClick={() => {}} />
@@ -388,15 +388,7 @@ export default function OwnerDashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* Add Purchase Modal */}
-      <Dialog open={showPurchaseModal} onOpenChange={setShowPurchaseModal}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{t('add_purchase')}</DialogTitle>
-          </DialogHeader>
-          <PurchaseForm onSuccess={() => setShowPurchaseModal(false)} onCancel={() => setShowPurchaseModal(false)} />
-        </DialogContent>
-      </Dialog>
+      {/* Add Purchase — navigates to Enterprise Purchase Command Center */}
     </div>
   );
 }

@@ -18,7 +18,7 @@ const LABELS = {
     branchName: 'Branch',
     actions: [
       { icon: ShoppingBag, label: 'Record First Sale', to: '/sales', desc: 'Start tracking your daily revenue' },
-      { icon: ShoppingCart, label: 'Record First Purchase', to: '/purchases', desc: 'Log your first buying expense' },
+      { icon: ShoppingCart, label: 'Record First Purchase', to: '/enterprise-purchases', desc: 'Log your first buying expense' },
       { icon: Users, label: 'Add First Employee', to: '/employees', desc: 'Build your team and run payroll' },
       { icon: Landmark, label: 'Setup Treasury', to: '/treasury', desc: 'Track your cash and network balances' },
       { icon: Building2, label: 'Manage Restaurants', to: '/restaurants', desc: 'Add branches or a second restaurant' },
@@ -36,7 +36,7 @@ const LABELS = {
     branchName: 'الفرع',
     actions: [
       { icon: ShoppingBag, label: 'تسجيل أول مبيعة', to: '/sales', desc: 'ابدأ بتتبع إيراداتك اليومية' },
-      { icon: ShoppingCart, label: 'تسجيل أول مشتريات', to: '/purchases', desc: 'سجّل أول مصروف شراء' },
+      { icon: ShoppingCart, label: 'تسجيل أول مشتريات', to: '/enterprise-purchases', desc: 'سجّل أول مصروف شراء' },
       { icon: Users, label: 'إضافة أول موظف', to: '/employees', desc: 'أعدّ فريقك وكشف الرواتب' },
       { icon: Landmark, label: 'إعداد الخزينة', to: '/treasury', desc: 'تتبع أرصدة النقد والشبكة' },
       { icon: Building2, label: 'إدارة المطاعم', to: '/restaurants', desc: 'أضف فروعاً أو مطعماً ثانياً' },
@@ -54,7 +54,7 @@ const LABELS = {
     branchName: 'فرع',
     actions: [
       { icon: ShoppingBag, label: 'ثبت اولین فروش', to: '/sales', desc: 'ردیابی درآمد روزانه را شروع کنید' },
-      { icon: ShoppingCart, label: 'ثبت اولین خرید', to: '/purchases', desc: 'اولین هزینه خرید را ثبت کنید' },
+      { icon: ShoppingCart, label: 'ثبت اولین خرید', to: '/enterprise-purchases', desc: 'اولین هزینه خرید را ثبت کنید' },
       { icon: Users, label: 'افزودن اولین کارمند', to: '/employees', desc: 'تیم و حقوق را راه‌اندازی کنید' },
       { icon: Landmark, label: 'راه‌اندازی خزانه', to: '/treasury', desc: 'موجودی نقد و شبکه را ردیابی کنید' },
       { icon: Building2, label: 'مدیریت رستوران‌ها', to: '/restaurants', desc: 'فروع یا رستوران دوم اضافه کنید' },
