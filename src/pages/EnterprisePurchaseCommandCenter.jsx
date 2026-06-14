@@ -26,7 +26,7 @@
  */
 
 import React, {
-  useState, useMemo, useCallback, lazy, Suspense
+  useState, useMemo, useCallback
 } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
@@ -68,10 +68,8 @@ import {
   PurchaseSkeleton,
 } from '@/components/purchases/EnterpriseUIComponents';
 
-// ── Lazy-loaded heavy components ──────────────────────────────────────────────
-const PurchaseInvoiceForm = lazy(() =>
-  import('@/components/purchases/PurchaseInvoiceForm')
-);
+// ── Direct import (page is already lazy-loaded at route level) ───────────────
+import PurchaseInvoiceForm from '@/components/purchases/PurchaseInvoiceForm';
 
 // ── Procurement engine ────────────────────────────────────────────────────────
 import {
@@ -719,17 +717,11 @@ export default function EnterprisePurchaseCommandCenter() {
               }
             </DialogTitle>
           </DialogHeader>
-          <Suspense fallback={
-            <div className="flex items-center justify-center py-16">
-              <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-            </div>
-          }>
-            <PurchaseInvoiceForm
-              invoice={editing}
-              onSuccess={handleFormClose}
-              onCancel={handleFormClose}
-            />
-          </Suspense>
+          <PurchaseInvoiceForm
+            invoice={editing}
+            onSuccess={handleFormClose}
+            onCancel={handleFormClose}
+          />
         </DialogContent>
       </Dialog>
 

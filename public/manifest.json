@@ -73,7 +73,7 @@
       "name": "Dashboard",
       "short_name": "Dashboard",
       "description": "View business overview",
-      "url": "/",
+      "url": "/owner-command-center",
       "icons": [{ "src": "/icons/icon-96.png", "sizes": "96x96" }]
     }
   ]

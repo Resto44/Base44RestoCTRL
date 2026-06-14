@@ -25,6 +25,11 @@ export default defineConfig({
     // Code splitting — split vendor libraries into separate chunks
     rollupOptions: {
       output: {
+        // Content-hash filenames ensure browsers always fetch the latest bundle
+        // after a deploy — eliminates stale JS chunk serving
+        chunkFileNames: 'assets/[name]-[hash].js',
+        entryFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash].[ext]',
         manualChunks: {
           // Core React runtime
           'vendor-react': ['react', 'react-dom', 'react-router-dom'],
@@ -59,7 +64,7 @@ export default defineConfig({
     },
     // Increase chunk size warning limit slightly (we have many components)
     chunkSizeWarningLimit: 600,
-    // Enable source maps for production debugging
+    // No source maps in production — reduces bundle size
     sourcemap: false,
     // Minify with esbuild (faster than terser)
     minify: 'esbuild',

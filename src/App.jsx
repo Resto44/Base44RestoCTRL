@@ -150,7 +150,7 @@ function OnboardingGate({ children }) {
   const onOnboardingPage = location.pathname === '/onboarding';
 
   if (needsOnboarding && !onOnboardingPage) { window.location.replace('/onboarding'); return null; }
-  if (!needsOnboarding && onOnboardingPage) { window.location.replace('/'); return null; }
+  if (!needsOnboarding && onOnboardingPage) { window.location.replace('/owner-command-center'); return null; }
 
   return children;
 }
@@ -159,12 +159,15 @@ function OnboardingGate({ children }) {
 function RoleHomeRedirect() {
   const { role } = useRole();
   const { restaurants, loadingRestaurants } = useTenant();
-  const home = ROLE_HOME[role] === '/' ? '/dashboard' : (ROLE_HOME[role] || '/dashboard');
+  // Use ROLE_HOME directly — all roles now have explicit non-root paths
+  const home = ROLE_HOME[role] || '/owner-command-center';
 
   React.useEffect(() => {
     if (loadingRestaurants) return;
     if (restaurants.length === 0) return;
-    if ((window.location.pathname === '/' || window.location.pathname === '/auth') && home !== '/') {
+    const currentPath = window.location.pathname;
+    // Redirect from root or auth to the role's home page
+    if (currentPath === '/' || currentPath === '/auth' || currentPath === '/dashboard') {
       window.location.replace(home);
     }
   }, [home, loadingRestaurants, restaurants.length]);
@@ -188,7 +191,7 @@ const SubscribedRoutes = () => {
     return (
       <Suspense fallback={<PageLoader />}>
         <Routes>
-          <Route path="/onboarding" element={<Onboarding onComplete={() => window.location.replace('/')} />} />
+          <Route path="/onboarding" element={<Onboarding onComplete={() => window.location.replace('/owner-command-center')} />} />
           <Route element={<AppLayout />}>
             <Route path="/billing" element={<Billing />} />
           </Route>
@@ -203,11 +206,17 @@ const SubscribedRoutes = () => {
     <OnboardingGate>
     <Suspense fallback={<PageLoader />}>
     <Routes>
-      <Route path="/onboarding" element={<Onboarding onComplete={() => window.location.replace('/')} />} />
+      <Route path="/onboarding" element={<Onboarding onComplete={() => window.location.replace('/owner-command-center')} />} />
       <Route element={<AppLayout />}>
-        <Route path="/" element={<Dashboard />} />
+        {/* ── Primary owner dashboard (canonical entry point) ── */}
+        <Route path="/owner-command-center" element={<RoleGuard permission="viewDashboard"><OwnerDashboard /></RoleGuard>} />
+
+        {/* ── Legacy dashboard (manager workspace + first-time owner) ── */}
         <Route path="/dashboard" element={<RoleGuard permission="viewDashboard"><Dashboard /></RoleGuard>} />
+
+        {/* ── Executive analytics view ── */}
         <Route path="/executive-command-center" element={<RoleGuard permission="viewDashboard"><ExecutiveCommandCenter /></RoleGuard>} />
+
         <Route path="/staff-upload" element={<RoleGuard permission="uploadSales"><StaffUpload /></RoleGuard>} />
 
         {/* ── Core Operations ── */}
@@ -273,8 +282,7 @@ const SubscribedRoutes = () => {
         <Route path="/support" element={<Support />} />
         <Route path="/super-admin" element={<SuperAdmin />} />
 
-        {/* ── Role-specific dashboards ── */}
-        <Route path="/owner-dashboard" element={<RoleGuard permission="viewDashboard"><Dashboard /></RoleGuard>} />
+        {/* ── Role-specific portals ── */}
         <Route path="/manager-dashboard" element={<RoleGuard permission="viewDashboard"><Dashboard /></RoleGuard>} />
         <Route path="/employee-dashboard" element={<EmployeePortal />} />
         <Route path="/driver-dashboard" element={<DriverPortal />} />
@@ -282,8 +290,7 @@ const SubscribedRoutes = () => {
         <Route path="/kitchen-dashboard" element={<KitchenDashboard />} />
         <Route path="/customer-dashboard" element={<CustomerDashboard />} />
 
-        {/* ── New Enterprise Modules ── */}
-        <Route path="/owner-command-center" element={<RoleGuard permission="viewDashboard"><OwnerDashboard /></RoleGuard>} />
+        {/* ── Enterprise Modules ── */}
         <Route path="/cash-register" element={<RoleGuard permission="viewSales"><CashRegisterCenter /></RoleGuard>} />
         <Route path="/kds" element={<RoleGuard permission="viewSales"><KitchenDisplaySystem /></RoleGuard>} />
         <Route path="/online-ordering" element={<RoleGuard permission="viewSales"><OnlineOrdering /></RoleGuard>} />

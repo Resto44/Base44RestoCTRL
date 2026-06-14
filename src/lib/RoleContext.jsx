@@ -27,7 +27,7 @@ export const ROLES = {
 
 // Which route each role lands on after login
 export const ROLE_HOME = {
-  [ROLES.OWNER]:    '/',
+  [ROLES.OWNER]:    '/owner-command-center',
   [ROLES.MANAGER]:  '/manager-dashboard',
   [ROLES.EMPLOYEE]: '/employee-dashboard',
   [ROLES.DRIVER]:   '/driver-dashboard',
@@ -58,63 +58,81 @@ function buildCan(role) {
   }
 
   return {
-    // Navigation / pages
-    viewDashboard:      is(ROLES.OWNER, ROLES.MANAGER),
-    viewSales:          is(ROLES.OWNER, ROLES.MANAGER),
-    viewPurchases:      is(ROLES.OWNER, ROLES.MANAGER),
-    viewInventory:      is(ROLES.OWNER, ROLES.MANAGER),
-    viewOrders:         is(ROLES.OWNER, ROLES.MANAGER, ROLES.KITCHEN, ROLES.CUSTOMER),
-    viewStaff:          is(ROLES.OWNER, ROLES.MANAGER),
-    viewAttendance:     is(ROLES.OWNER, ROLES.MANAGER, ROLES.EMPLOYEE),
-    viewReports:        is(ROLES.OWNER, ROLES.MANAGER, ROLES.SPONSOR),
-    
+    // Dashboard
+    viewDashboard:      is(ROLES.MANAGER, ROLES.EMPLOYEE, ROLES.DRIVER, ROLES.SPONSOR, ROLES.KITCHEN, ROLES.CUSTOMER),
+    // Sales
+    viewSales:          is(ROLES.MANAGER),
+    // Purchases
+    viewPurchases:      is(ROLES.MANAGER),
+    // Inventory
+    viewInventory:      is(ROLES.MANAGER),
+    // Orders
+    viewOrders:         is(ROLES.MANAGER, ROLES.DRIVER, ROLES.KITCHEN),
+    // Staff
+    viewStaff:          is(ROLES.MANAGER),
+    viewEmployees:      is(ROLES.MANAGER),
+    viewPayroll:        is(ROLES.MANAGER),
+    viewEmployeeControl: is(ROLES.MANAGER),
+    viewStaffAttendance: is(ROLES.MANAGER),
+    // Treasury / Finance
+    viewTreasury:       is(ROLES.MANAGER),
+    viewExpenses:       is(ROLES.MANAGER),
+    viewDebts:          is(ROLES.MANAGER),
+    viewNetworkAccounts: false,
+    viewNetworkAnalytics: false,
+    viewSponsorTreasury: is(ROLES.SPONSOR),
+    // Suppliers
+    viewSuppliers:      is(ROLES.MANAGER),
+    // Delivery
+    viewDelivery:       is(ROLES.MANAGER, ROLES.DRIVER),
+    // Brand / Settings
+    viewBrandSettings:  false,
+    viewBilling:        false,
+    // Reports
+    viewReports:        is(ROLES.MANAGER, ROLES.SPONSOR),
+    viewActivityLogs:   false,
+    exportPDF:          false,
+    // Attendance
+    viewAttendance:     is(ROLES.MANAGER, ROLES.EMPLOYEE),
     // Financials
-    viewFinancials:     is(ROLES.OWNER),
-    viewProfitLoss:     is(ROLES.OWNER),
-    
+    viewFinancials:     false,
+    viewProfitLoss:     false,
     // Employee Specific
-    recordAttendance:   is(ROLES.OWNER, ROLES.MANAGER, ROLES.EMPLOYEE),
-    viewSchedule:       is(ROLES.OWNER, ROLES.MANAGER, ROLES.EMPLOYEE),
-    viewTasks:          is(ROLES.OWNER, ROLES.MANAGER, ROLES.EMPLOYEE),
-    viewSalary:         is(ROLES.OWNER, ROLES.EMPLOYEE),
-    manageLoans:        is(ROLES.OWNER, ROLES.EMPLOYEE),
-    viewProfile:        is(ROLES.OWNER, ROLES.MANAGER, ROLES.EMPLOYEE, ROLES.DRIVER, ROLES.CUSTOMER),
-    
+    recordAttendance:   is(ROLES.MANAGER, ROLES.EMPLOYEE),
+    viewSchedule:       is(ROLES.MANAGER, ROLES.EMPLOYEE),
+    viewTasks:          is(ROLES.MANAGER, ROLES.EMPLOYEE),
+    viewSalary:         is(ROLES.EMPLOYEE),
+    manageLoans:        is(ROLES.EMPLOYEE),
+    viewProfile:        is(ROLES.MANAGER, ROLES.EMPLOYEE, ROLES.DRIVER, ROLES.CUSTOMER),
     // Driver Specific
-    viewDeliveries:     is(ROLES.OWNER, ROLES.MANAGER, ROLES.DRIVER),
-    updateDelivery:     is(ROLES.OWNER, ROLES.MANAGER, ROLES.DRIVER),
-    viewEarnings:       is(ROLES.OWNER, ROLES.DRIVER),
-    
+    viewDeliveries:     is(ROLES.MANAGER, ROLES.DRIVER),
+    updateDelivery:     is(ROLES.MANAGER, ROLES.DRIVER),
+    viewEarnings:       is(ROLES.DRIVER),
     // Sponsor Specific
-    viewWallet:         is(ROLES.OWNER, ROLES.SPONSOR),
-    manageTransactions: is(ROLES.OWNER, ROLES.SPONSOR),
-    viewSponsored:      is(ROLES.OWNER, ROLES.SPONSOR),
-    
+    viewWallet:         is(ROLES.SPONSOR),
+    manageTransactions: is(ROLES.SPONSOR),
+    viewSponsored:      is(ROLES.SPONSOR),
     // Kitchen Specific
-    viewKitchenQueue:   is(ROLES.OWNER, ROLES.MANAGER, ROLES.KITCHEN),
-    updatePrepStatus:   is(ROLES.OWNER, ROLES.MANAGER, ROLES.KITCHEN),
-    
+    viewKitchenQueue:   is(ROLES.MANAGER, ROLES.KITCHEN),
+    updatePrepStatus:   is(ROLES.MANAGER, ROLES.KITCHEN),
     // Customer Specific
     placeOrders:        is(ROLES.CUSTOMER),
     trackOrders:        is(ROLES.CUSTOMER),
-    
     // Settings / Management
-    manageSettings:     is(ROLES.OWNER),
-    manageBranches:     is(ROLES.OWNER),
-    manageUsers:        is(ROLES.OWNER),
-    manageRoles:        is(ROLES.OWNER),
-    manageCustomers:    is(ROLES.OWNER),
-    manageDrivers:      is(ROLES.OWNER),
-    manageKitchen:      is(ROLES.OWNER),
-    manageSponsors:     is(ROLES.OWNER),
-    
+    manageSettings:     false,
+    manageBranches:     false,
+    manageUsers:        false,
+    manageRoles:        false,
+    manageCustomers:    false,
+    manageDrivers:      false,
+    manageKitchen:      false,
+    manageSponsors:     false,
     // Legacy / Misc
-    uploadSales:        is(ROLES.OWNER, ROLES.MANAGER),
-    viewAlerts:         is(ROLES.OWNER, ROLES.MANAGER),
+    uploadSales:        is(ROLES.MANAGER),
+    viewAlerts:         is(ROLES.MANAGER),
     viewSupport:        true,
   };
 }
-
 const PERMISSIONS_LIST = {
   viewDashboard: false, viewSales: false, viewPurchases: false, viewInventory: false,
   viewOrders: false, viewStaff: false, viewAttendance: false, viewReports: false,
@@ -133,15 +151,12 @@ const PERMISSIONS_LIST = {
   viewActivityLogs: false, viewEmployeeControl: false, viewStaffAttendance: false,
   viewSuppliers: false, exportPDF: false,
 };
-
 // logSecurityEvent is fire-and-forget via auditLogger
 function logSecurityEvent(_user, _type, detail) {
   audit.securityViolation(detail, _user?.role || 'unknown');
 }
-
 export function RoleProvider({ children }) {
   const { user } = useAuth();
-
   const role = useMemo(() => {
     if (!user) return ROLES.OWNER; 
     // Normalize role strings to match our ROLES constant
@@ -151,39 +166,32 @@ export function RoleProvider({ children }) {
     if (r === 'staff') return ROLES.EMPLOYEE;
     return ROLES.OWNER; // Safe default
   }, [user]);
-
   const can = useMemo(() => buildCan(role), [role]);
-
   return (
     <RoleContext.Provider value={{ role, can, user }}>
       {children}
     </RoleContext.Provider>
   );
 }
-
 export function useRole() {
   const ctx = useContext(RoleContext);
   if (!ctx) return { role: ROLES.OWNER, can: buildCan(ROLES.OWNER), user: null };
   return ctx;
 }
-
 export function useRouteGuard() {
   const { role, user } = useRole();
   const navigate = useNavigate();
   const location = useLocation();
-
   useEffect(() => {
     if (!user) return;
     const path = location.pathname;
-    
     // Whitelist bypass for home, auth, and onboarding
     if (['/', '/auth', '/onboarding', '/support'].includes(path)) return;
-
     // Check if the role is allowed to be on this specific dashboard
     if (path.endsWith('-dashboard')) {
       const dashboardRole = path.replace('/', '').replace('-dashboard', '');
       if (dashboardRole !== role && role !== ROLES.OWNER) {
-        navigate(ROLE_HOME[role] || '/', { replace: true });
+        navigate(ROLE_HOME[role] || '/owner-command-center', { replace: true });
       }
     }
   }, [location.pathname, role, user]);
