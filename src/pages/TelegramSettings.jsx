@@ -66,7 +66,6 @@ export default function TelegramSettings() {
   }, [user?.email, orgId, activeRestaurantId]);
 
   const handleSave = async () => {
-    console.log('[TelegramSettings] handleSave triggered', { hasUser: !!user?.email });
     
     if (!user?.email) {
       console.error('[TelegramSettings] Save blocked: no user session');
@@ -84,7 +83,6 @@ export default function TelegramSettings() {
       restaurant_id: activeRestaurantId || null
     };
 
-    console.log('[TelegramSettings] Saving payload:', payload);
 
     try {
       // Find existing record by key and org_id (user email)
@@ -95,11 +93,9 @@ export default function TelegramSettings() {
 
       if (existing && existing.length > 0) {
         const idToUpdate = existing[0].id;
-        console.log('[TelegramSettings] Updating existing record:', idToUpdate);
         await base44.entities.AppSettings.update(idToUpdate, payload);
         setExistingId(idToUpdate);
       } else {
-        console.log('[TelegramSettings] Creating new record');
         const created = await base44.entities.AppSettings.create(payload);
         if (created?.id) {
           setExistingId(created.id);

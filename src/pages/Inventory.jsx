@@ -41,7 +41,7 @@ export default function Inventory() {
 
   const { data: items = [] } = useQuery({ 
     queryKey: ['inventory', ownerFilter], 
-    queryFn: () => base44.entities.Inventory.filter(ownerFilter || {}, '-date', 5000), 
+    queryFn: () => base44.entities.Inventory.filter(ownerFilter || {}, '-date', 2000), staleTime: 120000, 
     enabled: !!(ownerFilter?.created_by || ownerFilter?.branch) 
   });
   const { data: products = [] } = useQuery({ 
@@ -51,12 +51,12 @@ export default function Inventory() {
   });
   const { data: purchases = [] } = useQuery({ 
     queryKey: ['purchases', ownerFilter], 
-    queryFn: () => base44.entities.Purchase.filter(ownerFilter || {}, '-date', 10000), 
+    queryFn: () => base44.entities.Purchase.filter(ownerFilter || {}, '-date', 2000), staleTime: 120000, 
     enabled: !!(ownerFilter?.created_by || ownerFilter?.branch) 
   });
   const { data: wastage = [] } = useQuery({ 
     queryKey: ['inventory_waste', ownerFilter], 
-    queryFn: () => base44.entities.InventoryWaste.filter(ownerFilter || {}, '-date', 5000), 
+    queryFn: () => base44.entities.InventoryWaste.filter(ownerFilter || {}, '-date', 2000), staleTime: 120000, 
     enabled: !!(ownerFilter?.created_by || ownerFilter?.branch) 
   });
 

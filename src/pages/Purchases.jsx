@@ -1,203 +1,241 @@
-import React, { useState } from 'react';
+/**
+ * Purchases — Enterprise Procurement & Accounts Payable
+ * Full invoice-based workflow with overdue detection, multi-line items,
+ * branch/status filtering, and supplier ledger integration.
+ */
+
+import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/api/supabaseClient';
 import { base44 } from '@/api/base44Client';
 import { useLanguage } from '@/lib/LanguageContext';
+import { useTenant } from '@/lib/TenantContext';
+import { useAuth } from '@/lib/AuthContext';
+import { useRole, ROLES } from '@/lib/RoleContext';
 import PageHeader from '@/components/shared/PageHeader';
-import PurchaseForm from '@/components/purchases/PurchaseForm.jsx';
-import FinancialPurchaseForm from '@/components/purchases/FinancialPurchaseForm';
-import PurchaseListItem from '@/components/purchases/PurchaseListItem';
-import EmptyState from '@/components/shared/EmptyState';
 import BranchSelect from '@/components/shared/BranchSelect';
+import PurchaseInvoiceForm from '@/components/purchases/PurchaseInvoiceForm';
+import PurchaseInvoiceList from '@/components/purchases/PurchaseInvoiceList';
 import { Button } from '@/components/ui/button';
-import { Plus, Download, Settings2, Receipt } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import ExportDialog from '@/components/shared/ExportDialog';
-import { downloadCSV, downloadPDF, buildPurchasesCSV, buildPurchasesPDF } from '@/lib/exportUtils';
-import { useNotify } from '@/lib/useNotify';
-import { useTenant } from '@/lib/TenantContext';
+import {
+  Plus, BarChart3, BookOpen, Receipt, Filter, Search, AlertCircle, Clock
+} from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { getOverdueInfo } from '@/lib/procurementEngine';
+
+const STATUS_FILTERS = ['all', 'draft', 'pending', 'approved', 'paid', 'partial', 'unpaid', 'cancelled'];
 
 export default function Purchases() {
-  const { t, currency } = useLanguage();
-  const { branches } = useTenant();
-  const qc = useQueryClient();
-  const notif = useNotify();
+  const { currency } = useLanguage();
   const { ownerFilter } = useTenant();
+  const { user } = useAuth();
+  const { role } = useRole();
+  const qc = useQueryClient();
+  const isOwner = role === ROLES.OWNER;
+
   const [showForm, setShowForm] = useState(false);
-  const [showFinancialForm, setShowFinancialForm] = useState(false);
   const [editing, setEditing] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [filterBranch, setFilterBranch] = useState('all');
-  const [showExport, setShowExport] = useState(false);
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const { data: purchases = [], isLoading } = useQuery({
-    queryKey: ['purchases', ownerFilter],
-    queryFn: () => base44.entities.Purchase.filter(ownerFilter || {}, '-date', 10000),
-    enabled: !!ownerFilter?.created_by,
-  });
-
-  const createMut = useMutation({
-    mutationFn: async (data) => {
-      const pur = await base44.entities.Purchase.create(data);
-      const amount = (data.qty || 0) * (data.used_price || data.current_price || 0);
-      await notif.purchase({ branch: data.branch, amount, action: 'create' });
-      return pur;
+  // ── Fetch invoices ─────────────────────────────────────────────────────
+  const { data: invoices = [], isLoading } = useQuery({
+    queryKey: ['supplier_invoices', ownerFilter],
+    queryFn: async () => {
+      let q = supabase.from('supplier_invoices').select('*').order('date', { ascending: false }).limit(5000);
+      if (ownerFilter?.created_by) q = q.eq('created_by', ownerFilter.created_by);
+      const { data, error } = await q;
+      if (error) { console.warn('supplier_invoices fetch error:', error.message); return []; }
+      return data || [];
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['purchases'] }); setShowForm(false); },
+    staleTime: 120000,
+    enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
   });
 
-  const updateMut = useMutation({
-    mutationFn: async ({ id, data }) => {
-      const pur = await base44.entities.Purchase.update(id, data);
-      const amount = (data.qty || 0) * (data.used_price || data.current_price || 0);
-      await notif.purchase({ branch: data.branch, amount, action: 'update' });
-      return pur;
-    },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['purchases'] }); setEditing(null); },
-  });
-
+  // ── Delete mutation ────────────────────────────────────────────────────
   const deleteMut = useMutation({
-    mutationFn: async (purchase) => {
-      await base44.entities.Purchase.delete(purchase.id);
-      await notif.purchase({ branch: purchase.branch, action: 'delete' });
+    mutationFn: async (inv) => {
+      const { error } = await supabase.from('supplier_invoices').delete().eq('id', inv.id);
+      if (error) throw error;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['purchases'] }); setDeleting(null); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['supplier_invoices'] });
+      setDeleting(null);
+    },
   });
 
-  const handleSave = (data) => {
-    if (editing) updateMut.mutate({ id: editing.id, data });
-    else createMut.mutate(data);
-  };
+  // ── Filtered invoices ──────────────────────────────────────────────────
+  const filtered = useMemo(() => {
+    return invoices.filter(inv => {
+      const branchMatch = filterBranch === 'all' || inv.branch === filterBranch;
+      const statusMatch = filterStatus === 'all' || inv.status === filterStatus;
+      const searchMatch = !searchQuery ||
+        (inv.supplier_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (inv.invoice_number || '').toLowerCase().includes(searchQuery.toLowerCase());
+      return branchMatch && statusMatch && searchMatch;
+    });
+  }, [invoices, filterBranch, filterStatus, searchQuery]);
 
-  const filtered = filterBranch === 'all' ? purchases : purchases.filter(p => p.branch === filterBranch);
+  // ── Summary stats ──────────────────────────────────────────────────────
+  const totalOutstanding = invoices
+    .filter(i => i.status !== 'paid' && i.status !== 'cancelled')
+    .reduce((s, i) => s + ((i.total_amount || 0) - (i.paid_amount || 0)), 0);
 
-  const handleExport = ({ format, from, to, branch }) => {
-    const data = purchases.filter(p => {
-      if (!p.date) return false;
-      const inRange = p.date >= from && p.date <= to;
-      const inBranch = branch === 'all' || p.branch === branch;
-      return inRange && inBranch;
-    }).sort((a, b) => a.date.localeCompare(b.date));
+  const overdueCount = invoices.filter(i => getOverdueInfo(i).isOverdue).length;
+  const pendingApprovalCount = invoices.filter(i => i.approval_status === 'pending').length;
 
-    const branchLabel = branch === 'all' ? t('all_branches') : (branches.find(b => b.key === branch)?.label || branch);
-    const subtitle = `${branchLabel} | ${from} → ${to}`;
-    const filename = `purchases_${from}_${to}_${branch}`;
-
-    if (format === 'csv') {
-      const { headers, rows } = buildPurchasesCSV(data, t, currency, branches);
-      downloadCSV(`${filename}.csv`, headers, rows);
-    } else {
-      const { headers, rows, totalsRow } = buildPurchasesPDF(data, t, currency, branches, subtitle);
-      downloadPDF({ filename: `${filename}.pdf`, title: t('purchases'), subtitle, headers, rows, totalsRow, currency });
-    }
-    setShowExport(false);
+  const handleSuccess = () => {
+    setShowForm(false);
+    setEditing(null);
+    qc.invalidateQueries({ queryKey: ['supplier_invoices'] });
   };
 
   return (
-    <div>
+    <div className="space-y-4">
       <PageHeader
-        title={t('purchases')}
+        title="Purchases"
+        subtitle="Enterprise procurement & accounts payable"
+        icon={<Receipt className="w-5 h-5" />}
         action={
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" onClick={() => setShowExport(true)}>
-              <Download className="w-4 h-4" />
-            </Button>
-            <Link to="/categories">
-              <Button size="sm" variant="outline" className="gap-1.5">
-                <Settings2 className="w-4 h-4" />
-              </Button>
-            </Link>
-            <Button size="sm" variant="outline" onClick={() => setShowFinancialForm(true)}>
-              <Receipt className="w-4 h-4 mr-1" /> Invoice
-            </Button>
-            <Button size="sm" onClick={() => { setShowForm(true); setEditing(null); }}>
-              <Plus className="w-4 h-4 mr-1" />{t('add_purchase')}
-            </Button>
-          </div>
+          <Button size="sm" onClick={() => { setEditing(null); setShowForm(true); }} className="gap-1.5">
+            <Plus className="w-4 h-4" /> New Invoice
+          </Button>
         }
       />
 
-      <div className="mb-4">
-        <BranchSelect value={filterBranch} onChange={setFilterBranch} includeAll />
+      {/* Quick links */}
+      <div className="flex gap-2">
+        <Link to="/procurement-dashboard" className="flex-1">
+          <Button variant="outline" size="sm" className="w-full gap-1.5 text-xs h-8">
+            <BarChart3 className="w-3.5 h-3.5" /> Dashboard
+          </Button>
+        </Link>
+        <Link to="/supplier-ledger" className="flex-1">
+          <Button variant="outline" size="sm" className="w-full gap-1.5 text-xs h-8">
+            <BookOpen className="w-3.5 h-3.5" /> Ledger
+          </Button>
+        </Link>
       </div>
 
-      {isLoading ? (
-        <p className="text-center text-muted-foreground text-sm py-8">{t('loading')}</p>
-      ) : filtered.length === 0 ? (
-        <EmptyState />
-      ) : (
-        <div className="space-y-2">
-          {filtered.map(p => (
-            <PurchaseListItem
-              key={p.id}
-              purchase={p}
-              onEdit={(pur) => { setEditing(pur); setShowForm(false); }}
-              onDelete={(pur) => setDeleting(pur)}
-            />
-          ))}
-        </div>
+      {/* Alert banners */}
+      {overdueCount > 0 && (
+        <Card className="p-2.5 bg-red-50 dark:bg-red-950 border-red-200 flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
+          <span className="text-xs text-red-700 font-medium">{overdueCount} overdue invoice{overdueCount !== 1 ? 's' : ''}</span>
+          <Button size="sm" variant="ghost" className="ms-auto h-6 text-xs text-red-700" onClick={() => setFilterStatus('unpaid')}>View</Button>
+        </Card>
+      )}
+      {pendingApprovalCount > 0 && isOwner && (
+        <Card className="p-2.5 bg-yellow-50 dark:bg-yellow-950 border-yellow-200 flex items-center gap-2">
+          <Clock className="w-4 h-4 text-yellow-600 flex-shrink-0" />
+          <span className="text-xs text-yellow-700 font-medium">{pendingApprovalCount} invoice{pendingApprovalCount !== 1 ? 's' : ''} pending approval</span>
+        </Card>
       )}
 
-      {/* Standard item-level purchase form */}
-      <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>{t('add_purchase')}</DialogTitle>
-          </DialogHeader>
-          <PurchaseForm onSubmit={handleSave} onCancel={() => setShowForm(false)} />
-        </DialogContent>
-      </Dialog>
+      {/* Outstanding summary */}
+      {totalOutstanding > 0 && (
+        <Card className="p-3 bg-orange-50/50 dark:bg-orange-950/20 border-orange-200">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">Total Outstanding Payables</span>
+            <span className="text-base font-bold text-orange-600">{currency}{totalOutstanding.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+          </div>
+        </Card>
+      )}
 
-      {/* Financial invoice-level purchase form */}
-      <Dialog open={showFinancialForm} onOpenChange={setShowFinancialForm}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+      {/* Filters */}
+      <div className="space-y-2">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+          <Input
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search supplier or invoice #..."
+            className="h-9 pl-8"
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <BranchSelect value={filterBranch} onChange={setFilterBranch} includeAll />
+          <Select value={filterStatus} onValueChange={setFilterStatus}>
+            <SelectTrigger className="h-9">
+              <SelectValue placeholder="All Status" />
+            </SelectTrigger>
+            <SelectContent>
+              {STATUS_FILTERS.map(s => (
+                <SelectItem key={s} value={s}>{s === 'all' ? 'All Status' : s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {/* Invoice count */}
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <span>{filtered.length} invoice{filtered.length !== 1 ? 's' : ''}</span>
+        {filterStatus !== 'all' || filterBranch !== 'all' || searchQuery ? (
+          <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => { setFilterBranch('all'); setFilterStatus('all'); setSearchQuery(''); }}>
+            Clear filters
+          </Button>
+        ) : null}
+      </div>
+
+      {/* Invoice list */}
+      {isLoading ? (
+        <div className="flex items-center justify-center py-12">
+          <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : (
+        <PurchaseInvoiceList
+          invoices={filtered}
+          onEdit={(inv) => { setEditing(inv); setShowForm(true); }}
+          onDelete={(inv) => setDeleting(inv)}
+        />
+      )}
+
+      {/* Create/Edit Dialog */}
+      <Dialog open={showForm} onOpenChange={open => { if (!open) { setShowForm(false); setEditing(null); } }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Receipt className="w-4 h-4 text-primary" /> Supplier Invoice
+              <Receipt className="w-5 h-5 text-primary" />
+              {editing ? 'Edit Purchase Invoice' : 'New Purchase Invoice'}
             </DialogTitle>
           </DialogHeader>
-          <FinancialPurchaseForm
-            onSuccess={() => setShowFinancialForm(false)}
-            onCancel={() => setShowFinancialForm(false)}
+          <PurchaseInvoiceForm
+            invoice={editing}
+            onSuccess={handleSuccess}
+            onCancel={() => { setShowForm(false); setEditing(null); }}
           />
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!editing} onOpenChange={(open) => { if (!open) setEditing(null); }}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>{t('edit_purchase')}</DialogTitle>
-          </DialogHeader>
-          {editing && (
-            <PurchaseForm
-              initial={editing}
-              onSubmit={handleSave}
-              onCancel={() => setEditing(null)}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
-
-      <AlertDialog open={!!deleting} onOpenChange={(open) => { if (!open) setDeleting(null); }}>
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleting} onOpenChange={open => { if (!open) setDeleting(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t('confirm_delete')}</AlertDialogTitle>
-            <AlertDialogDescription></AlertDialogDescription>
+            <AlertDialogTitle>Delete Invoice?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete invoice {deleting?.invoice_number || deleting?.id?.slice(0, 8)} from {deleting?.supplier_name}. This action cannot be undone.
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-            <AlertDialogAction onClick={() => deleteMut.mutate(deleting)}>{t('delete')}</AlertDialogAction>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground"
+              onClick={() => deleteMut.mutate(deleting)}
+            >
+              Delete
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      <ExportDialog
-        open={showExport}
-        onClose={() => setShowExport(false)}
-        onExport={handleExport}
-        title={t('purchases')}
-      />
     </div>
   );
 }

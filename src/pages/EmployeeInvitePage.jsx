@@ -29,7 +29,6 @@ export default function EmployeeInvitePage() {
   const token = urlParams.get('token');
 
   const log = (msg) => {
-    console.log('[EmployeeInvitePage]', msg);
     setDebugLog(prev => [...prev, `${new Date().toISOString().slice(11, 19)} ${msg}`]);
   };
 

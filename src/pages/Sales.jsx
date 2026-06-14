@@ -42,7 +42,7 @@ export default function Sales() {
 
   const { data: sales = [], isLoading } = useQuery({
     queryKey: ['sales', ownerFilter],
-    queryFn: () => base44.entities.DailySales.filter(ownerFilter || {}, '-date', 10000),
+    queryFn: () => base44.entities.DailySales.filter(ownerFilter || {}, '-date', 2000), staleTime: 120000,
     enabled: !!ownerFilter?.created_by,
   });
 

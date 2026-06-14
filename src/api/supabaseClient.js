@@ -4,7 +4,6 @@
  * The module ALWAYS exports valid objects even if Supabase is unavailable.
  */
 
-console.log('[supabaseClient] bootstrap start');
 
 import { createClient } from '@supabase/supabase-js';
 import { createClient as createBase44Client } from '@base44/sdk';
@@ -65,7 +64,6 @@ try {
     // but Object.assign is safer for captured closures if they captured the object itself.
     // However, the closures capture the 'supabase' variable, so re-assignment is fine.
     supabase = client; 
-    console.log('[supabaseClient] Supabase client initialized ✓', SUPABASE_URL);
   } else {
     console.warn('[supabaseClient] VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY not set — using stub client');
   }
@@ -74,7 +72,6 @@ try {
 }
 
 export { supabase };
-console.log('[supabaseClient] Supabase export ready ✓');
 
 // ── Base44 SDK — safe init (for functions/integrations) ────────────────────
 let _b44 = null;
@@ -87,7 +84,6 @@ try {
     requiresAuth: false,
     appBaseUrl: appParams.appBaseUrl,
   });
-  console.log('[supabaseClient] Base44 SDK initialized ✓');
 } catch (e) {
   console.warn('[supabaseClient] Base44 SDK init failed (functions/integrations unavailable):', e.message);
 }
@@ -155,9 +151,7 @@ function createEntity(tableName) {
     },
 
     async create(record) {
-      console.log(`[entity:${tableName}] create() FIRED — raw record:`, record);
       const email = await getCurrentUserEmail();
-      console.log('CURRENT USER EMAIL', email);
       const now = new Date().toISOString();
       // Strip server-generated / computed columns that cannot be inserted by the client.
       const GENERATED_COLS = ['total'];
@@ -209,13 +203,10 @@ function createEntity(tableName) {
           .channel(`rt-${tableName}-${Date.now()}`)
           .on('postgres_changes', { event: '*', schema: 'public', table: tableName }, payload => {
             const typeMap = { INSERT: 'create', UPDATE: 'update', DELETE: 'delete' };
-            console.log(`[realtime:${tableName}] event:`, payload.eventType, payload.new?.id);
             callback({ type: typeMap[payload.eventType] || payload.eventType, id: payload.new?.id || payload.old?.id, data: payload.new || null });
           })
           .subscribe((status, err) => {
-            console.log(`[realtime:${tableName}] channel status:`, status, err || '');
           });
-        console.log(`[realtime:${tableName}] subscribed`);
         return () => supabase.removeChannel(channel);
       } catch (e) {
         console.warn(`[realtime:${tableName}] subscribe failed:`, e);
@@ -309,7 +300,6 @@ const entities = {
   Payment: createEntity('payments'),
 };
 
-console.log('[supabaseClient] Entity registry ready ✓');
 
 // ── Main export ────────────────────────────────────────────────────────────
 export const base44 = {
@@ -323,4 +313,3 @@ export const base44 = {
   agents:       _b44?.agents       || stubAgents,
 };
 
-console.log('[supabaseClient] base44 export ready ✓');// Deploy ID: 1780486781

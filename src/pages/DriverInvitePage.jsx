@@ -34,7 +34,6 @@ export default function DriverInvitePage() {
   const token = urlParams.get('token');
 
   const log = (msg) => {
-    console.log('[DriverInvitePage]', msg);
     setDebugLog(prev => [...prev, `${new Date().toISOString().slice(11, 19)} ${msg}`]);
   };
 

@@ -39,7 +39,6 @@ export default function DeductionRulesSettings() {
   const createMut = useMutation({
     mutationFn: d => base44.entities.DeductionRule.create(d),
     onSuccess: (result) => {
-      console.log('DEDUCTION SUCCESS', result);
       qc.invalidateQueries({ queryKey: ['deduction_rules'] });
       setShowForm(false);
       setForm(emptyRule);
@@ -68,7 +67,6 @@ export default function DeductionRulesSettings() {
       late_threshold: Number(form.late_threshold) || 15,
     };
 
-    console.log('DEDUCTION PAYLOAD', payload);
     createMut.mutate(payload);
   };
 

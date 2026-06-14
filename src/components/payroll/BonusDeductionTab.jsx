@@ -56,15 +56,12 @@ export default function BonusDeductionTab() {
     queryFn: () => base44.entities.SalaryAdvance.list('-created_date', 1000) 
   });
 
-  console.log('ADVANCES RAW', advances);
-  console.log('ADVANCES FILTERED', advances); // No local filter applied here
 
   const createBonus = useMutation({
     mutationFn: (d) => {
       return base44.entities.EmployeeBonus.create(d);
     },
     onSuccess: (result) => {
-      console.log('BONUS SUCCESS', result);
       qc.invalidateQueries({ queryKey: ['employee_bonuses'] });
       setShowBonusForm(false);
       setBonusForm(emptyBonus);
@@ -100,9 +97,7 @@ export default function BonusDeductionTab() {
   const totalAdvances = advances.reduce((s, a) => s + (a.amount || 0), 0);
 
   const submitBonus = () => {
-    console.log('BONUS SUBMIT TRIGGERED', bonusForm);
     if (!bonusForm.employee_id || !bonusForm.amount) {
-      console.log('BONUS VALIDATION FAILED', { id: !!bonusForm.employee_id, amount: !!bonusForm.amount });
       return;
     }
     const emp = employees.find(e => String(e.id) === String(bonusForm.employee_id));
@@ -112,7 +107,6 @@ export default function BonusDeductionTab() {
       amount: Number(bonusForm.amount) 
     };
     delete payload.branch;
-    console.log('BONUS PAYLOAD', payload);
     createBonus.mutate(payload);
   };
 

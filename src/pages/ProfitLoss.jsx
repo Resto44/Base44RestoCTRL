@@ -74,10 +74,10 @@ export default function ProfitLoss() {
   const [rangeType, setRangeType] = useState('month');
   const [showComparison, setShowComparison] = useState(false);
 
-  const { data: sales = [] } = useQuery({ queryKey: ['sales'], queryFn: () => base44.entities.DailySales.list('-date', 10000) });
-  const { data: purchases = [] } = useQuery({ queryKey: ['purchases'], queryFn: () => base44.entities.Purchase.list('-date', 10000) });
-  const { data: expenses = [] } = useQuery({ queryKey: ['expenses'], queryFn: () => base44.entities.Expense.list('-date', 10000) });
-  const { data: wastes = [] } = useQuery({ queryKey: ['inventory_waste'], queryFn: () => base44.entities.InventoryWaste.list('-date', 10000) });
+  const { data: sales = [] } = useQuery({ queryKey: ['sales'], queryFn: () => base44.entities.DailySales.list('-date', 2000), staleTime: 120000 });
+  const { data: purchases = [] } = useQuery({ queryKey: ['purchases'], queryFn: () => base44.entities.Purchase.list('-date', 2000), staleTime: 120000 });
+  const { data: expenses = [] } = useQuery({ queryKey: ['expenses'], queryFn: () => base44.entities.Expense.list('-date', 2000), staleTime: 120000 });
+  const { data: wastes = [] } = useQuery({ queryKey: ['inventory_waste'], queryFn: () => base44.entities.InventoryWaste.list('-date', 2000), staleTime: 120000 });
 
   const dateRange = useMemo(() => getDateRange(rangeType), [rangeType]);
   const fromStr = formatDate(dateRange.from);

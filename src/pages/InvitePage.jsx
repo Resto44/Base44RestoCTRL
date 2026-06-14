@@ -90,7 +90,6 @@ export default function InvitePage() {
   const dir = lang === 'ar' || lang === 'fa' ? 'rtl' : 'ltr';
 
   const log = (msg) => {
-    console.log('[InvitePage]', msg);
     setDebugLog(prev => [...prev, `${new Date().toISOString().slice(11, 19)} ${msg}`]);
   };
 

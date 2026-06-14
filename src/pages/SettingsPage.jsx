@@ -10,86 +10,45 @@ import { Link } from 'react-router-dom';
 import { useRole, ROLES } from '@/lib/RoleContext';
 import LogoutButton from '@/components/layout/LogoutButton';
 import {
-  Globe, Moon, DollarSign, Package, Wallet, Bell, Boxes,
-  Building2, CreditCard, ChefHat, Users, CalendarCheck, Landmark,
-  Smartphone, BarChart, GitBranch, UtensilsCrossed, Shield,
-  Truck, FileText, History, ArrowLeftRight, Flame, CheckSquare,
-  BarChart2, TrendingUp, ShieldCheck, Clock, Send, BarChart3, BookOpen, Receipt
+  Globe, Moon, DollarSign, Bell, Building2, CreditCard,
+  GitBranch, UtensilsCrossed, Shield, Truck, Package, Send, Users
 } from 'lucide-react';
 
+// Settings contains ONLY configuration — no operational actions
 const SECTIONS = [
   {
-    title: 'Operations',
+    title: 'System Configuration',
+    roles: [ROLES.OWNER],
+    links: [
+      { path: '/restaurants',       icon: UtensilsCrossed, label: 'Restaurants' },
+      { path: '/branch-management', icon: GitBranch,       label: 'Branches' },
+      { path: '/brand',             icon: Building2,       label: 'Brand & Settings' },
+      { path: '/categories',        icon: Package,         label: 'Categories' },
+      { path: '/approval-policy',   icon: Shield,          label: 'Approval Policy' },
+    ],
+  },
+  {
+    title: 'Users & Access',
+    roles: [ROLES.OWNER],
+    links: [
+      { path: '/employees',         icon: Users,           label: 'Users' },
+      { path: '/billing',           icon: CreditCard,      label: 'Billing' },
+    ],
+  },
+  {
+    title: 'Suppliers',
     roles: [ROLES.OWNER, ROLES.MANAGER],
     links: [
-      { path: '/sales',              icon: DollarSign,   label: 'Daily Sales' },
-      { path: '/purchases',          icon: Receipt,      label: 'Purchases' },
-      { path: '/procurement-dashboard', icon: BarChart3,   label: 'Procurement Analytics' },
-      { path: '/supplier-ledger',      icon: BookOpen,     label: 'Supplier Ledger' },
-      { path: '/suppliers',            icon: Truck,        label: 'Suppliers' },
-      { path: '/expenses',           icon: Wallet,       label: 'Expenses' },
-      { path: '/delivery',           icon: Truck,        label: 'Delivery' },
-      { path: '/driver-settlements', icon: CheckSquare,  label: 'Settlements' },
-      { path: '/menu-products',      icon: ChefHat,      label: 'Menu Products' },
+      { path: '/suppliers',         icon: Truck,           label: 'Suppliers' },
     ],
   },
   {
-    title: 'Inventory',
-    roles: [ROLES.OWNER, ROLES.MANAGER],
-    links: [
-      { path: '/inventory',           icon: Boxes,       label: 'Inventory' },
-      { path: '/inventory-transfers', icon: ArrowLeftRight, label: 'Transfers' },
-      { path: '/inventory-waste',     icon: Flame,       label: 'Waste Log' },
-      { path: '/purchase-orders',     icon: FileText,    label: 'Purchase Orders' },
-      { path: '/products',            icon: Package,     label: 'Products Catalog' },
-      { path: '/recipes',             icon: ChefHat,     label: 'Recipes / BOM' },
-    ],
-  },
-  {
-    title: 'People',
+    title: 'Notifications',
     roles: [ROLES.OWNER],
     links: [
-      { path: '/employees',           icon: Users,       label: 'Employees' },
-      { path: '/employee-attendance', icon: Clock,       label: 'Attendance' },
-      { path: '/employee-control',    icon: Shield,      label: 'Employee Control' },
-      { path: '/payroll',             icon: CalendarCheck, label: 'Payroll' },
-    ],
-  },
-  {
-    title: 'Finance',
-    roles: [ROLES.OWNER],
-    links: [
-      { path: '/treasury',            icon: Landmark,    label: 'Treasury' },
-      { path: '/debts',               icon: CreditCard,  label: 'Debt Management' },
-      { path: '/network-accounts',    icon: Smartphone,  label: 'Network Accounts' },
-      { path: '/network-analytics',   icon: BarChart,    label: 'Network Analytics' },
-      { path: '/sponsor-treasury',    icon: ShieldCheck, label: 'Sponsor Treasury' },
-    ],
-  },
-  {
-    title: 'Analytics & Reports',
-    roles: [ROLES.OWNER],
-    links: [
-      { path: '/reports',             icon: BarChart2,   label: 'Reports' },
-      { path: '/profit-loss',         icon: TrendingUp,  label: 'Profit & Loss' },
-      { path: '/cashflow',            icon: Wallet,      label: 'Cash Flow' },
-      { path: '/sales-dashboard',     icon: BarChart2,   label: 'Sales Dashboard' },
-      { path: '/activity-logs',       icon: History,     label: 'Activity Logs' },
-    ],
-  },
-  {
-    title: 'Configuration',
-    roles: [ROLES.OWNER],
-    links: [
-      { path: '/restaurants',         icon: UtensilsCrossed, label: 'Restaurants' },
-      { path: '/branch-management',   icon: GitBranch,   label: 'Branches' },
-      { path: '/brand',               icon: Building2,   label: 'Brand & Settings' },
-      { path: '/categories',          icon: Package,     label: 'Categories' },
-      { path: '/approval-policy',     icon: Shield,      label: 'Approval Policy' },
-      { path: '/billing',             icon: CreditCard,  label: 'Billing' },
-      { path: '/notifications',       icon: Bell,        label: 'Notifications' },
-      { path: '/support',             icon: Bell,        label: 'Support' },
-      { path: '/telegram-settings',    icon: Send,        label: 'Telegram Notifications' },
+      { path: '/notifications',     icon: Bell,            label: 'Notifications' },
+      { path: '/telegram-settings', icon: Send,            label: 'Telegram' },
+      { path: '/support',           icon: Bell,            label: 'Support' },
     ],
   },
 ];
@@ -153,7 +112,7 @@ export default function SettingsPage() {
         </div>
       </Card>
 
-      {/* Role-based sections */}
+      {/* Configuration sections */}
       {visibleSections.map(section => (
         <div key={section.title}>
           <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 px-1">{section.title}</h2>

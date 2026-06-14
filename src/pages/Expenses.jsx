@@ -113,7 +113,7 @@ export default function Expenses() {
 
   const { data: expenses = [], isLoading } = useQuery({
     queryKey: ['expenses', ownerFilter],
-    queryFn: () => base44.entities.Expense.filter(ownerFilter || {}, '-date', 10000),
+    queryFn: () => base44.entities.Expense.filter(ownerFilter || {}, '-date', 2000), staleTime: 120000,
     enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
   });
 

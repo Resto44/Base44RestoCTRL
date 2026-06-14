@@ -29,15 +29,15 @@ export default function InventoryForecast() {
 
   const { data: inventory = [] } = useQuery({
     queryKey: ['inventory'],
-    queryFn: () => base44.entities.Inventory.list('-date', 5000),
+    queryFn: () => base44.entities.Inventory.list('-date', 2000), staleTime: 300000,
   });
   const { data: purchases = [] } = useQuery({
     queryKey: ['purchases'],
-    queryFn: () => base44.entities.Purchase.list('-date', 10000),
+    queryFn: () => base44.entities.Purchase.list('-date', 2000), staleTime: 120000,
   });
   const { data: wastes = [] } = useQuery({
     queryKey: ['inventory_waste'],
-    queryFn: () => base44.entities.InventoryWaste.list('-date', 5000),
+    queryFn: () => base44.entities.InventoryWaste.list('-date', 2000), staleTime: 120000,
   });
 
   const cutoffDate = useMemo(() => {

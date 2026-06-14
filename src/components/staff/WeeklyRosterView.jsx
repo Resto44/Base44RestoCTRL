@@ -44,8 +44,6 @@ export default function WeeklyRosterView() {
     (r.week_starting || r.week_start) === weekStart && (branch === 'all' || r.branch === branch)
   ), [rosters, weekStart, branch]);
 
-  console.log('ROSTERS RAW', rosters);
-  console.log('ROSTERS FILTERED', filtered);
 
   const totalHours = filtered.reduce((s, r) => s + (r.total_hours || 0), 0);
 

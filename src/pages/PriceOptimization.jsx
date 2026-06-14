@@ -90,12 +90,12 @@ export default function PriceOptimization() {
 
   const { data: products = [], isLoading: loadingProducts } = useQuery({
     queryKey: ['products'],
-    queryFn: () => base44.entities.Product.list('name', 10000),
+    queryFn: () => base44.entities.Product.list('name', 2000), staleTime: 300000,
   });
 
   const { data: purchases = [], isLoading: loadingPurchases } = useQuery({
     queryKey: ['purchases_recent'],
-    queryFn: () => base44.entities.Purchase.filter({ date: { $gte: since } }, '-date', 5000),
+    queryFn: () => base44.entities.Purchase.filter({ date: { $gte: since } }, '-date', 2000), staleTime: 120000,
   });
 
   const isLoading = loadingProducts || loadingPurchases;

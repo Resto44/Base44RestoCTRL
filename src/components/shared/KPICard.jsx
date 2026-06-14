@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { Card } from '@/components/ui/card';
 
-export default function KPICard({ label, value, sublabel, icon: Icon, color = 'text-primary' }) {
+const KPICard = memo(function KPICard({ label, value, sublabel, icon: Icon, color = 'text-primary' }) {
   return (
     <Card className="p-4 flex items-start gap-3 bg-card border-border/50 shadow-sm">
       {Icon && (
@@ -16,4 +16,6 @@ export default function KPICard({ label, value, sublabel, icon: Icon, color = 't
       </div>
     </Card>
   );
-}
+});
+
+export default KPICard;

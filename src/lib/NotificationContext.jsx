@@ -53,7 +53,6 @@ export function NotificationProvider({ children }) {
 
   // Show popup and play sound for a new notification
   const triggerPopupAndSound = useCallback((n) => {
-    console.log('[NotificationContext] triggerPopupAndSound:', n.type, n.id);
     showPopup(n);
     soundEngine.playForSeverity(n.severity);
     if (n.severity !== 'info' && navigator.vibrate) {
@@ -75,7 +74,6 @@ export function NotificationProvider({ children }) {
       if (!initialLoadDone.current) {
         seenIds.current = new Set(filtered.map(n => n.id));
         initialLoadDone.current = true;
-        console.log('[NotificationContext] Initial load complete, seeded', seenIds.current.size, 'existing notifications');
         setNotifications(filtered);
         return;
       }
@@ -84,7 +82,6 @@ export function NotificationProvider({ children }) {
       // (fallback for when realtime misses an event)
       const newOnes = filtered.filter(n => !seenIds.current.has(n.id));
       if (newOnes.length > 0) {
-        console.log('[NotificationContext] Poll detected', newOnes.length, 'new notification(s)');
         newOnes.forEach(n => {
           seenIds.current.add(n.id);
           triggerPopupAndSound(n);
@@ -138,7 +135,6 @@ export function NotificationProvider({ children }) {
         const isNew = !seenIds.current.has(n.id);
         if (isNew) {
           seenIds.current.add(n.id);
-          console.log('[NotificationContext] Realtime: new notification received:', n.type, n.id);
           triggerPopupAndSound(n);
         }
 
@@ -157,7 +153,6 @@ export function NotificationProvider({ children }) {
     // This catches any notifications missed by the realtime channel
     pollTimerRef.current = setInterval(() => {
       if (initialLoadDone.current) {
-        console.log('[NotificationContext] Poll check running...');
         loadNotifications();
       }
     }, 30000);

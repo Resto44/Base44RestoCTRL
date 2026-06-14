@@ -83,7 +83,7 @@ export default function Tasks() {
 
   const { data: tasks = [], isLoading } = useQuery({
     queryKey: ['tasks'],
-    queryFn: () => base44.entities.Task.list('-due_date', 10000),
+    queryFn: () => base44.entities.Task.list('-due_date', 1000), staleTime: 60000,
   });
 
   const createMut = useMutation({ mutationFn: d => base44.entities.Task.create(d), onSuccess: () => { qc.invalidateQueries({ queryKey: ['tasks'] }); setShowForm(false); } });

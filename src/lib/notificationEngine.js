@@ -82,7 +82,6 @@ export async function createNotification(opts) {
             parse_mode: 'HTML'
           })
         });
-        console.log('[notify] Telegram message sent');
       }
     } catch (teleErr) {
       console.warn('[notify] Telegram dispatch failed:', teleErr);

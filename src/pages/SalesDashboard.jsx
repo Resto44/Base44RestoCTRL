@@ -57,7 +57,8 @@ export default function SalesDashboard() {
 
   const { data: sales = [], isLoading } = useQuery({
     queryKey: ['sales'],
-    queryFn: () => base44.entities.DailySales.list('-date', 10000),
+    queryFn: () => base44.entities.DailySales.list('-date', 2000),
+    staleTime: 120000,
   });
 
   // Date range

@@ -46,7 +46,6 @@ export default function Suppliers() {
 
   const saveMutation = useMutation({
     mutationFn: async (data) => {
-      console.log('MUTATION START');
       const payload = {
         ...data,
         ...(ownerFilter || {}),
@@ -55,25 +54,16 @@ export default function Suppliers() {
         created_by: orgId,
         status: true, // Default to active
       };
-      console.log('[Suppliers] Creating/Updating supplier with payload:', payload);
-      console.log('SUPPLIER PAYLOAD', payload);
-      console.log('ACTIVE RESTAURANT', activeRestaurantId);
-      console.log('ORG ID', orgId);
       try {
         const result = editing 
           ? await base44.entities.Supplier.update(editing.id, data) 
           : await base44.entities.Supplier.create(payload);
-        console.log('[Suppliers] Success result:', result);
-        console.log('MUTATION SUCCESS', result);
         return result;
       } catch (err) {
-        console.error('[Suppliers] Error:', err);
-        console.error('MUTATION ERROR', err);
         throw err;
       }
     },
     onSuccess: () => { 
-      console.log('[Suppliers] Mutation success, invalidating queries...');
       qc.invalidateQueries({ queryKey: ['suppliers'] }); 
       closeForm(); 
     },
@@ -161,7 +151,7 @@ export default function Suppliers() {
               </div>
             ))}
             <div className="flex gap-2 pt-2">
-              <Button className="flex-1" onClick={() => { console.log('SUBMIT FIRED'); saveMutation.mutate(form); }} disabled={saveMutation.isPending}>{m.save}</Button>
+              <Button className="flex-1" onClick={() => saveMutation.mutate(form)} disabled={saveMutation.isPending}>{m.save}</Button>
               <Button variant="outline" className="flex-1" onClick={closeForm}>{m.cancel}</Button>
             </div>
           </div>

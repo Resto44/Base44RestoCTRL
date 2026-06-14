@@ -12,11 +12,11 @@ import { currentMonth, monthRange, summariseAttendance } from '@/lib/payrollEngi
 export default function Alerts() {
   const { t, currency, branches } = useLanguage();
 
-  const { data: sales = [] } = useQuery({ queryKey: ['sales'], queryFn: () => base44.entities.DailySales.list('-date', 10000) });
-  const { data: purchases = [] } = useQuery({ queryKey: ['purchases'], queryFn: () => base44.entities.Purchase.list('-date', 10000) });
-  const { data: attendanceAll = [] } = useQuery({ queryKey: ['attendance'], queryFn: () => base44.entities.Attendance.list('-date', 5000) });
-  const { data: bonusesAll = [] } = useQuery({ queryKey: ['employee_bonuses'], queryFn: () => base44.entities.EmployeeBonus.list('-date', 500) });
-  const { data: employees = [] } = useQuery({ queryKey: ['employees'], queryFn: () => base44.entities.Employee.list('name', 500) });
+  const { data: sales = [] } = useQuery({ queryKey: ['sales'], queryFn: () => base44.entities.DailySales.list('-date', 1000), staleTime: 120000 });
+  const { data: purchases = [] } = useQuery({ queryKey: ['purchases'], queryFn: () => base44.entities.Purchase.list('-date', 1000), staleTime: 120000 });
+  const { data: attendanceAll = [] } = useQuery({ queryKey: ['attendance'], queryFn: () => base44.entities.Attendance.list('-date', 1000), staleTime: 300000 });
+  const { data: bonusesAll = [] } = useQuery({ queryKey: ['employee_bonuses'], queryFn: () => base44.entities.EmployeeBonus.list('-date', 500), staleTime: 300000 });
+  const { data: employees = [] } = useQuery({ queryKey: ['employees'], queryFn: () => base44.entities.Employee.list('name', 500), staleTime: 600000 });
 
   const alerts = useMemo(() => {
     const result = [];

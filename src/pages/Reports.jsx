@@ -22,9 +22,9 @@ export default function Reports() {
   // enabled as long as we have any filter key (owner has created_by, manager has branch)
   const hasFilter = !!(ownerFilter?.created_by || ownerFilter?.branch);
 
-  const { data: sales = [], isLoading: loadingSales, isError: errorSales } = useQuery({ queryKey: ['sales', ownerFilter], queryFn: () => base44.entities.DailySales.filter(ownerFilter || {}, '-date', 10000), enabled: hasFilter });
-  const { data: purchases = [], isLoading: loadingPurchases } = useQuery({ queryKey: ['purchases', ownerFilter], queryFn: () => base44.entities.Purchase.filter(ownerFilter || {}, '-date', 10000), enabled: hasFilter });
-  const { data: expenses = [], isLoading: loadingExpenses } = useQuery({ queryKey: ['expenses', ownerFilter], queryFn: () => base44.entities.Expense.filter(ownerFilter || {}, '-date', 10000), enabled: hasFilter });
+  const { data: sales = [], isLoading: loadingSales, isError: errorSales } = useQuery({ queryKey: ['sales', ownerFilter], queryFn: () => base44.entities.DailySales.filter(ownerFilter || {}, '-date', 2000), staleTime: 120000, enabled: hasFilter });
+  const { data: purchases = [], isLoading: loadingPurchases } = useQuery({ queryKey: ['purchases', ownerFilter], queryFn: () => base44.entities.Purchase.filter(ownerFilter || {}, '-date', 2000), staleTime: 120000, enabled: hasFilter });
+  const { data: expenses = [], isLoading: loadingExpenses } = useQuery({ queryKey: ['expenses', ownerFilter], queryFn: () => base44.entities.Expense.filter(ownerFilter || {}, '-date', 2000), staleTime: 120000, enabled: hasFilter });
 
   const isLoading = loadingSales || loadingPurchases || loadingExpenses;
 

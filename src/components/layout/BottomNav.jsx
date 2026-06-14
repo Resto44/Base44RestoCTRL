@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { memo, useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Receipt, BarChart3, MoreHorizontal, Wallet, Users, Truck, Home, ChefHat, ShoppingBag, ClipboardList, UserCheck } from 'lucide-react';
+import { LayoutDashboard, Receipt, BarChart3, MoreHorizontal, Wallet, Users, Truck, ChefHat, ShoppingBag, ClipboardList, UserCheck } from 'lucide-react';
 import { useLanguage } from '@/lib/LanguageContext';
 import { useRole, ROLES } from '@/lib/RoleContext';
 
@@ -24,33 +24,29 @@ const NAV_BY_ROLE = {
     { path: '/employee-dashboard',  icon: LayoutDashboard, labelKey: 'dashboard' },
     { path: '/employee-attendance', icon: UserCheck,       labelKey: 'attendance' },
     { path: '/tasks',               icon: ClipboardList,   labelKey: 'tasks' },
-    { path: '/employee',            icon: Home,            labelKey: 'home' },
   ],
   [ROLES.DRIVER]: [
     { path: '/driver-dashboard', icon: LayoutDashboard, labelKey: 'dashboard' },
     { path: '/delivery',         icon: Truck,           labelKey: 'delivery' },
-    { path: '/driver',           icon: Home,            labelKey: 'home' },
   ],
   [ROLES.SPONSOR]: [
     { path: '/sponsor-dashboard', icon: LayoutDashboard, labelKey: 'dashboard' },
     { path: '/sponsor-treasury',  icon: Wallet,          labelKey: 'treasury' },
   ],
   [ROLES.KITCHEN]: [
-    { path: '/kitchen-dashboard', icon: LayoutDashboard, labelKey: 'dashboard' },
-    { path: '/kitchen',           icon: ChefHat,         labelKey: 'kitchen' },
+    { path: '/kitchen-dashboard', icon: ChefHat, labelKey: 'kitchen' },
   ],
   [ROLES.CUSTOMER]: [
-    { path: '/customer-dashboard', icon: LayoutDashboard, labelKey: 'dashboard' },
-    { path: '/customer',           icon: ShoppingBag,     labelKey: 'menu' },
+    { path: '/customer-dashboard', icon: ShoppingBag, labelKey: 'menu' },
   ],
 };
 
-export default function BottomNav() {
+const BottomNav = memo(function BottomNav() {
   const location = useLocation();
   const { t } = useLanguage();
   const { role } = useRole();
 
-  const visibleNav = NAV_BY_ROLE[role] || NAV_BY_ROLE[ROLES.OWNER];
+  const visibleNav = useMemo(() => NAV_BY_ROLE[role] || NAV_BY_ROLE[ROLES.OWNER], [role]);
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border shadow-lg">
@@ -77,4 +73,6 @@ export default function BottomNav() {
       </div>
     </nav>
   );
-}
+});
+
+export default BottomNav;

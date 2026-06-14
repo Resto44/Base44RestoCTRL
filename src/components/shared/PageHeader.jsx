@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { memo } from 'react';
 
-export default function PageHeader({ title, action }) {
+const PageHeader = memo(function PageHeader({ title, action }) {
   return (
     <div className="flex items-center justify-between mb-5">
       <h1 className="text-xl font-bold text-foreground tracking-tight">{title}</h1>
       {action}
     </div>
   );
-}
+});
+
+export default PageHeader;

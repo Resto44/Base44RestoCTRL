@@ -29,9 +29,9 @@ export default function ScheduledReports() {
     queryFn: () => base44.entities.ScheduledReport.list('-created_date'),
   });
 
-  const { data: sales = [] } = useQuery({ queryKey: ['sales'], queryFn: () => base44.entities.DailySales.list('-date', 10000) });
-  const { data: purchases = [] } = useQuery({ queryKey: ['purchases'], queryFn: () => base44.entities.Purchase.list('-date', 10000) });
-  const { data: expenses = [] } = useQuery({ queryKey: ['expenses'], queryFn: () => base44.entities.Expense.list('-date', 10000) });
+  const { data: sales = [] } = useQuery({ queryKey: ['sales'], queryFn: () => base44.entities.DailySales.list('-date', 2000), staleTime: 120000 });
+  const { data: purchases = [] } = useQuery({ queryKey: ['purchases'], queryFn: () => base44.entities.Purchase.list('-date', 2000), staleTime: 120000 });
+  const { data: expenses = [] } = useQuery({ queryKey: ['expenses'], queryFn: () => base44.entities.Expense.list('-date', 2000), staleTime: 120000 });
 
   // KPI summary for current week
   const weekKPIs = useMemo(() => {
