@@ -54,6 +54,7 @@ const Recipes             = lazy(() => import('@/pages/Recipes'));
 const Suppliers           = lazy(() => import('@/pages/Suppliers'));
 const PurchaseOrders      = lazy(() => import('@/pages/PurchaseOrders'));
 const ProcurementDashboard = lazy(() => import('@/pages/ProcurementDashboard'));
+const EnterprisePurchaseCommandCenter = lazy(() => import('@/pages/EnterprisePurchaseCommandCenter'));
 const SupplierLedger      = lazy(() => import('@/pages/SupplierLedger'));
 
 const Reports             = lazy(() => import('@/pages/Reports'));
@@ -216,6 +217,7 @@ const SubscribedRoutes = () => {
 
         {/* ── Procurement ── */}
         <Route path="/procurement-dashboard" element={<RoleGuard permission="viewPurchases"><ProcurementDashboard /></RoleGuard>} />
+        <Route path="/enterprise-purchases" element={<RoleGuard permission="viewPurchases"><EnterprisePurchaseCommandCenter /></RoleGuard>} />
         <Route path="/supplier-ledger" element={<RoleGuard permission="viewSuppliers"><SupplierLedger /></RoleGuard>} />
         <Route path="/purchase-orders" element={<RoleGuard permission="viewSuppliers"><PurchaseOrders /></RoleGuard>} />
         <Route path="/suppliers" element={<RoleGuard permission="viewSuppliers"><Suppliers /></RoleGuard>} />

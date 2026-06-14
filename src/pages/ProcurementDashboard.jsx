@@ -10,7 +10,6 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/api/supabaseClient';
-import { base44 } from '@/api/base44Client';
 import { useLanguage } from '@/lib/LanguageContext';
 import { useTenant } from '@/lib/TenantContext';
 import PageHeader from '@/components/shared/PageHeader';
@@ -19,8 +18,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
-  BarChart3, ShoppingCart, DollarSign, AlertCircle, CheckCircle2,
-  Truck, Package, TrendingUp, TrendingDown, Clock, Star, Boxes
+  BarChart3, ShoppingCart, DollarSign, AlertCircle, Package, TrendingUp, Clock, Star, Boxes
 } from 'lucide-react';
 import { computeProcurementKPIs, getOverdueInfo } from '@/lib/procurementEngine';
 import { Link } from 'react-router-dom';
@@ -107,7 +105,7 @@ export default function ProcurementDashboard() {
         subtitle="Enterprise purchasing analytics"
         icon={<BarChart3 className="w-5 h-5" />}
         action={
-          <Link to="/purchases">
+          <Link to="/enterprise-purchases">
             <Button size="sm" variant="outline" className="text-xs">View Invoices</Button>
           </Link>
         }
@@ -143,7 +141,7 @@ export default function ProcurementDashboard() {
               </div>
             ))}
           </div>
-          <Link to="/purchases">
+          <Link to="/enterprise-purchases">
             <Button size="sm" className="mt-2 w-full h-7 text-xs bg-yellow-600 hover:bg-yellow-700">Review & Approve</Button>
           </Link>
         </Card>
@@ -181,7 +179,7 @@ export default function ProcurementDashboard() {
       <div>
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-sm font-semibold">Recent Invoices</h3>
-          <Link to="/purchases" className="text-xs text-primary">View all</Link>
+          <Link to="/enterprise-purchases" className="text-xs text-primary">View all</Link>
         </div>
         {recentInvoices.length === 0 ? (
           <div className="text-center py-6 text-muted-foreground text-sm">No invoices yet</div>
