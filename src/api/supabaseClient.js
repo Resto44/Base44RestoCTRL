@@ -294,10 +294,25 @@ const entities = {
   DeductionRule: createEntity('deduction_rules'), SalaryAdvance: createEntity('salary_advances'),
   EmployeeBonus: createEntity('employee_bonuses'), ApprovalPolicy: createEntity('approval_policies'),
   User: createEntity('profiles'),
+  ProductModifier: createEntity('product_modifiers'),
+  ProductModifierOption: createEntity('product_modifier_options'),
+  CustomerAddress: createEntity('customer_addresses'),
+  CustomerFavorite: createEntity('customer_favorites'),
+  Promotion: createEntity('promotions'),
+  DriverRequest: createEntity('driver_requests'),
+  RecipeIngredient: createEntity('recipe_ingredients'),
   Branch: createEntity('branches'), Category: createEntity('categories'),
   Customer: createEntity('customers'), Order: createEntity('orders'),
   OrderItem: createEntity('order_items'), Reservation: createEntity('reservations'),
   Payment: createEntity('payments'),
+  // ── New Enterprise Entities (Phase 2) ──
+  Ingredient: createEntity('ingredients'),
+  LoyaltyTransaction: createEntity('loyalty_transactions'),
+  Notification: createEntity('notifications'),
+  ProductSize: createEntity('product_sizes'),
+  CartItem: createEntity('cart_items'),
+  OrderTracking: createEntity('order_tracking'),
+  DriverLocation: createEntity('driver_locations'),
 };
 
 

@@ -80,6 +80,9 @@ const NetworkHub          = lazy(() => import('@/pages/NetworkHub'));
 const DeliveryOrders      = lazy(() => import('@/pages/DeliveryOrders'));
 const MenuProducts        = lazy(() => import('@/pages/MenuProducts'));
 const DriverSettlements   = lazy(() => import('@/pages/DriverSettlements'));
+const CustomerPortal      = lazy(() => import('@/pages/CustomerPortal'));
+const LoyaltyProgram      = lazy(() => import('@/pages/LoyaltyProgram'));
+const AIRecommendations   = lazy(() => import('@/pages/AIRecommendations'));
 
 const SettingsPage        = lazy(() => import('@/pages/SettingsPage'));
 const BrandSettings       = lazy(() => import('@/pages/BrandSettings'));
@@ -305,6 +308,9 @@ const SubscribedRoutes = () => {
         <Route path="/ai-copilot" element={<RoleGuard permission="viewDashboard"><AIBusinessCopilot /></RoleGuard>} />
         <Route path="/bi-center" element={<RoleGuard permission="viewReports"><BICenter /></RoleGuard>} />
         <Route path="/reservations" element={<RoleGuard permission="viewSales"><ReservationTableManagement /></RoleGuard>} />
+        <Route path="/customer-portal" element={<CustomerPortal />} />
+        <Route path="/loyalty-program" element={<RoleGuard permission="viewDebts"><LoyaltyProgram /></RoleGuard>} />
+        <Route path="/ai-recommendations" element={<AIRecommendations />} />
 
         {/* ── Short aliases ── */}
         <Route path="/employee" element={<EmployeePortal />} />

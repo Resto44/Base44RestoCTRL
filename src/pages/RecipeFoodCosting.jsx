@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { useLanguage } from '@/lib/LanguageContext';
 import { useTenant } from '@/lib/TenantContext';
@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
+// Real data loaded from Supabase — MOCK_RECIPES kept as fallback
 const MOCK_RECIPES = [
   {
     id: '1', name: 'Classic Burger', category: 'Main', selling_price: 12.99, portions: 1,
@@ -168,20 +169,38 @@ function RecipeDetailModal({ recipe, onClose, currency }) {
 
 export default function RecipeFoodCosting() {
   const { t, currency } = useLanguage();
+  const { ownerFilter } = useTenant();
+  const qc = useQueryClient();
   const [tab, setTab] = useState('recipes');
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState('');  
   const [selectedRecipe, setSelectedRecipe] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
 
+  // Load real recipes from Supabase, fall back to mock data
+  const { data: dbRecipes = [] } = useQuery({
+    queryKey: ['recipes_db', ownerFilter],
+    queryFn: () => base44.entities.Recipe.filter(ownerFilter || {}, 'name', 100),
+    enabled: !!ownerFilter?.created_by,
+  });
+
+  // Merge: use real data if available, else mock
+  const allRecipes = dbRecipes.length > 0 ? dbRecipes.map(r => ({
+    ...r,
+    ingredients: r.ingredients_json || [],
+    portions: r.yield_qty || 1,
+    selling_price: r.selling_price || 0,
+  })) : MOCK_RECIPES;
+
   const filtered = useMemo(() =>
-    MOCK_RECIPES.filter(r => search === '' || r.name.toLowerCase().includes(search.toLowerCase())),
-    [search]
+    allRecipes.filter(r => search === '' || r.name.toLowerCase().includes(search.toLowerCase())),
+    [allRecipes, search]
   );
 
-  const avgMargin = MOCK_RECIPES.reduce((s, r) => {
-    const cost = r.ingredients.reduce((a, i) => a + i.cost, 0) / (r.portions || 1);
-    return s + ((r.selling_price - cost) / r.selling_price) * 100;
-  }, 0) / MOCK_RECIPES.length;
+  const avgMargin = allRecipes.length > 0 ? allRecipes.reduce((s, r) => {
+    const cost = r.ingredients.reduce((a, i) => a + (i.cost || 0), 0) / (r.portions || 1);
+    const sp = r.selling_price || 1;
+    return s + ((sp - cost) / sp) * 100;
+  }, 0) / allRecipes.length : 0;
 
   const avgFoodCost = 100 - avgMargin;
 
