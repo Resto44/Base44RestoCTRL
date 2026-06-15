@@ -337,6 +337,17 @@ const entities = {
   ProductVariant: createEntity('product_variants'),
   InventoryTransaction: createEntity('inventory_transactions'),
   ProductAnalytics: createEntity('product_analytics'),
+  // ── Network Management ──
+  TransferRequest: createEntity('transfer_requests'),
+  NetworkCustomer: createEntity('network_customers'),
+  BranchHealthScore: createEntity('branches'), // remapped: no separate table, use branches
+  // ── Debt (alias for DebtRecord) ──
+  Debt: createEntity('debt_records'),
+  // ── Procurement Analytics ──
+  ProcurementAnalytics: createEntity('procurement_analytics'),
+  // ── Cash Register & Alerts ──
+  CashRegisterEntry: createEntity('cash_register_entries'),
+  Alert: createEntity('notifications'), // remapped: no separate alerts table; use notifications
 };
 
 
