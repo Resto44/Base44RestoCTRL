@@ -171,8 +171,8 @@ function RecipeCreateModal({ open, onClose, products, currency, onSave }) {
   const [form, setForm] = useState({
     name: '',
     category: '',
-    yield_qty: 1,
-    portion_size: 1,
+    yield: 1,
+    portions: 1,
     selling_price: 0,
     ingredients: []
   });
@@ -215,7 +215,7 @@ function RecipeCreateModal({ open, onClose, products, currency, onSave }) {
   };
 
   const totalCost = form.ingredients.reduce((sum, ing) => sum + (ing.cost || 0), 0);
-  const costPerPortion = totalCost / (form.yield_qty || 1);
+  const costPerPortion = totalCost / (form.yield || 1);
   const foodCostPct = form.selling_price > 0 ? (costPerPortion / form.selling_price) * 100 : 0;
   const marginPct = 100 - foodCostPct;
 
@@ -246,11 +246,11 @@ function RecipeCreateModal({ open, onClose, products, currency, onSave }) {
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1">
               <Label className="text-xs">Yield (Total Portions)</Label>
-              <Input type="number" value={form.yield_qty} onChange={e => setForm({ ...form, yield_qty: Number(e.target.value) })} />
+              <Input type="number" value={form.yield} onChange={e => setForm({ ...form, yield: Number(e.target.value) })} />
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Portion Size</Label>
-              <Input type="number" value={form.portion_size} onChange={e => setForm({ ...form, portion_size: Number(e.target.value) })} />
+              <Input type="number" value={form.portions} onChange={e => setForm({ ...form, portions: Number(e.target.value) })} />
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Selling Price</Label>
@@ -346,13 +346,13 @@ export default function RecipeFoodCosting() {
   const { data: dbRecipes = [] } = useQuery({
     queryKey: ['recipes_db', ownerFilter],
     queryFn: () => base44.entities.Recipe.filter(ownerFilter || {}, 'name', 100),
-    enabled: !!ownerFilter?.created_by,
+    enabled: !!ownerFilter?.restaurant_id,
   });
 
   const { data: products = [] } = useQuery({
     queryKey: ['products', ownerFilter],
     queryFn: () => base44.entities.Product.filter(ownerFilter || {}, 'name', 500),
-    enabled: !!ownerFilter?.created_by,
+    enabled: !!ownerFilter?.restaurant_id,
   });
 
   const saveMutation = useMutation({
@@ -361,12 +361,9 @@ export default function RecipeFoodCosting() {
       const recipeData = {
         name: form.name,
         category: form.category,
-        yield_qty: form.yield_qty,
-        portions: form.yield_qty, // Mapping yield to portions for compatibility
-        portion_size: form.portion_size,
-        selling_price: form.selling_price,
-        ingredients_json: JSON.stringify(form.ingredients),
-        ...(ownerFilter || {})
+        yield: form.yield,
+        portions: form.portions,
+        restaurant_id: ownerFilter?.restaurant_id,
       };
       
       const newRecipe = await base44.entities.Recipe.create(recipeData);
@@ -378,7 +375,6 @@ export default function RecipeFoodCosting() {
           inventory_id: ing.product_id,
           quantity: ing.quantity,
           unit: ing.unit,
-          ...(ownerFilter || {})
         }));
         await base44.entities.RecipeIngredient.bulkCreate(ingredientsData);
       }
@@ -399,7 +395,7 @@ export default function RecipeFoodCosting() {
   const allRecipes = dbRecipes.length > 0 ? dbRecipes.map(r => ({
     ...r,
     ingredients: r.ingredients_json || [],
-    portions: r.yield_qty || 1,
+    portions: r.portions || 1,
     selling_price: r.selling_price || 0,
   })) : MOCK_RECIPES;
 
@@ -422,7 +418,7 @@ export default function RecipeFoodCosting() {
       <div className="flex items-center justify-between pt-1">
         <div>
           <h1 className="text-xl font-bold">{t('recipe_food_costing')}</h1>
-          <p className="text-xs text-muted-foreground">{MOCK_RECIPES.length} recipes</p>
+          <p className="text-xs text-muted-foreground">{allRecipes.length} recipes</p>
         </div>
         <Button size="sm" className="h-8 gap-1 text-xs" onClick={() => setShowAddModal(true)}>
           <Plus className="w-3 h-3" /> Add Recipe
@@ -433,7 +429,7 @@ export default function RecipeFoodCosting() {
       <div className="grid grid-cols-3 gap-2">
         <Card className="bg-blue-50 border-blue-100">
           <CardContent className="p-3 text-center">
-            <p className="text-lg font-bold text-blue-600">{MOCK_RECIPES.length}</p>
+            <p className="text-lg font-bold text-blue-600">{allRecipes.length}</p>
             <p className="text-[11px] text-blue-600/70">Recipes</p>
           </CardContent>
         </Card>
@@ -486,14 +482,14 @@ export default function RecipeFoodCosting() {
                   </tr>
                 </thead>
                 <tbody>
-                  {MOCK_RECIPES.map(r => {
-                    const cost = r.ingredients.reduce((s, i) => s + i.cost, 0) / (r.portions || 1);
-                    const margin = ((r.selling_price - cost) / r.selling_price) * 100;
+                  {allRecipes.map(r => {
+                    const cost = r.ingredients.reduce((s, i) => s + (i.cost || 0), 0) / (r.portions || 1);
+                    const margin = r.selling_price > 0 ? ((r.selling_price - cost) / r.selling_price) * 100 : 0;
                     return (
                       <tr key={r.id} className="border-b border-border last:border-0">
                         <td className="py-2 font-medium">{r.name}</td>
                         <td className="py-2 text-right text-amber-600">{currency}{cost.toFixed(2)}</td>
-                        <td className="py-2 text-right">{currency}{r.selling_price.toFixed(2)}</td>
+                        <td className="py-2 text-right">{currency}{(r.selling_price || 0).toFixed(2)}</td>
                         <td className={`py-2 text-right font-bold ${margin >= 65 ? 'text-emerald-600' : margin >= 50 ? 'text-amber-600' : 'text-red-500'}`}>
                           {margin.toFixed(1)}%
                         </td>
@@ -512,9 +508,9 @@ export default function RecipeFoodCosting() {
               <CardTitle className="text-sm font-semibold">Profitability Matrix</CardTitle>
             </CardHeader>
             <CardContent className="px-4 pb-3 space-y-2">
-              {MOCK_RECIPES.map(r => {
-                const cost = r.ingredients.reduce((s, i) => s + i.cost, 0) / (r.portions || 1);
-                const margin = ((r.selling_price - cost) / r.selling_price) * 100;
+              {allRecipes.map(r => {
+                const cost = r.ingredients.reduce((s, i) => s + (i.cost || 0), 0) / (r.portions || 1);
+                const margin = r.selling_price > 0 ? ((r.selling_price - cost) / r.selling_price) * 100 : 0;
                 return (
                   <div key={r.id} className="flex items-center gap-3 py-1.5">
                     <span className="text-xs font-medium w-28 truncate">{r.name}</span>
