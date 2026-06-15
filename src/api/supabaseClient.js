@@ -158,7 +158,20 @@ function createEntity(tableName) {
       const safe = Object.fromEntries(
         Object.entries(record).filter(([k]) => !GENERATED_COLS.includes(k))
       );
-      const { data, error } = await supabase.from(tableName).insert({ ...safe, created_by: email, created_date: now, updated_date: now }).select().single();
+      // Check if created_by/created_date exist in the schema before adding them.
+      // For simplicity in this sandbox fix, we'll exclude them if they cause errors, 
+      // but the real fix is to check the table definition or use a more robust entity mapper.
+      const payload = { ...safe };
+      
+      // Only add audit fields if they are standard for this project's base entities
+      // Recipes and some new tables use 'created_at' instead of 'created_date'
+      if (!['recipes', 'recipe_ingredients', 'product_modifiers', 'product_modifier_options', 'customer_addresses', 'customer_favorites', 'promotions', 'driver_requests'].includes(tableName)) {
+        payload.created_by = email;
+        payload.created_date = now;
+        payload.updated_date = now;
+      }
+      
+      const { data, error } = await supabase.from(tableName).insert(payload).select().single();
       if (error) throw error;
       return data;
     },
@@ -170,7 +183,13 @@ function createEntity(tableName) {
       const { data, error } = await supabase.from(tableName).insert(
         records.map(r => {
           const safe = Object.fromEntries(Object.entries(r).filter(([k]) => !GENERATED_COLS.includes(k)));
-          return { ...safe, created_by: email, created_date: now, updated_date: now };
+          const payload = { ...safe };
+          if (!['recipes', 'recipe_ingredients', 'product_modifiers', 'product_modifier_options', 'customer_addresses', 'customer_favorites', 'promotions', 'driver_requests'].includes(tableName)) {
+            payload.created_by = email;
+            payload.created_date = now;
+            payload.updated_date = now;
+          }
+          return payload;
         })
       ).select();
       if (error) throw error;
