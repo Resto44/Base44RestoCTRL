@@ -70,6 +70,7 @@ const MORE_SECTIONS_OWNER = [
   {
     title: 'Inventory',
     items: [
+      { path: '/product-management',       icon: Package,     labelKey: 'product_management' },
       { path: '/inventory-command-center', icon: Package,     labelKey: 'inventory_command_center' },
       { path: '/recipe-food-costing',      icon: Utensils,    labelKey: 'recipe_food_costing' },
       { path: '/inventory',                icon: Package,     labelKey: 'inventory' },
@@ -109,8 +110,9 @@ const MORE_SECTIONS_MANAGER = [
   {
     title: 'Inventory',
     items: [
-      { path: '/inventory',        icon: Package,     labelKey: 'inventory' },
-      { path: '/inventory-waste',  icon: Package,     labelKey: 'waste_tracking' },
+      { path: '/product-management', icon: Package,   labelKey: 'product_management' },
+      { path: '/inventory',          icon: Package,   labelKey: 'inventory' },
+      { path: '/inventory-waste',    icon: Package,   labelKey: 'waste_tracking' },
     ],
   },
   {

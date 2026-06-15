@@ -332,6 +332,11 @@ const entities = {
   CartItem: createEntity('cart_items'),
   OrderTracking: createEntity('order_tracking'),
   DriverLocation: createEntity('driver_locations'),
+  // ── Product Management System ──
+  ProductUnit: createEntity('product_units'),
+  ProductVariant: createEntity('product_variants'),
+  InventoryTransaction: createEntity('inventory_transactions'),
+  ProductAnalytics: createEntity('product_analytics'),
 };
 
 
