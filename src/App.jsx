@@ -75,6 +75,7 @@ const SponsorTreasury     = lazy(() => import('@/pages/SponsorTreasury'));
 const DebtManagement      = lazy(() => import('@/pages/DebtManagement'));
 const NetworkAccounts     = lazy(() => import('@/pages/NetworkAccounts'));
 const NetworkAnalytics    = lazy(() => import('@/pages/NetworkAnalytics'));
+const NetworkHub          = lazy(() => import('@/pages/NetworkHub'));
 
 const DeliveryOrders      = lazy(() => import('@/pages/DeliveryOrders'));
 const MenuProducts        = lazy(() => import('@/pages/MenuProducts'));
@@ -261,6 +262,7 @@ const SubscribedRoutes = () => {
         <Route path="/debts" element={<RoleGuard permission="viewDebts"><DebtManagement /></RoleGuard>} />
         <Route path="/network-accounts" element={<RoleGuard permission="viewNetworkAccounts"><NetworkAccounts /></RoleGuard>} />
         <Route path="/network-analytics" element={<RoleGuard permission="viewNetworkAnalytics"><NetworkAnalytics /></RoleGuard>} />
+        <Route path="/network-hub" element={<RoleGuard permission="viewDashboard"><NetworkHub /></RoleGuard>} />
 
         {/* ── Delivery ── */}
         <Route path="/delivery" element={<RoleGuard permission="viewDelivery"><DeliveryOrders /></RoleGuard>} />
