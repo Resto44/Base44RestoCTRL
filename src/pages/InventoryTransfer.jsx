@@ -26,7 +26,7 @@ function TransferForm({ onSave, onClose, branches }) {
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const handleProductChange = (pid) => {
-    const p = products.find(x => x.product_id === pid);
+    const p = (products || []).find(x => x && x.product_id === pid);
     set('product_id', pid);
     set('product_name', p?.name || pid);
     set('unit', p?.unit || 'kg');
@@ -109,7 +109,7 @@ export default function InventoryTransfer() {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['inventory_transfers'] }); setShowForm(false); },
   });
 
-  const branchLabel = (key) => branches.find(b => b.key === key)?.label || key;
+  const branchLabel = (key) => (branches || []).find(b => b && b.key === key)?.label || key;
 
   const statusColor = { completed: 'bg-emerald-100 text-emerald-700', pending: 'bg-yellow-100 text-yellow-700', cancelled: 'bg-red-100 text-red-700' };
 

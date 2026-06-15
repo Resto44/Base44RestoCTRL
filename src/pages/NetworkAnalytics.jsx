@@ -40,16 +40,17 @@ export default function NetworkAnalytics() {
     enabled: !!ownerFilter?.created_by,
   });
 
-  const accountMap = useMemo(() => Object.fromEntries(accounts.map(a => [a.id, a])), [accounts]);
+  const accountMap = useMemo(() => Object.fromEntries((accounts || []).map(a => a && [a.id, a]).filter(Boolean)), [accounts]);
 
-  const filteredAccounts = filterBranch === 'all' ? accounts : accounts.filter(a => a.branch === filterBranch);
-  const filteredSales = filterBranch === 'all' ? sales : sales.filter(s => s.branch === filterBranch);
-  const filteredSettlements = filterBranch === 'all' ? settlements : settlements.filter(s => s.branch === filterBranch);
+  const filteredAccounts = filterBranch === 'all' ? (accounts || []) : (accounts || []).filter(a => a && a.branch === filterBranch);
+  const filteredSales = filterBranch === 'all' ? (sales || []) : (sales || []).filter(s => s && s.branch === filterBranch);
+  const filteredSettlements = filterBranch === 'all' ? (settlements || []) : (settlements || []).filter(s => s && s.branch === filterBranch);
 
   // Per-account sales aggregation
   const accountStats = useMemo(() => {
     const stats = {};
     filteredSales.forEach(s => {
+      if (!s) return;
       const accId = s.network_account_id;
       if (!accId) return;
       if (!stats[accId]) stats[accId] = { totalSales: 0, count: 0 };
@@ -75,14 +76,15 @@ export default function NetworkAnalytics() {
   // Top devices chart data
   const deviceChartData = useMemo(() => {
     return filteredAccounts
+      .filter(a => a && a.account_name)
       .map(a => ({
-        name: a.account_name.length > 20 ? a.account_name.substring(0, 18) + '…' : a.account_name,
+        name: (a.account_name || '').length > 20 ? (a.account_name || '').substring(0, 18) + '…' : (a.account_name || ''),
         fullName: a.account_name,
         sales: accountStats[a.id]?.totalSales || 0,
         settled: settlementStats[a.id]?.totalSettled || 0,
         txCount: accountStats[a.id]?.count || 0,
       }))
-      .sort((a, b) => b.sales - a.sales)
+      .sort((a, b) => (b.sales || 0) - (a.sales || 0))
       .slice(0, 10);
   }, [filteredAccounts, accountStats, settlementStats]);
 

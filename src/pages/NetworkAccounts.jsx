@@ -18,7 +18,7 @@ import { Plus, Smartphone, Edit2, Trash2, WifiOff, Wifi, Hash } from 'lucide-rea
 const EMPTY = { account_name: '', branch: '', network_provider: '', account_number: '', device_name: '', notes: '', is_active: true };
 
 export default function NetworkAccounts() {
-  const { branches } = useLanguage();
+  const { branches = [] } = useLanguage();
   const qc = useQueryClient();
   const [filterBranch, setFilterBranch] = useState('all');
   const [showForm, setShowForm] = useState(false);
@@ -60,8 +60,9 @@ export default function NetworkAccounts() {
     else createMut.mutate(form);
   };
 
-  const filtered = filterBranch === 'all' ? accounts : accounts.filter(a => a.branch === filterBranch);
+  const filtered = filterBranch === 'all' ? (accounts || []) : (accounts || []).filter(a => a && a.branch === filterBranch);
   const grouped = filtered.reduce((acc, a) => {
+    if (!a) return acc;
     const b = a.branch || 'Unassigned';
     if (!acc[b]) acc[b] = [];
     acc[b].push(a);

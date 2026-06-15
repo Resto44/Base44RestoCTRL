@@ -86,12 +86,14 @@ export default function NetworkHub() {
 
   // Calculate network metrics
   const metrics = useMemo(() => {
-    const filtered = selectedBranch === 'all' ? dailySales : dailySales.filter(s => s.branch === selectedBranch);
-    const totalRevenue = filtered.reduce((sum, s) => sum + (s.total || 0), 0);
+    if (!dailySales) return { totalRevenue: 0, avgRevenue: 0, branchRanking: [], activeBranches: 0, totalBranches: branches?.length || 0 };
+    const filtered = selectedBranch === 'all' ? dailySales : dailySales.filter(s => s && s.branch === selectedBranch);
+    const totalRevenue = filtered.reduce((sum, s) => sum + (s?.total || 0), 0);
     const avgRevenue = filtered.length > 0 ? totalRevenue / filtered.length : 0;
     
     const branchMetrics = {};
     filtered.forEach(s => {
+      if (!s || !s.branch) return;
       if (!branchMetrics[s.branch]) {
         branchMetrics[s.branch] = { revenue: 0, count: 0 };
       }
@@ -101,7 +103,7 @@ export default function NetworkHub() {
 
     const branchRanking = Object.entries(branchMetrics)
       .map(([branch, data]) => ({
-        branch,
+        branch: branch || 'Unknown',
         revenue: data.revenue,
         avgDaily: data.count > 0 ? data.revenue / data.count : 0,
       }))
@@ -118,22 +120,25 @@ export default function NetworkHub() {
 
   // Chart data
   const revenueChartData = useMemo(() => {
+    if (!metrics?.branchRanking) return [];
     return metrics.branchRanking.slice(0, 8).map(b => ({
-      name: b.branch.substring(0, 12),
-      revenue: b.revenue,
-      avg: Math.round(b.avgDaily),
+      name: (b.branch || 'Unknown').substring(0, 12),
+      revenue: b.revenue || 0,
+      avg: Math.round(b.avgDaily || 0),
     }));
   }, [metrics.branchRanking]);
 
   const healthChartData = useMemo(() => {
+    if (!branchHealthScores) return [];
     const healthByStatus = { healthy: 0, warning: 0, critical: 0 };
     branchHealthScores.forEach(h => {
-      healthByStatus[h.status || 'healthy']++;
+      if (h && h.status) healthByStatus[h.status]++;
+      else healthByStatus.healthy++;
     });
     return Object.entries(healthByStatus)
       .filter(([_, count]) => count > 0)
       .map(([status, count]) => ({
-        name: status.charAt(0).toUpperCase() + status.slice(1),
+        name: (status || 'Unknown').charAt(0).toUpperCase() + (status || 'Unknown').slice(1),
         value: count,
         color: status === 'healthy' ? '#10b981' : status === 'warning' ? '#f59e0b' : '#ef4444',
       }));
@@ -233,7 +238,7 @@ export default function NetworkHub() {
             {healthChartData.length > 0 ? (
               <ResponsiveContainer width="100%" height={200}>
                 <PieChart>
-                  <Pie data={healthChartData} cx="50%" cy="50%" labelLine={false} label={({ name, value }) => `${name}: ${value}`} outerRadius={60} fill="#8884d8" dataKey="value">
+                  <Pie data={healthChartData} cx="50%" cy="50%" labelLine={false} label={({ name, value }) => `${name || 'N/A'}: ${value || 0}`} outerRadius={60} fill="#8884d8" dataKey="value">
                     {healthChartData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
                   </Pie>
                   <Tooltip />
