@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { useLanguage } from '@/lib/LanguageContext';
 import { useTenant } from '@/lib/TenantContext';
@@ -12,7 +12,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   ChefHat, Plus, Search, DollarSign, TrendingUp, Package,
-  Calculator, BarChart3, Percent, Edit, Trash2, Star
+  Calculator, BarChart3, Percent, Edit, Trash2, Star, X
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -88,10 +88,10 @@ function RecipeCard({ recipe, onClick, currency }) {
 
 function RecipeDetailModal({ recipe, onClose, currency }) {
   if (!recipe) return null;
-  const totalCost = recipe.ingredients.reduce((s, i) => s + i.cost, 0);
+  const totalCost = recipe.ingredients.reduce((s, i) => s + (i.cost || 0), 0);
   const costPerPortion = totalCost / (recipe.portions || 1);
-  const margin = ((recipe.selling_price - costPerPortion) / recipe.selling_price) * 100;
-  const costPct = (costPerPortion / recipe.selling_price) * 100;
+  const margin = recipe.selling_price > 0 ? ((recipe.selling_price - costPerPortion) / recipe.selling_price) * 100 : 0;
+  const costPct = recipe.selling_price > 0 ? (costPerPortion / recipe.selling_price) * 100 : 0;
 
   return (
     <Dialog open={!!recipe} onOpenChange={onClose}>
@@ -108,7 +108,7 @@ function RecipeDetailModal({ recipe, onClose, currency }) {
           {[
             { label: 'Total Cost', value: `${currency}${totalCost.toFixed(2)}`, color: 'text-blue-600' },
             { label: 'Cost/Portion', value: `${currency}${costPerPortion.toFixed(2)}`, color: 'text-amber-600' },
-            { label: 'Selling Price', value: `${currency}${recipe.selling_price.toFixed(2)}`, color: 'text-foreground' },
+            { label: 'Selling Price', value: `${currency}${(recipe.selling_price || 0).toFixed(2)}`, color: 'text-foreground' },
             { label: 'Gross Margin', value: `${margin.toFixed(1)}%`, color: margin >= 65 ? 'text-emerald-600' : margin >= 50 ? 'text-amber-600' : 'text-red-500' },
           ].map(kpi => (
             <Card key={kpi.label}>
@@ -140,8 +140,8 @@ function RecipeDetailModal({ recipe, onClose, currency }) {
                   <tr key={i} className="border-b border-border last:border-0">
                     <td className="py-2 font-medium">{ing.name}</td>
                     <td className="py-2 text-right text-muted-foreground">{ing.quantity} {ing.unit}</td>
-                    <td className="py-2 text-right font-semibold">{currency}{ing.cost.toFixed(2)}</td>
-                    <td className="py-2 text-right text-muted-foreground">{((ing.cost / totalCost) * 100).toFixed(0)}%</td>
+                    <td className="py-2 text-right font-semibold">{currency}{(ing.cost || 0).toFixed(2)}</td>
+                    <td className="py-2 text-right text-muted-foreground">{totalCost > 0 ? ((ing.cost / totalCost) * 100).toFixed(0) : 0}%</td>
                   </tr>
                 ))}
                 <tr className="font-bold">
@@ -167,6 +167,172 @@ function RecipeDetailModal({ recipe, onClose, currency }) {
   );
 }
 
+function RecipeCreateModal({ open, onClose, products, currency, onSave }) {
+  const [form, setForm] = useState({
+    name: '',
+    category: '',
+    yield_qty: 1,
+    portion_size: 1,
+    selling_price: 0,
+    ingredients: []
+  });
+
+  const addIngredient = () => {
+    setForm(f => ({
+      ...f,
+      ingredients: [...f.ingredients, { product_id: '', name: '', quantity: 1, unit: '', cost: 0 }]
+    }));
+  };
+
+  const removeIngredient = (index) => {
+    setForm(f => ({
+      ...f,
+      ingredients: f.ingredients.filter((_, i) => i !== index)
+    }));
+  };
+
+  const updateIngredient = (index, field, value) => {
+    setForm(f => {
+      const newIngs = [...f.ingredients];
+      newIngs[index] = { ...newIngs[index], [field]: value };
+      
+      if (field === 'product_id') {
+        const prod = products.find(p => p.id === value || p.product_id === value);
+        if (prod) {
+          newIngs[index].name = prod.name;
+          newIngs[index].unit = prod.unit || '';
+          newIngs[index].cost_per_unit = prod.cost_price || prod.default_cost || 0;
+          newIngs[index].cost = (newIngs[index].quantity || 0) * (newIngs[index].cost_per_unit || 0);
+        }
+      }
+      
+      if (field === 'quantity' || field === 'cost_per_unit') {
+        newIngs[index].cost = (newIngs[index].quantity || 0) * (newIngs[index].cost_per_unit || 0);
+      }
+      
+      return { ...f, ingredients: newIngs };
+    });
+  };
+
+  const totalCost = form.ingredients.reduce((sum, ing) => sum + (ing.cost || 0), 0);
+  const costPerPortion = totalCost / (form.yield_qty || 1);
+  const foodCostPct = form.selling_price > 0 ? (costPerPortion / form.selling_price) * 100 : 0;
+  const marginPct = 100 - foodCostPct;
+
+  const handleSave = () => {
+    if (!form.name) return toast.error('Recipe name is required');
+    onSave(form);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Add New Recipe</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Recipe Name</Label>
+              <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="e.g. Classic Burger" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Category</Label>
+              <Input value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} placeholder="e.g. Main, Dessert" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Yield (Total Portions)</Label>
+              <Input type="number" value={form.yield_qty} onChange={e => setForm({ ...form, yield_qty: Number(e.target.value) })} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Portion Size</Label>
+              <Input type="number" value={form.portion_size} onChange={e => setForm({ ...form, portion_size: Number(e.target.value) })} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Selling Price</Label>
+              <Input type="number" value={form.selling_price} onChange={e => setForm({ ...form, selling_price: Number(e.target.value) })} />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-semibold">Ingredients</Label>
+              <Button size="sm" variant="outline" onClick={addIngredient} className="h-7 text-xs gap-1">
+                <Plus className="w-3 h-3" /> Add Ingredient
+              </Button>
+            </div>
+            
+            <div className="space-y-2">
+              {form.ingredients.map((ing, i) => (
+                <div key={i} className="grid grid-cols-12 gap-2 items-end bg-muted/30 p-2 rounded-lg border border-border">
+                  <div className="col-span-4 space-y-1">
+                    <Label className="text-[10px]">Product</Label>
+                    <select 
+                      className="w-full h-8 text-xs rounded-md border border-input bg-background px-2"
+                      value={ing.product_id}
+                      onChange={e => updateIngredient(i, 'product_id', e.target.value)}
+                    >
+                      <option value="">Select Product</option>
+                      {products.map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="col-span-2 space-y-1">
+                    <Label className="text-[10px]">Qty</Label>
+                    <Input type="number" className="h-8 text-xs" value={ing.quantity} onChange={e => updateIngredient(i, 'quantity', Number(e.target.value))} />
+                  </div>
+                  <div className="col-span-2 space-y-1">
+                    <Label className="text-[10px]">Unit</Label>
+                    <Input className="h-8 text-xs" value={ing.unit} onChange={e => updateIngredient(i, 'unit', e.target.value)} />
+                  </div>
+                  <div className="col-span-3 space-y-1">
+                    <Label className="text-[10px]">Cost</Label>
+                    <div className="h-8 flex items-center px-2 bg-muted rounded text-xs font-medium">
+                      {currency}{ing.cost.toFixed(2)}
+                    </div>
+                  </div>
+                  <div className="col-span-1">
+                    <Button size="icon" variant="ghost" className="h-8 w-8 text-red-500" onClick={() => removeIngredient(i)}>
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <Card className="bg-primary/5 border-primary/10">
+            <CardContent className="p-4 grid grid-cols-3 gap-4">
+              <div className="text-center">
+                <p className="text-[10px] text-muted-foreground uppercase font-bold">Cost/Portion</p>
+                <p className="text-lg font-bold text-primary">{currency}{costPerPortion.toFixed(2)}</p>
+              </div>
+              <div className="text-center border-x border-primary/10">
+                <p className="text-[10px] text-muted-foreground uppercase font-bold">Food Cost %</p>
+                <p className="text-lg font-bold text-amber-600">{foodCostPct.toFixed(1)}%</p>
+              </div>
+              <div className="text-center">
+                <p className="text-[10px] text-muted-foreground uppercase font-bold">Margin %</p>
+                <p className={`text-lg font-bold ${marginPct >= 65 ? 'text-emerald-600' : 'text-amber-600'}`}>{marginPct.toFixed(1)}%</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="flex gap-3 pt-2">
+            <Button className="flex-1" onClick={handleSave}>Save Recipe</Button>
+            <Button variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function RecipeFoodCosting() {
   const { t, currency } = useLanguage();
   const { ownerFilter } = useTenant();
@@ -181,6 +347,52 @@ export default function RecipeFoodCosting() {
     queryKey: ['recipes_db', ownerFilter],
     queryFn: () => base44.entities.Recipe.filter(ownerFilter || {}, 'name', 100),
     enabled: !!ownerFilter?.created_by,
+  });
+
+  const { data: products = [] } = useQuery({
+    queryKey: ['products', ownerFilter],
+    queryFn: () => base44.entities.Product.filter(ownerFilter || {}, 'name', 500),
+    enabled: !!ownerFilter?.created_by,
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: async (form) => {
+      // 1. Create Recipe
+      const recipeData = {
+        name: form.name,
+        category: form.category,
+        yield_qty: form.yield_qty,
+        portions: form.yield_qty, // Mapping yield to portions for compatibility
+        portion_size: form.portion_size,
+        selling_price: form.selling_price,
+        ingredients_json: JSON.stringify(form.ingredients),
+        ...(ownerFilter || {})
+      };
+      
+      const newRecipe = await base44.entities.Recipe.create(recipeData);
+      
+      // 2. Create Recipe Ingredients
+      if (form.ingredients.length > 0) {
+        const ingredientsData = form.ingredients.map(ing => ({
+          recipe_id: newRecipe.id,
+          inventory_id: ing.product_id,
+          quantity: ing.quantity,
+          unit: ing.unit,
+          ...(ownerFilter || {})
+        }));
+        await base44.entities.RecipeIngredient.bulkCreate(ingredientsData);
+      }
+      
+      return newRecipe;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['recipes_db'] });
+      toast.success('Recipe saved successfully');
+      setShowAddModal(false);
+    },
+    onError: (err) => {
+      toast.error('Failed to save recipe: ' + err.message);
+    }
   });
 
   // Merge: use real data if available, else mock
@@ -324,6 +536,13 @@ export default function RecipeFoodCosting() {
       </Tabs>
 
       <RecipeDetailModal recipe={selectedRecipe} onClose={() => setSelectedRecipe(null)} currency={currency} />
+      <RecipeCreateModal 
+        open={showAddModal} 
+        onClose={() => setShowAddModal(false)} 
+        products={products} 
+        currency={currency}
+        onSave={(data) => saveMutation.mutate(data)}
+      />
     </div>
   );
 }
