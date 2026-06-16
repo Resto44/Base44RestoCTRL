@@ -24,7 +24,7 @@ import { useNotify } from '@/lib/useNotify';
 import { useTenant } from '@/lib/TenantContext';
 
 function ExpenseForm({ initial, onSubmit, onCancel, categories }) {
-  const { t, lang } = useLanguage();
+  const { t } = useLanguage();
   const { branches, managerBranch } = useTenant();
   const defaultBranch = initial?.branch || managerBranch || branches[0]?.key || '';
   const [form, setForm] = useState({
@@ -36,12 +36,6 @@ function ExpenseForm({ initial, onSubmit, onCancel, categories }) {
     payment_method: initial?.payment_method || 'cash',
   });
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-
-  const getCatName = (cat) => {
-    if (lang === 'ar' && cat.name_ar) return cat.name_ar;
-    if (lang === 'fa' && cat.name_fa) return cat.name_fa;
-    return cat.name_en;
-  };
 
   const activeCats = categories.filter(c => c.is_active !== false);
 
@@ -71,8 +65,8 @@ function ExpenseForm({ initial, onSubmit, onCancel, categories }) {
               {activeCats.map(c => (
                 <SelectItem key={c.id} value={c.id}>
                   <span className="flex items-center gap-2">
-                    {/* icon removed */}
-                    <span>{getCatName(c)}</span>
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ background: c.color || '#888' }} />
+                    <span>{c.name}</span>
                   </span>
                 </SelectItem>
               ))}
@@ -100,7 +94,7 @@ function ExpenseForm({ initial, onSubmit, onCancel, categories }) {
 }
 
 export default function Expenses() {
-  const { t, currency, lang } = useLanguage();
+  const { t, currency } = useLanguage();
   const { branches, ownerFilter } = useTenant();
   const qc = useQueryClient();
   const notif = useNotify();
@@ -120,16 +114,9 @@ export default function Expenses() {
   const { data: categories = [] } = useExpenseCategories();
 
   const getCatById = (id) => categories.find(c => c.id === id);
-  const getCatName = (cat) => {
-    if (!cat) return id => id; // fallback
-    if (lang === 'ar' && cat.name_ar) return cat.name_ar;
-    if (lang === 'fa' && cat.name_fa) return cat.name_fa;
-    return cat.name_en;
-  };
   const getCatDisplayName = (categoryId) => {
     const cat = getCatById(categoryId);
-    if (!cat) return categoryId || '—';
-    return getCatName(cat);
+    return cat ? cat.name : (categoryId || '—');
   };
 
   const { activeRestaurantId } = useTenant();
@@ -209,7 +196,6 @@ export default function Expenses() {
                     <Card key={e.id} className="p-3">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2 flex-1 min-w-0">
-                          {/* icon removed */}
                           {cat && <span className="w-2 h-2 rounded-full shrink-0" style={{ background: cat.color || '#888' }} />}
                           <div className="min-w-0">
                             <p className="text-sm font-semibold">{getCatDisplayName(e.category)}</p>

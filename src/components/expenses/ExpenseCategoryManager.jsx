@@ -15,28 +15,17 @@ const COLOR_OPTIONS = ['#6366f1', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#
 
 function CategoryForm({ initial, onSubmit, onCancel, lang }) {
   const [form, setForm] = useState({
-    name_en: initial?.name_en || '',
-    name_ar: initial?.name_ar || '',
-    name_fa: initial?.name_fa || '',
+    name: initial?.name || '',
     color: initial?.color || '#6366f1',
     is_active: initial?.is_active !== false,
-    sort_order: initial?.sort_order || 0,
   });
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   return (
     <div className="space-y-3">
       <div>
-        <Label>Name (English) *</Label>
-        <Input value={form.name_en} onChange={e => set('name_en', e.target.value)} placeholder="e.g. Rent" />
-      </div>
-      <div>
-        <Label>اسم (عربي)</Label>
-        <Input value={form.name_ar} onChange={e => set('name_ar', e.target.value)} placeholder="مثال: إيجار" dir="rtl" />
-      </div>
-      <div>
-        <Label>نام (فارسی)</Label>
-        <Input value={form.name_fa} onChange={e => set('name_fa', e.target.value)} placeholder="مثلاً: اجاره" dir="rtl" />
+        <Label>Category Name *</Label>
+        <Input value={form.name} onChange={e => set('name', e.target.value)} placeholder="e.g. Rent" />
       </div>
       <div>
         <Label>Color</Label>
@@ -53,7 +42,7 @@ function CategoryForm({ initial, onSubmit, onCancel, lang }) {
         <Label htmlFor="cat_active">Active</Label>
       </div>
       <div className="flex gap-2 pt-2">
-        <Button className="flex-1" onClick={() => { console.log("SUBMIT FIRED", form); if (form.name_en.trim()) onSubmit(form); }} disabled={!form.name_en.trim()}>Save</Button>
+        <Button className="flex-1" onClick={() => { if (form.name.trim()) onSubmit(form); }} disabled={!form.name.trim()}>Save</Button>
         {onCancel && <Button variant="outline" onClick={onCancel}>Cancel</Button>}
       </div>
     </div>
@@ -62,20 +51,17 @@ function CategoryForm({ initial, onSubmit, onCancel, lang }) {
 
 export function useExpenseCategories() {
   const { ownerFilter, activeRestaurantId } = useTenant();
-  // Standardize filter to use ONLY restaurant_id if available, as it's the strongest tenant boundary
-  // This ensures categories created by any manager in the same restaurant are visible to others.
   const filter = activeRestaurantId ? { restaurant_id: activeRestaurantId } : ownerFilter;
   
   return useQuery({
     queryKey: ['expense_categories', filter],
-    queryFn: () => base44.entities.ExpenseCategory.filter(filter, 'sort_order', 500),
+    queryFn: () => base44.entities.ExpenseCategory.filter(filter, '-created_date', 500),
     enabled: !!(activeRestaurantId || ownerFilter?.created_by || ownerFilter?.branch),
   });
 }
 
 export default function ExpenseCategoryManager({ onClose }) {
   const { lang } = useLanguage();
-  const { ownerFilter } = useTenant();
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -86,41 +72,25 @@ export default function ExpenseCategoryManager({ onClose }) {
   const { activeRestaurantId } = useTenant();
   const createMut = useMutation({
     mutationFn: async (d) => {
-      // Map the required 'name' field from 'name_en'
-      // REMOVED 'icon' as it does not exist in the database schema
       const payload = { 
-        name: d.name_en,
-        name_en: d.name_en,
-        name_ar: d.name_ar,
-        name_fa: d.name_fa,
+        name: d.name,
         color: d.color,
         is_active: d.is_active,
-        sort_order: d.sort_order,
         restaurant_id: activeRestaurantId 
       };
-      console.log("Payload sent:", payload);
-      try {
-        const res = await base44.entities.ExpenseCategory.create(payload);
-        console.log("Supabase response:", res);
-        return res;
-      } catch (err) {
-        console.error("Exact error:", err);
-        throw err;
-      }
+      return base44.entities.ExpenseCategory.create(payload);
     },
     onSuccess: () => { 
-      console.log("onSuccess fired"); 
       qc.invalidateQueries({ queryKey: ['expense_categories'] }); 
       setShowForm(false); 
     }
   });
   const updateMut = useMutation({
     mutationFn: ({ id, data }) => {
-      // REMOVED 'icon' as it does not exist in the database schema
-      const { icon, ...cleanData } = data;
       return base44.entities.ExpenseCategory.update(id, {
-        ...cleanData,
-        name: cleanData.name_en
+        name: data.name,
+        color: data.color,
+        is_active: data.is_active
       });
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['expense_categories'] }); setEditing(null); }
@@ -129,12 +99,6 @@ export default function ExpenseCategoryManager({ onClose }) {
     mutationFn: id => base44.entities.ExpenseCategory.delete(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['expense_categories'] }); setDeleting(null); }
   });
-
-  const getCatName = (cat) => {
-    if (lang === 'ar' && cat.name_ar) return cat.name_ar;
-    if (lang === 'fa' && cat.name_fa) return cat.name_fa;
-    return cat.name_en;
-  };
 
   return (
     <div className="space-y-3">
@@ -165,7 +129,7 @@ export default function ExpenseCategoryManager({ onClose }) {
           {categories.map(cat => (
             <div key={cat.id} className={`flex items-center gap-2 p-2 rounded-lg border bg-card ${!cat.is_active ? 'opacity-50' : ''}`}>
               <span className="w-3 h-3 rounded-full shrink-0" style={{ background: cat.color || '#888' }} />
-              <span className="flex-1 text-sm font-medium">{getCatName(cat)}</span>
+              <span className="flex-1 text-sm font-medium">{cat.name}</span>
               {!cat.is_active && <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Inactive</span>}
               <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditing(cat)}>
                 <Pencil className="w-3.5 h-3.5" />
