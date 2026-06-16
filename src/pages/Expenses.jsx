@@ -26,14 +26,13 @@ import { useTenant } from '@/lib/TenantContext';
 function ExpenseForm({ initial, onSubmit, onCancel, categories }) {
   const { t } = useLanguage();
   const { branches, managerBranch } = useTenant();
-  const defaultBranch = initial?.branch || managerBranch || branches[0]?.key || '';
+  const defaultBranch = initial?.branch_key || managerBranch || branches[0]?.key || '';
   const [form, setForm] = useState({
     date: initial?.date || format(new Date(), 'yyyy-MM-dd'),
-    branch: defaultBranch,
-    category: initial?.category || '',
+    branch_key: defaultBranch,
+    category_id: initial?.category_id || '',
     description: initial?.description || '',
     amount: initial?.amount || '',
-    payment_method: initial?.payment_method || 'cash',
   });
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
@@ -43,7 +42,7 @@ function ExpenseForm({ initial, onSubmit, onCancel, categories }) {
     <div className="space-y-3">
       <div><Label>{t('date')}</Label><Input type="date" value={form.date} onChange={e => set('date', e.target.value)} /></div>
       <div><Label>{t('branch')}</Label>
-        <Select value={form.branch} onValueChange={v => set('branch', v)}>
+        <Select value={form.branch_key} onValueChange={v => set('branch_key', v)}>
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">{t('all_branches')}</SelectItem>
@@ -59,7 +58,7 @@ function ExpenseForm({ initial, onSubmit, onCancel, categories }) {
             <p className="text-xs text-muted-foreground">No categories yet. Create them in the Categories tab.</p>
           </div>
         ) : (
-          <Select value={form.category} onValueChange={v => set('category', v)}>
+          <Select value={form.category_id} onValueChange={v => set('category_id', v)}>
             <SelectTrigger><SelectValue placeholder="Select category..." /></SelectTrigger>
             <SelectContent>
               {activeCats.map(c => (
@@ -76,15 +75,6 @@ function ExpenseForm({ initial, onSubmit, onCancel, categories }) {
       </div>
       <div><Label>{t('description')}</Label><Input value={form.description} onChange={e => set('description', e.target.value)} /></div>
       <div><Label>{t('amount')}</Label><Input type="number" value={form.amount} onChange={e => set('amount', e.target.value)} /></div>
-      <div><Label>{t('payment_method')}</Label>
-        <Select value={form.payment_method} onValueChange={v => set('payment_method', v)}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="cash">{t('cash')}</SelectItem>
-            <SelectItem value="network">{t('network')}</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
       <div className="flex gap-2 pt-2">
         <Button className="flex-1" onClick={() => onSubmit({ ...form, amount: Number(form.amount) || 0 })}>{t('save')}</Button>
         {onCancel && <Button variant="outline" onClick={onCancel}>{t('cancel')}</Button>}
@@ -124,7 +114,7 @@ export default function Expenses() {
     mutationFn: async (d) => {
       const payload = { ...d, restaurant_id: activeRestaurantId };
       const exp = await base44.entities.Expense.create(payload);
-      await notif.expense({ branch: d.branch, amount: d.amount, category: d.category, action: 'create' });
+      await notif.expense({ branch: d.branch_key, amount: d.amount, category: d.category_id, action: 'create' });
       return exp;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['expenses'] }); setShowForm(false); }
@@ -132,7 +122,7 @@ export default function Expenses() {
   const updateMut = useMutation({
     mutationFn: async ({ id, data }) => {
       const exp = await base44.entities.Expense.update(id, data);
-      await notif.expense({ branch: data.branch, amount: data.amount, category: data.category, action: 'update' });
+      await notif.expense({ branch: data.branch_key, amount: data.amount, category: data.category_id, action: 'update' });
       return exp;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['expenses'] }); setEditing(null); }
@@ -140,12 +130,12 @@ export default function Expenses() {
   const deleteMut = useMutation({
     mutationFn: async (expense) => {
       await base44.entities.Expense.delete(expense.id);
-      await notif.expense({ branch: expense.branch, amount: expense.amount, category: expense.category, action: 'delete' });
+      await notif.expense({ branch: expense.branch_key, amount: expense.amount, category: expense.category_id, action: 'delete' });
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['expenses'] }); setDeleting(null); }
   });
 
-  const filtered = filterBranch === 'all' ? expenses : expenses.filter(e => e.branch === filterBranch || e.branch === 'all');
+  const filtered = filterBranch === 'all' ? expenses : expenses.filter(e => e.branch_key === filterBranch || e.branch_key === 'all');
   const totalAmt = filtered.reduce((s, e) => s + (e.amount || 0), 0);
 
   return (
@@ -191,15 +181,15 @@ export default function Expenses() {
             : (
               <div className="space-y-2">
                 {filtered.map(e => {
-                  const cat = getCatById(e.category);
+                  const cat = getCatById(e.category_id);
                   return (
                     <Card key={e.id} className="p-3">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2 flex-1 min-w-0">
                           {cat && <span className="w-2 h-2 rounded-full shrink-0" style={{ background: cat.color || '#888' }} />}
                           <div className="min-w-0">
-                            <p className="text-sm font-semibold">{getCatDisplayName(e.category)}</p>
-                            <p className="text-xs text-muted-foreground">{e.date} · {e.branch === 'all' ? t('all_branches') : (branches.find(b => b.key === e.branch)?.label || e.branch)}</p>
+                            <p className="text-sm font-semibold">{getCatDisplayName(e.category_id)}</p>
+                            <p className="text-xs text-muted-foreground">{e.date} · {e.branch_key === 'all' ? t('all_branches') : (branches.find(b => b.key === e.branch_key)?.label || e.branch_key)}</p>
                             {e.description && <p className="text-xs text-muted-foreground truncate">{e.description}</p>}
                           </div>
                         </div>
@@ -237,7 +227,7 @@ export default function Expenses() {
           <ScanDialogHeader><ScanDialogTitle>Scan Receipt</ScanDialogTitle></ScanDialogHeader>
           <ReceiptScanner
             onExtracted={(data) => {
-              setScannedData({ amount: data.amount, date: data.date, description: data.vendor || data.description, category: data.category });
+              setScannedData({ amount: data.amount, date: data.date, description: data.vendor || data.description, category_id: data.category_id });
               setShowScanner(false);
               setShowForm(true);
             }}
