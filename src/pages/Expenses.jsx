@@ -132,9 +132,11 @@ export default function Expenses() {
     return getCatName(cat);
   };
 
+  const { activeRestaurantId } = useTenant();
   const createMut = useMutation({
     mutationFn: async (d) => {
-      const exp = await base44.entities.Expense.create(d);
+      const payload = { ...d, restaurant_id: activeRestaurantId };
+      const exp = await base44.entities.Expense.create(payload);
       await notif.expense({ branch: d.branch, amount: d.amount, category: d.category, action: 'create' });
       return exp;
     },

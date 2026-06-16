@@ -74,11 +74,12 @@ function CategoryForm({ initial, onSubmit, onCancel, lang }) {
 }
 
 export function useExpenseCategories() {
-  const { ownerFilter } = useTenant();
+  const { ownerFilter, activeRestaurantId } = useTenant();
+  const filter = { ...ownerFilter, restaurant_id: activeRestaurantId };
   return useQuery({
-    queryKey: ['expense_categories', ownerFilter],
-    queryFn: () => base44.entities.ExpenseCategory.filter(ownerFilter, 'sort_order', 500),
-    enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
+    queryKey: ['expense_categories', filter],
+    queryFn: () => base44.entities.ExpenseCategory.filter(filter, 'sort_order', 500),
+    enabled: !!((ownerFilter?.created_by || ownerFilter?.branch) && activeRestaurantId),
   });
 }
 
