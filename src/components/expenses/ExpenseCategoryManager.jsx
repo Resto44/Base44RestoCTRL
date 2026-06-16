@@ -66,7 +66,7 @@ function CategoryForm({ initial, onSubmit, onCancel, lang }) {
         <Label htmlFor="cat_active">Active</Label>
       </div>
       <div className="flex gap-2 pt-2">
-        <Button className="flex-1" onClick={() => form.name_en.trim() && onSubmit(form)} disabled={!form.name_en.trim()}>Save</Button>
+        <Button className="flex-1" onClick={() => { console.log("SUBMIT FIRED", form); if (form.name_en.trim()) onSubmit(form); }} disabled={!form.name_en.trim()}>Save</Button>
         {onCancel && <Button variant="outline" onClick={onCancel}>Cancel</Button>}
       </div>
     </div>
@@ -98,12 +98,34 @@ export default function ExpenseCategoryManager({ onClose }) {
 
   const { activeRestaurantId } = useTenant();
   const createMut = useMutation({
-    mutationFn: (d) => base44.entities.ExpenseCategory.create({
-      ...d,
-      name: d.name_en,
-      restaurant_id: activeRestaurantId
-    }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['expense_categories'] }); setShowForm(false); }
+    mutationFn: async (d) => {
+      // Map the required 'name' field from 'name_en'
+      const payload = { 
+        name: d.name_en,
+        name_en: d.name_en,
+        name_ar: d.name_ar,
+        name_fa: d.name_fa,
+        icon: d.icon,
+        color: d.color,
+        is_active: d.is_active,
+        sort_order: d.sort_order,
+        restaurant_id: activeRestaurantId 
+      };
+      console.log("Payload sent:", payload);
+      try {
+        const res = await base44.entities.ExpenseCategory.create(payload);
+        console.log("Supabase response:", res);
+        return res;
+      } catch (err) {
+        console.error("Exact error:", err);
+        throw err;
+      }
+    },
+    onSuccess: () => { 
+      console.log("onSuccess fired"); 
+      qc.invalidateQueries({ queryKey: ['expense_categories'] }); 
+      setShowForm(false); 
+    }
   });
   const updateMut = useMutation({
     mutationFn: ({ id, data }) => base44.entities.ExpenseCategory.update(id, {

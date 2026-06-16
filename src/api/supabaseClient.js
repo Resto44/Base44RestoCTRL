@@ -167,8 +167,14 @@ function createEntity(tableName) {
       // Recipes and some new tables use 'created_at' instead of 'created_date'
       if (!['recipes', 'recipe_ingredients', 'product_modifiers', 'product_modifier_options', 'customer_addresses', 'customer_favorites', 'promotions', 'driver_requests'].includes(tableName)) {
         payload.created_by = email;
-        payload.created_date = now;
-        payload.updated_date = now;
+        if (tableName === 'expense_categories') {
+           // expense_categories uses created_date but maybe the RLS or schema is sensitive
+           payload.created_date = now;
+           payload.updated_date = now;
+        } else {
+           payload.created_date = now;
+           payload.updated_date = now;
+        }
       }
       
       const { data, error } = await supabase.from(tableName).insert(payload).select().single();
