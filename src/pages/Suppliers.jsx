@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { useLanguage } from '@/lib/LanguageContext';
+import { useSearchParams } from 'react-router-dom';
 import PageHeader from '@/components/shared/PageHeader';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -30,11 +31,18 @@ export default function Suppliers() {
   const m = ui[lang] || ui.en;
   const qc = useQueryClient();
   const { ownerFilter } = useTenant();
+  const [searchParams] = useSearchParams();
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [deleteId, setDeleteId] = useState(null);
   const [selectedSupplier, setSelectedSupplier] = useState(null);
+  const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') || 'list');
+
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab) setActiveTab(tab);
+  }, [searchParams]);
 
   const { data: suppliers = [] } = useQuery({ 
     queryKey: ['suppliers', ownerFilter], 
@@ -89,7 +97,7 @@ export default function Suppliers() {
     <div>
       <PageHeader title={m.suppliers} action={<Button size="sm" onClick={openAdd} className="gap-1"><Plus className="w-4 h-4" />{m.add_supplier}</Button>} />
 
-      <Tabs defaultValue="list" className="mb-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-4">
         <TabsList className="w-full">
           <TabsTrigger value="list" className="flex-1 text-xs">Suppliers</TabsTrigger>
           <TabsTrigger value="payments" className="flex-1 text-xs">
