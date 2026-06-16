@@ -75,11 +75,14 @@ function CategoryForm({ initial, onSubmit, onCancel, lang }) {
 
 export function useExpenseCategories() {
   const { ownerFilter, activeRestaurantId } = useTenant();
-  const filter = { ...ownerFilter, restaurant_id: activeRestaurantId };
+  // Standardize filter to use ONLY restaurant_id if available, as it's the strongest tenant boundary
+  // This ensures categories created by any manager in the same restaurant are visible to others.
+  const filter = activeRestaurantId ? { restaurant_id: activeRestaurantId } : ownerFilter;
+  
   return useQuery({
     queryKey: ['expense_categories', filter],
     queryFn: () => base44.entities.ExpenseCategory.filter(filter, 'sort_order', 500),
-    enabled: !!((ownerFilter?.created_by || ownerFilter?.branch) && activeRestaurantId),
+    enabled: !!(activeRestaurantId || ownerFilter?.created_by || ownerFilter?.branch),
   });
 }
 
