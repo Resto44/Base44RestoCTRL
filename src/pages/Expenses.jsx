@@ -71,7 +71,7 @@ function ExpenseForm({ initial, onSubmit, onCancel, categories }) {
               {activeCats.map(c => (
                 <SelectItem key={c.id} value={c.id}>
                   <span className="flex items-center gap-2">
-                    <span>{c.icon || '📝'}</span>
+                    {/* icon removed */}
                     <span>{getCatName(c)}</span>
                   </span>
                 </SelectItem>
@@ -209,7 +209,7 @@ export default function Expenses() {
                     <Card key={e.id} className="p-3">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2 flex-1 min-w-0">
-                          {cat && <span className="text-lg shrink-0">{cat.icon || '📝'}</span>}
+                          {/* icon removed */}
                           {cat && <span className="w-2 h-2 rounded-full shrink-0" style={{ background: cat.color || '#888' }} />}
                           <div className="min-w-0">
                             <p className="text-sm font-semibold">{getCatDisplayName(e.category)}</p>

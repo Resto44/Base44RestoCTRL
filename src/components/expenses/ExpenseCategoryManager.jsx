@@ -11,7 +11,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Plus, Pencil, Trash2, Tag, FolderOpen } from 'lucide-react';
 
-const EMOJI_OPTIONS = ['🏠', '👥', '⚡', '📢', '🔧', '🚗', '📦', '🍽️', '💼', '🧹', '💡', '📱', '🏥', '🎓', '💰', '📝', '🌐', '🔑', '✈️', '🎯'];
 const COLOR_OPTIONS = ['#6366f1', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#84cc16'];
 
 function CategoryForm({ initial, onSubmit, onCancel, lang }) {
@@ -19,7 +18,6 @@ function CategoryForm({ initial, onSubmit, onCancel, lang }) {
     name_en: initial?.name_en || '',
     name_ar: initial?.name_ar || '',
     name_fa: initial?.name_fa || '',
-    icon: initial?.icon || '📝',
     color: initial?.color || '#6366f1',
     is_active: initial?.is_active !== false,
     sort_order: initial?.sort_order || 0,
@@ -39,17 +37,6 @@ function CategoryForm({ initial, onSubmit, onCancel, lang }) {
       <div>
         <Label>نام (فارسی)</Label>
         <Input value={form.name_fa} onChange={e => set('name_fa', e.target.value)} placeholder="مثلاً: اجاره" dir="rtl" />
-      </div>
-      <div>
-        <Label>Icon</Label>
-        <div className="flex flex-wrap gap-1.5 mt-1">
-          {EMOJI_OPTIONS.map(e => (
-            <button key={e} onClick={() => set('icon', e)}
-              className={`w-8 h-8 rounded text-lg flex items-center justify-center border-2 transition-all ${form.icon === e ? 'border-primary bg-primary/10' : 'border-transparent hover:border-muted-foreground/30'}`}>
-              {e}
-            </button>
-          ))}
-        </div>
       </div>
       <div>
         <Label>Color</Label>
@@ -100,12 +87,12 @@ export default function ExpenseCategoryManager({ onClose }) {
   const createMut = useMutation({
     mutationFn: async (d) => {
       // Map the required 'name' field from 'name_en'
+      // REMOVED 'icon' as it does not exist in the database schema
       const payload = { 
         name: d.name_en,
         name_en: d.name_en,
         name_ar: d.name_ar,
         name_fa: d.name_fa,
-        icon: d.icon,
         color: d.color,
         is_active: d.is_active,
         sort_order: d.sort_order,
@@ -128,10 +115,14 @@ export default function ExpenseCategoryManager({ onClose }) {
     }
   });
   const updateMut = useMutation({
-    mutationFn: ({ id, data }) => base44.entities.ExpenseCategory.update(id, {
-      ...data,
-      name: data.name_en
-    }),
+    mutationFn: ({ id, data }) => {
+      // REMOVED 'icon' as it does not exist in the database schema
+      const { icon, ...cleanData } = data;
+      return base44.entities.ExpenseCategory.update(id, {
+        ...cleanData,
+        name: cleanData.name_en
+      });
+    },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['expense_categories'] }); setEditing(null); }
   });
   const deleteMut = useMutation({
@@ -173,7 +164,6 @@ export default function ExpenseCategoryManager({ onClose }) {
         <div className="space-y-1.5">
           {categories.map(cat => (
             <div key={cat.id} className={`flex items-center gap-2 p-2 rounded-lg border bg-card ${!cat.is_active ? 'opacity-50' : ''}`}>
-              <span className="text-lg w-8 text-center">{cat.icon || '📝'}</span>
               <span className="w-3 h-3 rounded-full shrink-0" style={{ background: cat.color || '#888' }} />
               <span className="flex-1 text-sm font-medium">{getCatName(cat)}</span>
               {!cat.is_active && <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Inactive</span>}
