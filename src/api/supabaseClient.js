@@ -151,7 +151,9 @@ function createEntity(tableName) {
     },
 
     async create(record) {
+      console.log(`[entity:${tableName}] create() called with record:`, JSON.stringify(record));
       const email = await getCurrentUserEmail();
+      console.log(`[entity:${tableName}] current user email:`, email);
       const now = new Date().toISOString();
       // Strip server-generated / computed columns that cannot be inserted by the client.
       const GENERATED_COLS = ['total'];
@@ -177,8 +179,22 @@ function createEntity(tableName) {
         }
       }
       
+      // Convert empty strings to null for UUID columns that are ALREADY in the payload.
+      // Empty string is not a valid UUID — Postgres rejects it with code 22P02.
+      // IMPORTANT: only touch keys that already exist in the payload; do NOT inject new keys.
+      const UUID_COLS = ['category_id', 'restaurant_id', 'supplier_id', 'customer_id', 'product_id', 'order_id', 'employee_id', 'driver_id'];
+      UUID_COLS.forEach(col => {
+        if (Object.prototype.hasOwnProperty.call(payload, col) && (payload[col] === '' || payload[col] === undefined)) {
+          payload[col] = null;
+        }
+      });
+      console.log(`[entity:${tableName}] FINAL PAYLOAD being sent to Supabase:`, JSON.stringify(payload));
       const { data, error } = await supabase.from(tableName).insert(payload).select().single();
-      if (error) throw error;
+      if (error) {
+        console.error(`[entity:${tableName}] INSERT ERROR:`, error.code, error.message, error.details, error.hint);
+        throw error;
+      }
+      console.log(`[entity:${tableName}] INSERT SUCCESS:`, JSON.stringify(data));
       return data;
     },
 

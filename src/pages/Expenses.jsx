@@ -109,12 +109,45 @@ export default function Expenses() {
     return cat ? cat.name : (categoryId || '—');
   };
 
-  const { activeRestaurantId } = useTenant();
+  const { activeRestaurantId, restaurants: tenantRestaurants } = useTenant();
+  // Resolve restaurant_id: prefer the actively selected one, fall back to the first
+  // restaurant in the list. This handles the case where localStorage has no saved
+  // selection yet (first login / cleared storage) and activeRestaurantId is null.
+  const resolvedRestaurantId = activeRestaurantId || tenantRestaurants?.[0]?.id || null;
   const createMut = useMutation({
     mutationFn: async (d) => {
-      const payload = { ...d, restaurant_id: activeRestaurantId };
-      const exp = await base44.entities.Expense.create(payload);
-      await notif.expense({ branch: d.branch_key, amount: d.amount, category: d.category_id, action: 'create' });
+      console.log('[Expenses] createMut called with form data:', JSON.stringify(d));
+      console.log('[Expenses] resolvedRestaurantId:', resolvedRestaurantId);
+      const payload = {
+        ...d,
+        restaurant_id: resolvedRestaurantId,
+        // branch_key must not be empty string — use 'main' as fallback (matches DB default)
+        branch_key: d.branch_key || 'main',
+        // category_id must be null (not empty string) when not selected — UUID column
+        category_id: d.category_id || null,
+      };
+      console.log('[Expenses] payload to Expense.create():', JSON.stringify(payload));
+      console.log('[Expenses] payload fields check:', {
+        restaurant_id: payload.restaurant_id,
+        branch_key: payload.branch_key,
+        category_id: payload.category_id,
+        amount: payload.amount,
+        description: payload.description,
+        date: payload.date,
+      });
+      let exp;
+      try {
+        exp = await base44.entities.Expense.create(payload);
+        console.log('[Expenses] Expense.create() SUCCESS:', JSON.stringify(exp));
+      } catch (createErr) {
+        console.error('[Expenses] Expense.create() THREW:', createErr?.code, createErr?.message, createErr?.details, createErr?.hint, createErr);
+        throw createErr;
+      }
+      try {
+        await notif.expense({ branch: d.branch_key, amount: d.amount, category: d.category_id, action: 'create' });
+      } catch (notifErr) {
+        console.warn('[Expenses] notif.expense() failed (non-fatal):', notifErr?.message);
+      }
       return exp;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['expenses'] }); setShowForm(false); }

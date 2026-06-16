@@ -21,13 +21,22 @@ export function TenantProvider({ children }) {
     localStorage.getItem(`rc_restaurant_${user?.email || 'default'}`) || null
   );
 
-  const isOwner = user?.role === ROLES.OWNER;
-  const isManager = user?.role === ROLES.MANAGER;
-  const isEmployee = user?.role === ROLES.EMPLOYEE;
-  const isDriver = user?.role === ROLES.DRIVER;
-  const isKitchen = user?.role === ROLES.KITCHEN;
-  const isCustomer = user?.role === ROLES.CUSTOMER;
-  const isSponsor = user?.role === ROLES.SPONSOR;
+  // Normalize the raw role string the same way RoleContext does so that
+  // 'admin' / 'restaurant_admin' users are correctly treated as OWNER.
+  const normalizedRole = (() => {
+    const r = (user?.role || '').toLowerCase();
+    if (Object.values(ROLES).includes(r)) return r;
+    if (r === 'admin' || r === 'restaurant_admin') return ROLES.OWNER;
+    if (r === 'staff') return ROLES.EMPLOYEE;
+    return ROLES.OWNER; // safe default
+  })();
+  const isOwner = normalizedRole === ROLES.OWNER;
+  const isManager = normalizedRole === ROLES.MANAGER;
+  const isEmployee = normalizedRole === ROLES.EMPLOYEE;
+  const isDriver = normalizedRole === ROLES.DRIVER;
+  const isKitchen = normalizedRole === ROLES.KITCHEN;
+  const isCustomer = normalizedRole === ROLES.CUSTOMER;
+  const isSponsor = normalizedRole === ROLES.SPONSOR;
 
   const { data: restaurants = [], isLoading: loadingRestaurants, refetch: refetchRestaurants } = useQuery({
     queryKey: ['restaurants', user?.email, user?.role],
