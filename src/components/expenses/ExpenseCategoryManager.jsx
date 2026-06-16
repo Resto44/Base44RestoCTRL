@@ -92,12 +92,20 @@ export default function ExpenseCategoryManager({ onClose }) {
 
   const { data: categories = [], isLoading } = useExpenseCategories();
 
+  const { activeRestaurantId } = useTenant();
   const createMut = useMutation({
-    mutationFn: d => base44.entities.ExpenseCategory.create(d),
+    mutationFn: (d) => base44.entities.ExpenseCategory.create({
+      ...d,
+      name: d.name_en,
+      restaurant_id: activeRestaurantId
+    }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['expense_categories'] }); setShowForm(false); }
   });
   const updateMut = useMutation({
-    mutationFn: ({ id, data }) => base44.entities.ExpenseCategory.update(id, data),
+    mutationFn: ({ id, data }) => base44.entities.ExpenseCategory.update(id, {
+      ...data,
+      name: data.name_en
+    }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['expense_categories'] }); setEditing(null); }
   });
   const deleteMut = useMutation({
