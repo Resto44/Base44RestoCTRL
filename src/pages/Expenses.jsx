@@ -29,7 +29,7 @@ function ExpenseForm({ initial, onSubmit, onCancel, categories }) {
   const defaultBranch = initial?.branch_key || managerBranch || branches[0]?.key || '';
   const [form, setForm] = useState({
     date: initial?.date || format(new Date(), 'yyyy-MM-dd'),
-    branch_key: defaultBranch,
+    branch_key: initial?.branch_key || defaultBranch,
     category_id: initial?.category_id || '',
     description: initial?.description || '',
     amount: initial?.amount || '',
@@ -106,7 +106,7 @@ export default function Expenses() {
   const getCatById = (id) => categories.find(c => c.id === id);
   const getCatDisplayName = (categoryId) => {
     const cat = getCatById(categoryId);
-    return cat ? cat.name : (categoryId || '—');
+    return cat ? cat.name : t('uncategorized');
   };
 
   const { activeRestaurantId, restaurants: tenantRestaurants } = useTenant();
@@ -221,9 +221,9 @@ export default function Expenses() {
                         <div className="flex items-center gap-2 flex-1 min-w-0">
                           {cat && <span className="w-2 h-2 rounded-full shrink-0" style={{ background: cat.color || '#888' }} />}
                           <div className="min-w-0">
-                            <p className="text-sm font-semibold">{getCatDisplayName(e.category_id)}</p>
+                            <p className="text-sm font-semibold">{e.description || getCatDisplayName(e.category_id)}</p>
                             <p className="text-xs text-muted-foreground">{e.date} · {e.branch_key === 'all' ? t('all_branches') : (branches.find(b => b.key === e.branch_key)?.label || e.branch_key)}</p>
-                            {e.description && <p className="text-xs text-muted-foreground truncate">{e.description}</p>}
+                            <p className="text-xs text-muted-foreground italic">{getCatDisplayName(e.category_id)}</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
