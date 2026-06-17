@@ -24,9 +24,10 @@ export default function ProductForm({ initial, onSubmit, onCancel }) {
     ...initial,
   });
 
+  // ProductForm uses product_categories ONLY (isolated from expense/menu categories)
   const { data: categories = [] } = useQuery({
-    queryKey: ['categories', activeRestaurant?.id],
-    queryFn: () => base44.entities.Category.filter(
+    queryKey: ['product_categories', activeRestaurant?.id],
+    queryFn: () => base44.entities.ProductCategory.filter(
       activeRestaurant?.id ? { restaurant_id: activeRestaurant.id, is_active: true } : { is_active: true },
       'sort_order',
       500

@@ -302,10 +302,10 @@ export default function OnlineOrdering() {
   const [placingOrder, setPlacingOrder] = useState(false);
   const [activeOrderId, setActiveOrderId] = useState(null);
 
-  // Load categories
+  // Load categories — Online Ordering uses menu_categories ONLY (isolated from expense/product categories)
   const { data: categories = [] } = useQuery({
     queryKey: ['menu_categories', ownerFilter],
-    queryFn: () => base44.entities.Category.filter({ ...ownerFilter, is_active: true }, 'sort_order', 50),
+    queryFn: () => base44.entities.MenuCategory.filter({ ...ownerFilter, is_active: true }, 'sort_order', 50),
     enabled: !!ownerFilter?.created_by,
   });
 

@@ -409,38 +409,41 @@ function CategoryManagementTab({ categories, isLoading }) {
 
   const set = (f, v) => setForm(p => ({ ...p, [f]: v }));
 
+  // Product Management: all mutations use ProductCategory (product_categories table ONLY)
   const createMut = useMutation({
-    mutationFn: (data) => base44.entities.Category.create({ ...data, restaurant_id: activeRestaurant?.id }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['categories'] }); setShowForm(false); setForm({ name: '', description: '', parent_id: '', color: '', type: 'product' }); toast.success(t('category_added')); },
+    mutationFn: (data) => base44.entities.ProductCategory.create({ ...data, restaurant_id: activeRestaurant?.id }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['product_categories'] }); setShowForm(false); setForm({ name: '', description: '', parent_id: '', color: '', type: 'product' }); toast.success(t('category_added')); },
     onError: (e) => toast.error(e.message),
   });
 
   const updateMut = useMutation({
-    mutationFn: ({ id, data }) => base44.entities.Category.update(id, data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['categories'] }); setEditing(null); toast.success(t('category_updated')); },
+    mutationFn: ({ id, data }) => base44.entities.ProductCategory.update(id, data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['product_categories'] }); setEditing(null); toast.success(t('category_updated')); },
     onError: (e) => toast.error(e.message),
   });
 
   const deleteMut = useMutation({
-    mutationFn: (id) => base44.entities.Category.delete(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['categories'] }); setDeleting(null); toast.success(t('category_deleted')); },
+    mutationFn: (id) => base44.entities.ProductCategory.delete(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['product_categories'] }); setDeleting(null); toast.success(t('category_deleted')); },
     onError: (e) => toast.error(e.message),
   });
 
-  const productCategories = useMemo(() => categories.filter(c => c.type === 'product' || !c.type), [categories]);
+  // All rows from product_categories are already product-type; no further filtering needed
+  const productCategories = useMemo(() => categories, [categories]);
   const parentCats = useMemo(() => productCategories.filter(c => !c.parent_id), [productCategories]);
   const subCats = useMemo(() => productCategories.filter(c => !!c.parent_id), [productCategories]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const data = { name: form.name, description: form.description || null, parent_id: form.parent_id || null, color: form.color || null, type: 'product', is_active: true };
+    // product_categories uses name_en column (not name)
+    const data = { name_en: form.name, description: form.description || null, parent_id: form.parent_id || null, color: form.color || null, is_active: true };
     if (editing) updateMut.mutate({ id: editing.id, data });
     else createMut.mutate(data);
   };
 
   const openEdit = (cat) => {
     setEditing(cat);
-    setForm({ name: cat.name, description: cat.description || '', parent_id: cat.parent_id || '', color: cat.color || '', type: cat.type || 'product' });
+    setForm({ name: cat.name_en || cat.name || '', description: cat.description || '', parent_id: cat.parent_id || '', color: cat.color || '', type: 'product' });
   };
 
   const CategoryForm = () => (
@@ -460,7 +463,7 @@ function CategoryManagementTab({ categories, isLoading }) {
           <SelectContent>
             <SelectItem value="">— Top Level —</SelectItem>
             {parentCats.filter(c => c.id !== editing?.id).map(c => (
-              <SelectItem key={c.id} value={c.id || ""}>{c.name}</SelectItem>
+              <SelectItem key={c.id} value={c.id || ""}>{c.name_en || c.name}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -509,7 +512,7 @@ function CategoryManagementTab({ categories, isLoading }) {
                   <div className="flex items-center gap-2">
                     {cat.color && <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cat.color }} />}
                     <div>
-                      <p className="text-sm font-semibold">{cat?.name || "Unnamed"}</p>
+                      <p className="text-sm font-semibold">{cat?.name_en || cat?.name || "Unnamed"}</p>
                       {cat.description && <p className="text-xs text-muted-foreground">{cat.description}</p>}
                     </div>
                     {children.length > 0 && <Badge variant="outline" className="text-xs">{children.length} sub</Badge>}
@@ -529,7 +532,7 @@ function CategoryManagementTab({ categories, isLoading }) {
                       <div key={child.id} className="flex items-center justify-between py-1 border-l-2 border-border pl-2">
                         <div className="flex items-center gap-1">
                           <ChevronRight className="w-3 h-3 text-muted-foreground" />
-                          <span className="text-xs">{child?.name || "Unnamed"}</span>
+                          <span className="text-xs">{child?.name_en || child?.name || "Unnamed"}</span>
                         </div>
                         <div className="flex gap-1">
                           <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openEdit(child)}>
@@ -553,7 +556,7 @@ function CategoryManagementTab({ categories, isLoading }) {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t('confirm_delete')}</AlertDialogTitle>
-            <AlertDialogDescription>Delete category "{deleting?.name}"?</AlertDialogDescription>
+            <AlertDialogDescription>Delete category "{deleting?.name_en || deleting?.name}"?</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
@@ -1219,9 +1222,10 @@ export default function ProductManagement() {
     staleTime: 30000,
   });
 
+  // Product Management uses product_categories ONLY (isolated from expense/menu categories)
   const { data: categories = [], isLoading: categoriesLoading } = useQuery({
-    queryKey: ['categories', activeRestaurant?.id],
-    queryFn: () => base44.entities.Category.filter(
+    queryKey: ['product_categories', activeRestaurant?.id],
+    queryFn: () => base44.entities.ProductCategory.filter(
       activeRestaurant?.id ? { restaurant_id: activeRestaurant.id } : {},
       'sort_order', 500
     ),

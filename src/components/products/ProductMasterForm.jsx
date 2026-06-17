@@ -49,9 +49,10 @@ export default function ProductMasterForm({ initial, onSubmit, onCancel }) {
     ...initial,
   });
 
+  // ProductMasterForm uses product_categories ONLY (isolated from expense/menu categories)
   const { data: categories = [] } = useQuery({
-    queryKey: ['categories', activeRestaurant?.id],
-    queryFn: () => base44.entities.Category.filter(
+    queryKey: ['product_categories', activeRestaurant?.id],
+    queryFn: () => base44.entities.ProductCategory.filter(
       activeRestaurant?.id ? { restaurant_id: activeRestaurant.id } : {},
       'sort_order', 500
     ),
@@ -95,7 +96,7 @@ export default function ProductMasterForm({ initial, onSubmit, onCancel }) {
       sku: form.sku || null,
       barcode: form.barcode || null,
       category_id: form.category_id || null,
-      category: selectedCat?.name || form.category || null,
+      category: selectedCat?.name_en || selectedCat?.name || form.category || null,
       brand: form.brand || null,
       supplier_id: form.supplier_id || null,
       unit: form.unit || null,
@@ -161,7 +162,7 @@ export default function ProductMasterForm({ initial, onSubmit, onCancel }) {
                 <SelectTrigger><SelectValue placeholder={t('select')} /></SelectTrigger>
                 <SelectContent>
                   {parentCategories.map(c => (
-                    <SelectItem key={c.id} value={c.id || ""}>{c.name}</SelectItem>
+                    <SelectItem key={c.id} value={c.id || ""}>{c.name_en || c.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -172,7 +173,7 @@ export default function ProductMasterForm({ initial, onSubmit, onCancel }) {
                 <SelectTrigger><SelectValue placeholder={t('select')} /></SelectTrigger>
                 <SelectContent>
                   {subCategories.map(c => (
-                    <SelectItem key={c.id} value={c.id || ""}>{c.name}</SelectItem>
+                    <SelectItem key={c.id} value={c.id || ""}>{c.name_en || c.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

@@ -396,6 +396,13 @@ const entities = {
   // ── Cash Register & Alerts ──
   CashRegisterEntry: createEntity('cash_register_entries'),
   Alert: createEntity('notifications'), // remapped: no separate alerts table; use notifications
+  // ── Isolated Category Systems (2026-06-17) ──────────────────────────────
+  // THREE separate tables — never cross-pollinate:
+  //   ExpenseCategory  → expense_categories  (Expenses module ONLY)
+  //   ProductCategory  → product_categories  (Product Management / Inventory ONLY)
+  //   MenuCategory     → menu_categories     (Online Ordering ONLY)
+  ProductCategory: createEntity('product_categories'),
+  MenuCategory: createEntity('menu_categories'),
 };
 
 
