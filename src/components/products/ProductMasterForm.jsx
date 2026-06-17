@@ -161,7 +161,7 @@ export default function ProductMasterForm({ initial, onSubmit, onCancel }) {
                 <SelectTrigger><SelectValue placeholder={t('select')} /></SelectTrigger>
                 <SelectContent>
                   {parentCategories.map(c => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    <SelectItem key={c.id} value={c.id || ""}>{c.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -172,7 +172,7 @@ export default function ProductMasterForm({ initial, onSubmit, onCancel }) {
                 <SelectTrigger><SelectValue placeholder={t('select')} /></SelectTrigger>
                 <SelectContent>
                   {subCategories.map(c => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    <SelectItem key={c.id} value={c.id || ""}>{c.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -185,7 +185,7 @@ export default function ProductMasterForm({ initial, onSubmit, onCancel }) {
                 <SelectTrigger><SelectValue placeholder={t('select')} /></SelectTrigger>
                 <SelectContent>
                   {units.map(u => (
-                    <SelectItem key={u.id} value={u.abbreviation || u.name}>
+                    <SelectItem key={u.id} value={u.abbreviation || u.name || ""}>
                       {u.name} {u.abbreviation ? `(${u.abbreviation})` : ''}
                     </SelectItem>
                   ))}
@@ -204,7 +204,7 @@ export default function ProductMasterForm({ initial, onSubmit, onCancel }) {
               <SelectContent>
                 <SelectItem value="">— {t('none')} —</SelectItem>
                 {suppliers.map(s => (
-                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  <SelectItem key={s.id} value={s.id || ""}>{s.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

@@ -460,7 +460,7 @@ function CategoryManagementTab({ categories, isLoading }) {
           <SelectContent>
             <SelectItem value="">— Top Level —</SelectItem>
             {parentCats.filter(c => c.id !== editing?.id).map(c => (
-              <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+              <SelectItem key={c.id} value={c.id || ""}>{c.name}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -509,7 +509,7 @@ function CategoryManagementTab({ categories, isLoading }) {
                   <div className="flex items-center gap-2">
                     {cat.color && <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cat.color }} />}
                     <div>
-                      <p className="text-sm font-semibold">{cat.name}</p>
+                      <p className="text-sm font-semibold">{cat?.name || "Unnamed"}</p>
                       {cat.description && <p className="text-xs text-muted-foreground">{cat.description}</p>}
                     </div>
                     {children.length > 0 && <Badge variant="outline" className="text-xs">{children.length} sub</Badge>}
@@ -529,7 +529,7 @@ function CategoryManagementTab({ categories, isLoading }) {
                       <div key={child.id} className="flex items-center justify-between py-1 border-l-2 border-border pl-2">
                         <div className="flex items-center gap-1">
                           <ChevronRight className="w-3 h-3 text-muted-foreground" />
-                          <span className="text-xs">{child.name}</span>
+                          <span className="text-xs">{child?.name || "Unnamed"}</span>
                         </div>
                         <div className="flex gap-1">
                           <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openEdit(child)}>
