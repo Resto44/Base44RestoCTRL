@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { useLanguage } from '@/lib/LanguageContext';
 import { useTenant } from '@/lib/TenantContext';
@@ -23,6 +23,9 @@ import {
 } from 'recharts';
 import { format, subDays } from 'date-fns';
 import SalesForm from '@/components/sales/SalesForm';
+import { useNotify } from '@/lib/useNotify';
+import { useAuth } from '@/lib/AuthContext';
+import { useNetworkSettlement } from '@/hooks/useNetworkSettlement';
 
 // ── KPI Card Component ────────────────────────────────────────────────────────
 function KPICard({ title, value, subtitle, icon: Icon, trend, trendValue, color = 'blue', onClick }) {
@@ -108,9 +111,13 @@ function BranchRankCard({ rank, name, revenue, profit, trend, currency }) {
 // ── Main Dashboard ────────────────────────────────────────────────────────────
 export default function OwnerDashboard() {
   const { t, currency, lang } = useLanguage();
-  const { branches, ownerFilter } = useTenant();
+  const { branches, ownerFilter, orgId } = useTenant();
   const { role } = useRole();
+  const { user } = useAuth();
   const navigate = useNavigate();
+  const notif = useNotify();
+  const qc = useQueryClient();
+  const { autoSettle } = useNetworkSettlement({ orgId, user, currency });
   const [activeTab, setActiveTab] = useState('overview');
   const [showSaleModal, setShowSaleModal] = useState(false);
   const today = format(new Date(), 'yyyy-MM-dd');
@@ -147,6 +154,30 @@ export default function OwnerDashboard() {
     staleTime: 300000,
     enabled: !!ownerFilter?.created_by,
   });
+
+  // Create sale mutation
+  const createMut = useMutation({
+    mutationFn: async ({ data, proofUrl, ocr }) => {
+      const sale = await base44.entities.DailySales.create(data);
+      await autoSettle(data, sale.id, proofUrl || null, ocr || null, null);
+      const total = (data.restaurant_cash || 0) + (data.restaurant_network || 0) + (data.credit || 0);
+      await notif.sale({ branch: data.branch, amount: total, action: 'create' });
+      return sale;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['sales_dashboard'] });
+      qc.invalidateQueries({ queryKey: ['sales'] });
+      qc.invalidateQueries({ queryKey: ['sales_daily'] });
+      qc.invalidateQueries({ queryKey: ['settlements_all'] });
+      qc.invalidateQueries({ queryKey: ['settlements_mgr'] });
+      qc.invalidateQueries({ queryKey: ['wallet_transactions'] });
+      setShowSaleModal(false);
+    },
+  });
+
+  const handleSaleSubmit = async (data, proofUrl, ocr) => {
+    await createMut.mutateAsync({ data, proofUrl, ocr });
+  };
 
   // Computed KPIs
   const kpis = useMemo(() => {
@@ -384,7 +415,7 @@ export default function OwnerDashboard() {
           <DialogHeader>
             <DialogTitle>{t('add_sale')}</DialogTitle>
           </DialogHeader>
-          <SalesForm onSuccess={() => setShowSaleModal(false)} onCancel={() => setShowSaleModal(false)} />
+          <SalesForm onSubmit={handleSaleSubmit} onCancel={() => setShowSaleModal(false)} />
         </DialogContent>
       </Dialog>
 
