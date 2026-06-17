@@ -26,10 +26,16 @@ import { useTenant } from '@/lib/TenantContext';
 function ExpenseForm({ initial, onSubmit, onCancel, categories }) {
   const { t } = useLanguage();
   const { branches, managerBranch } = useTenant();
-  const defaultBranch = initial?.branch_key || managerBranch || branches[0]?.key || '';
+  const defaultBranch = managerBranch || branches[0]?.key || '';
+  // Resolve branch_key: use stored value only if it matches a known branch or is 'all';
+  // otherwise fall back to defaultBranch to prevent blank dropdown on edit.
+  const knownBranchKeys = ['all', ...branches.map(b => b.key)];
+  const resolvedBranchKey = (initial?.branch_key && knownBranchKeys.includes(initial.branch_key))
+    ? initial.branch_key
+    : (initial?.branch_key ? defaultBranch : (defaultBranch || 'all'));
   const [form, setForm] = useState({
     date: initial?.date || format(new Date(), 'yyyy-MM-dd'),
-    branch_key: initial?.branch_key || defaultBranch,
+    branch_key: resolvedBranchKey,
     category_id: initial?.category_id || '',
     description: initial?.description || '',
     amount: initial?.amount || '',
