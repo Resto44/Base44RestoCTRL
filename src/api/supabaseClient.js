@@ -125,13 +125,35 @@ async function getCurrentUserEmail() {
 }
 
 // ── Entity wrapper factory ─────────────────────────────────────────────────
+
+// categories table uses name_en/name_ar instead of name.
+// Inject a virtual `name` field so all UI code using c.name works correctly.
+function normalizeCategoryRow(row) {
+  if (!row) return row;
+  return { ...row, name: row.name || row.name_en || row.name_ar || '' };
+}
+function normalizeCategoryRows(rows) {
+  return (rows || []).map(normalizeCategoryRow);
+}
+// Map `name` -> `name_en` for categories create/update payloads
+function mapCategoryPayload(record) {
+  if (!record) return record;
+  const mapped = { ...record };
+  if ('name' in mapped && !mapped.name_en) {
+    mapped.name_en = mapped.name;
+  }
+  delete mapped.name;
+  return mapped;
+}
+
 function createEntity(tableName) {
   return {
     async list(sortParam = '-created_date', limit = 100) {
       const { column, ascending } = parseSortParam(sortParam);
       const { data, error } = await supabase.from(tableName).select('*').order(column, { ascending }).limit(limit);
       if (error) { console.warn(`[entity:${tableName}] list error:`, error.message); return []; }
-      return data || [];
+      const _listData = data || [];
+      return tableName === 'categories' ? normalizeCategoryRows(_listData) : _listData;
     },
 
     async filter(filterObj = {}, sortParam = '-created_date', limit = 100) {
@@ -141,7 +163,8 @@ function createEntity(tableName) {
       q = q.order(column, { ascending }).limit(limit);
       const { data, error } = await q;
       if (error) { console.warn(`[entity:${tableName}] filter error:`, error.message); return []; }
-      return data || [];
+      const _filterData = data || [];
+      return tableName === 'categories' ? normalizeCategoryRows(_filterData) : _filterData;
     },
 
     async get(id) {
@@ -151,6 +174,7 @@ function createEntity(tableName) {
     },
 
     async create(record) {
+      if (tableName === 'categories') record = mapCategoryPayload(record);
       console.log(`[entity:${tableName}] create() called with record:`, JSON.stringify(record));
       const email = await getCurrentUserEmail();
       console.log(`[entity:${tableName}] current user email:`, email);
@@ -219,6 +243,7 @@ function createEntity(tableName) {
     },
 
     async update(id, changes) {
+      if (tableName === 'categories') changes = mapCategoryPayload(changes);
       // Strip server-generated / computed columns that cannot be set by the client.
       // daily_sales.total is a GENERATED ALWAYS column — sending it causes HTTP 400.
       const GENERATED_COLS = ['total'];
