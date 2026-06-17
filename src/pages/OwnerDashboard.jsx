@@ -270,7 +270,7 @@ export default function OwnerDashboard() {
             <QuickActionBtn icon={Plus}        label={t('add_sale')}           color="green"  onClick={() => setShowSaleModal(true)} />
             <QuickActionBtn icon={ShoppingCart} label={t('add_purchase')}      color="blue"   onClick={() => { console.log('PURCHASE COMPONENT LOADED: EnterprisePurchaseCommandCenter'); navigate('/enterprise-purchases'); }} />
             <QuickActionBtn icon={Receipt}      label={t('add_expense')}        color="amber"  onClick={() => navigate('/expenses')} />
-            <QuickActionBtn icon={CreditCard}   label={t('customer_collection')} color="purple" onClick={() => navigate('/sales')} />
+            <QuickActionBtn icon={CreditCard}   label={t('customer_collection')} color="purple" onClick={() => navigate('/customer-management')} />
             <QuickActionBtn icon={Wallet}       label={t('supplier_payment')}  color="red"    onClick={() => navigate('/suppliers?tab=payments')} />
           </div>
         </CardContent>

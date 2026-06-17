@@ -339,6 +339,7 @@ const entities = {
   ProductModifierOption: createEntity('product_modifier_options'),
   CustomerAddress: createEntity('customer_addresses'),
   CustomerFavorite: createEntity('customer_favorites'),
+  CustomerNote: createEntity('customer_notes'),
   Promotion: createEntity('promotions'),
   DriverRequest: createEntity('driver_requests'),
   RecipeIngredient: createEntity('recipe_ingredients'),
