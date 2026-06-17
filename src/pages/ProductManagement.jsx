@@ -1222,10 +1222,10 @@ export default function ProductManagement() {
     staleTime: 30000,
   });
 
-  // Product Management uses product_categories ONLY (isolated from expense/menu categories)
+  // Product Management uses categories (aligned with Category Manager)
   const { data: categories = [], isLoading: categoriesLoading } = useQuery({
-    queryKey: ['product_categories', activeRestaurant?.id],
-    queryFn: () => base44.entities.ProductCategory.filter(
+    queryKey: ['categories', activeRestaurant?.id],
+    queryFn: () => base44.entities.Category.filter(
       activeRestaurant?.id ? { restaurant_id: activeRestaurant.id } : {},
       'sort_order', 500
     ),

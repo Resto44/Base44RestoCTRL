@@ -49,10 +49,10 @@ export default function ProductMasterForm({ initial, onSubmit, onCancel }) {
     ...initial,
   });
 
-  // ProductMasterForm uses product_categories ONLY (isolated from expense/menu categories)
+  // ProductMasterForm uses categories (aligned with Category Manager)
   const { data: categories = [] } = useQuery({
-    queryKey: ['product_categories', activeRestaurant?.id],
-    queryFn: () => base44.entities.ProductCategory.filter(
+    queryKey: ['categories', activeRestaurant?.id],
+    queryFn: () => base44.entities.Category.filter(
       activeRestaurant?.id ? { restaurant_id: activeRestaurant.id } : {},
       'sort_order', 500
     ),
