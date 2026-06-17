@@ -49,10 +49,10 @@ export default function ProductMasterForm({ initial, onSubmit, onCancel }) {
     ...initial,
   });
 
-  // ProductMasterForm uses categories (aligned with Category Manager)
+  // ProductMasterForm uses product_categories (ISOLATED — product module only)
   const { data: categories = [] } = useQuery({
-    queryKey: ['categories', activeRestaurant?.id],
-    queryFn: () => base44.entities.Category.filter(
+    queryKey: ['product_categories', activeRestaurant?.id],
+    queryFn: () => base44.entities.ProductCategory.filter(
       activeRestaurant?.id ? { restaurant_id: activeRestaurant.id } : {},
       'sort_order', 500
     ),
@@ -76,11 +76,18 @@ export default function ProductMasterForm({ initial, onSubmit, onCancel }) {
     staleTime: 60000,
   });
 
+  // Level 1: main categories (no parent)
   const parentCategories = useMemo(() => categories.filter(c => !c.parent_id), [categories]);
+  // Level 2: sub-categories of selected main category
   const subCategories = useMemo(() => {
     if (!form.category_id) return [];
     return categories.filter(c => c.parent_id === form.category_id);
   }, [categories, form.category_id]);
+  // Level 3: child categories of selected sub-category
+  const childCategories = useMemo(() => {
+    if (!form.subcategory_id) return [];
+    return categories.filter(c => c.parent_id === form.subcategory_id);
+  }, [categories, form.subcategory_id]);
 
   const set = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
 
@@ -96,7 +103,8 @@ export default function ProductMasterForm({ initial, onSubmit, onCancel }) {
       sku: form.sku || null,
       barcode: form.barcode || null,
       category_id: form.category_id || null,
-      category: selectedCat?.name_en || selectedCat?.name || form.category || null,
+      subcategory_id: form.subcategory_id || null,
+      category: selectedCat?.name || selectedCat?.name_en || form.category || null,
       brand: form.brand || null,
       supplier_id: form.supplier_id || null,
       unit: form.unit || null,
@@ -155,29 +163,54 @@ export default function ProductMasterForm({ initial, onSubmit, onCancel }) {
               <Input value={form.barcode} onChange={e => set('barcode', e.target.value)} placeholder="1234567890" />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          {/* Category — 3-level cascading dropdowns */}
+          <div className="space-y-2">
             <div>
-              <Label className="text-xs">{t('category')}</Label>
-              <Select value={form.category_id || ''} onValueChange={v => { set('category_id', v); set('sub_category_id', ''); }}>
-                <SelectTrigger><SelectValue placeholder={t('select')} /></SelectTrigger>
+              <Label className="text-xs">{t('category')} (Level 1)</Label>
+              <Select value={form.category_id || ''} onValueChange={v => { set('category_id', v); set('subcategory_id', ''); set('child_category_id', ''); }}>
+                <SelectTrigger><SelectValue placeholder="Select main category..." /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="">— None —</SelectItem>
                   {parentCategories.map(c => (
-                    <SelectItem key={c.id} value={c.id}>{c.name_en || c.name}</SelectItem>
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.icon ? `${c.icon} ` : ''}{c.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <Label className="text-xs">{t('sub_category')}</Label>
-              <Select value={form.sub_category_id || ''} onValueChange={v => set('sub_category_id', v)} disabled={subCategories.length === 0}>
-                <SelectTrigger><SelectValue placeholder={t('select')} /></SelectTrigger>
-                <SelectContent>
-                  {subCategories.map(c => (
-                    <SelectItem key={c.id} value={c.id}>{c.name_en || c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {subCategories.length > 0 && (
+              <div>
+                <Label className="text-xs">Sub-category (Level 2)</Label>
+                <Select value={form.subcategory_id || ''} onValueChange={v => { set('subcategory_id', v); set('child_category_id', ''); }}>
+                  <SelectTrigger><SelectValue placeholder="Select sub-category..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">— None —</SelectItem>
+                    {subCategories.map(c => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.icon ? `${c.icon} ` : ''}{c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            {childCategories.length > 0 && (
+              <div>
+                <Label className="text-xs">Child Category (Level 3)</Label>
+                <Select value={form.child_category_id || ''} onValueChange={v => set('child_category_id', v)}>
+                  <SelectTrigger><SelectValue placeholder="Select child category..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">— None —</SelectItem>
+                    {childCategories.map(c => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.icon ? `${c.icon} ` : ''}{c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>

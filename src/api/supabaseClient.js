@@ -191,16 +191,14 @@ function createEntity(tableName) {
       
       // Only add audit fields if they are standard for this project's base entities
       // Recipes and some new tables use 'created_at' instead of 'created_date'
-      if (!['recipes', 'recipe_ingredients', 'product_modifiers', 'product_modifier_options', 'customer_addresses', 'customer_favorites', 'promotions', 'driver_requests'].includes(tableName)) {
+      const CREATED_AT_TABLES = ['product_categories', 'expense_categories', 'purchase_categories', 'sales_categories', 'online_order_categories', 'recipes', 'recipe_ingredients', 'product_modifiers', 'product_modifier_options', 'customer_addresses', 'customer_favorites', 'promotions', 'driver_requests'];
+      if (!CREATED_AT_TABLES.includes(tableName)) {
         payload.created_by = email;
-        if (tableName === 'expense_categories') {
-           // expense_categories uses created_date but maybe the RLS or schema is sensitive
-           payload.created_date = now;
-           payload.updated_date = now;
-        } else {
-           payload.created_date = now;
-           payload.updated_date = now;
-        }
+        payload.created_date = now;
+        payload.updated_date = now;
+      } else if (['product_categories', 'expense_categories', 'purchase_categories', 'sales_categories', 'online_order_categories'].includes(tableName)) {
+        payload.created_by = email;
+        // these tables use created_at (not created_date)
       }
       
       // Convert empty strings to null for UUID columns that are ALREADY in the payload.
@@ -250,7 +248,10 @@ function createEntity(tableName) {
       const safe = Object.fromEntries(
         Object.entries(changes).filter(([k]) => !GENERATED_COLS.includes(k))
       );
-      const { data, error } = await supabase.from(tableName).update({ ...safe, updated_date: new Date().toISOString() }).eq('id', id).select().single();
+      const updatePayload = { ...safe };
+      // All tables have updated_date column
+      updatePayload.updated_date = new Date().toISOString();
+      const { data, error } = await supabase.from(tableName).update(updatePayload).eq('id', id).select().single();
       if (error) throw error;
       return data;
     },
@@ -396,13 +397,16 @@ const entities = {
   // ── Cash Register & Alerts ──
   CashRegisterEntry: createEntity('cash_register_entries'),
   Alert: createEntity('notifications'), // remapped: no separate alerts table; use notifications
-  // ── Isolated Category Systems (2026-06-17) ──────────────────────────────
-  // THREE separate tables — never cross-pollinate:
-  //   ExpenseCategory  → expense_categories  (Expenses module ONLY)
-  //   ProductCategory  → product_categories  (Product Management / Inventory ONLY)
-  //   MenuCategory     → menu_categories     (Online Ordering ONLY)
+  // ── Enterprise Category Systems (2026-06-18) ──────────────────────────────
+  // FIVE completely isolated tables — never cross-pollinate:
+  //   ProductCategory       → product_categories       (Product Management / Inventory ONLY)
+  //   ExpenseCategory       → expense_categories       (Expenses module ONLY)
+  //   PurchaseCategory      → purchase_categories      (Purchases module ONLY)
+  //   SalesCategory         → sales_categories         (Sales module ONLY)
+  //   OnlineOrderCategory   → online_order_categories  (Online Ordering ONLY)
   ProductCategory: createEntity('product_categories'),
-  MenuCategory: createEntity('menu_categories'),
+  SalesCategory: createEntity('sales_categories'),
+  OnlineOrderCategory: createEntity('online_order_categories'),
 };
 
 

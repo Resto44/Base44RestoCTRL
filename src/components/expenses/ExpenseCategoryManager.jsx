@@ -50,13 +50,17 @@ function CategoryForm({ initial, onSubmit, onCancel, lang }) {
 }
 
 export function useExpenseCategories() {
-  const { ownerFilter, activeRestaurantId } = useTenant();
-  const filter = activeRestaurantId ? { restaurant_id: activeRestaurantId } : ownerFilter;
+  const { activeRestaurantId } = useTenant();
   
   return useQuery({
-    queryKey: ['expense_categories', filter],
-    queryFn: () => base44.entities.ExpenseCategory.filter(filter, '-created_date', 500),
-    enabled: !!(activeRestaurantId || ownerFilter?.created_by || ownerFilter?.branch),
+    queryKey: ['expense_categories', activeRestaurantId],
+    queryFn: () => base44.entities.ExpenseCategory.filter(
+      activeRestaurantId ? { restaurant_id: activeRestaurantId } : {},
+      'sort_order',
+      500
+    ),
+    enabled: true,
+    staleTime: 30000,
   });
 }
 

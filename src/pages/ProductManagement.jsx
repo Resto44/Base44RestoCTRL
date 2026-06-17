@@ -26,6 +26,7 @@ import ProductMasterForm from '@/components/products/ProductMasterForm';
 import BarcodeGenerator from '@/components/products/BarcodeGenerator';
 import ProductVariantsManager from '@/components/products/ProductVariantsManager';
 import InventoryTransactionForm from '@/components/products/InventoryTransactionForm';
+import EnterpriseCategoryManager from '@/components/categories/CategoryManager';
 import {
   Package, Plus, Pencil, Trash2, Search, BarChart3, Tag, Ruler,
   Barcode, Layers, ArrowUpDown, TrendingUp, Upload, Download,
@@ -1222,10 +1223,10 @@ export default function ProductManagement() {
     staleTime: 30000,
   });
 
-  // Product Management uses categories (aligned with Category Manager)
+  // Product Management uses product_categories ONLY (isolated enterprise category system)
   const { data: categories = [], isLoading: categoriesLoading } = useQuery({
-    queryKey: ['categories', activeRestaurant?.id],
-    queryFn: () => base44.entities.Category.filter(
+    queryKey: ['product_categories', activeRestaurant?.id],
+    queryFn: () => base44.entities.ProductCategory.filter(
       activeRestaurant?.id ? { restaurant_id: activeRestaurant.id } : {},
       'sort_order', 500
     ),
@@ -1289,7 +1290,8 @@ export default function ProductManagement() {
         </TabsContent>
 
         <TabsContent value="categories">
-          <CategoryManagementTab categories={categories} isLoading={categoriesLoading} />
+          {/* Enterprise Category Manager — product_categories module only */}
+          <EnterpriseCategoryManager />
         </TabsContent>
 
         <TabsContent value="units">

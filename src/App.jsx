@@ -90,6 +90,7 @@ const BrandSettings       = lazy(() => import('@/pages/BrandSettings'));
 const BranchManagement    = lazy(() => import('@/pages/BranchManagement'));
 const RestaurantManager   = lazy(() => import('@/pages/RestaurantManager'));
 const CategoryManager     = lazy(() => import('@/pages/CategoryManager'));
+const EnterpriseCategoryManager = lazy(() => import('@/components/categories/CategoryManager'));
 const ApprovalPolicy      = lazy(() => import('@/pages/ApprovalPolicy'));
 const TelegramSettings    = lazy(() => import('@/pages/TelegramSettings'));
 const Billing             = lazy(() => import('@/pages/Billing'));
@@ -279,7 +280,9 @@ const SubscribedRoutes = () => {
         <Route path="/brand" element={<RoleGuard permission="viewBrandSettings"><BrandSettings /></RoleGuard>} />
         <Route path="/restaurants" element={<RoleGuard permission="viewBrandSettings"><RestaurantManager /></RoleGuard>} />
         <Route path="/branch-management" element={<RoleGuard permission="viewBrandSettings"><BranchManagement /></RoleGuard>} />
-        <Route path="/categories" element={<RoleGuard permission="manageSettings"><CategoryManager /></RoleGuard>} />
+        {/* Legacy route kept for backward compat — redirects to new enterprise manager */}
+        <Route path="/categories" element={<RoleGuard permission="manageSettings"><EnterpriseCategoryManager /></RoleGuard>} />
+        <Route path="/category-manager" element={<RoleGuard permission="manageSettings"><EnterpriseCategoryManager /></RoleGuard>} />
         <Route path="/approval-policy" element={<RoleGuard permission="viewBrandSettings"><ApprovalPolicy /></RoleGuard>} />
         <Route path="/telegram-settings" element={<RoleGuard permission="viewBrandSettings"><TelegramSettings /></RoleGuard>} />
         <Route path="/billing" element={<RoleGuard permission="viewBilling"><Billing /></RoleGuard>} />

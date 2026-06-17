@@ -15,6 +15,7 @@ export default function ProductForm({ initial, onSubmit, onCancel }) {
     product_id: '',
     name: '',
     category_id: '',
+    subcategory_id: '',
     category: '',
     unit: '',
     default_price: '',
@@ -24,7 +25,7 @@ export default function ProductForm({ initial, onSubmit, onCancel }) {
     ...initial,
   });
 
-  // ProductForm uses product_categories ONLY (isolated from expense/menu categories)
+  // ProductForm uses product_categories ONLY (isolated from expense/purchase/sales/online categories)
   const { data: categories = [] } = useQuery({
     queryKey: ['product_categories', activeRestaurant?.id],
     queryFn: () => base44.entities.ProductCategory.filter(
@@ -36,31 +37,45 @@ export default function ProductForm({ initial, onSubmit, onCancel }) {
     staleTime: 30000,
   });
 
-  const categoryOptions = useMemo(() => categories.map(cat => ({
-    value: cat.id,
-    label: cat[`name_${lang}`] || cat.name_en || cat.name_ar || cat.name_fa || '—',
-    cat,
-  })), [categories, lang]);
+  // Level 1: main categories (no parent)
+  const mainCategories = useMemo(() => categories.filter(c => !c.parent_id), [categories]);
+
+  // Level 2: sub-categories of selected main category
+  const subCategories = useMemo(() => {
+    if (!form.category_id) return [];
+    return categories.filter(c => c.parent_id === form.category_id);
+  }, [categories, form.category_id]);
+
+  // Level 3: child categories of selected sub-category
+  const childCategories = useMemo(() => {
+    if (!form.subcategory_id) return [];
+    return categories.filter(c => c.parent_id === form.subcategory_id);
+  }, [categories, form.subcategory_id]);
+
+  const getName = (cat) => cat[`name_${lang}`] || cat.name || cat.name_en || cat.name_ar || '—';
 
   const handleChange = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
 
-  const handleCategoryChange = (value) => {
-    const selected = categoryOptions.find(option => option.value === value);
+  const handleMainCategoryChange = (value) => {
+    const selected = mainCategories.find(c => c.id === value);
     setForm(prev => ({
       ...prev,
       category_id: value,
-      category: selected?.label || '',
+      subcategory_id: '',
+      child_category_id: '',
+      category: selected ? getName(selected) : '',
     }));
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const selected = categoryOptions.find(option => option.value === form.category_id);
+    const selectedCat = categories.find(c => c.id === form.category_id);
     onSubmit({
       product_id: form.product_id,
       name: form.name,
       category_id: form.category_id || null,
-      category: selected?.label || form.category || null,
+      subcategory_id: form.subcategory_id || null,
+      category: selectedCat ? getName(selectedCat) : (form.category || null),
       unit: form.unit || null,
       default_price: Number(form.default_price) || 0,
       default_cost: Number(form.default_cost) || 0,
@@ -83,24 +98,74 @@ export default function ProductForm({ initial, onSubmit, onCancel }) {
         <Label className="text-xs">{t('description')}</Label>
         <Input value={form.description} onChange={e => handleChange('description', e.target.value)} placeholder={t('optional')} />
       </div>
-      <div className="grid grid-cols-2 gap-3">
+
+      {/* Category — cascading 3-level dropdowns */}
+      <div className="space-y-2">
         <div>
-          <Label className="text-xs">{t('category_id')}</Label>
-          <Select value={form.category_id || ''} onValueChange={handleCategoryChange}>
+          <Label className="text-xs font-medium">{t('category')} (Level 1)</Label>
+          <Select value={form.category_id || ''} onValueChange={handleMainCategoryChange}>
             <SelectTrigger>
-              <SelectValue placeholder={t('optional')} />
+              <SelectValue placeholder="Select main category..." />
             </SelectTrigger>
             <SelectContent>
-              {categoryOptions.map(option => (
-                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+              <SelectItem value="">— None —</SelectItem>
+              {mainCategories.map(c => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.icon ? `${c.icon} ` : ''}{getName(c)}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
-        <div>
-          <Label className="text-xs">{t('unit')}</Label>
-          <Input value={form.unit} onChange={e => handleChange('unit', e.target.value)} placeholder={t('optional')} />
-        </div>
+
+        {subCategories.length > 0 && (
+          <div>
+            <Label className="text-xs font-medium">Sub-category (Level 2)</Label>
+            <Select
+              value={form.subcategory_id || ''}
+              onValueChange={v => { handleChange('subcategory_id', v); handleChange('child_category_id', ''); }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select sub-category..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">— None —</SelectItem>
+                {subCategories.map(c => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.icon ? `${c.icon} ` : ''}{getName(c)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {childCategories.length > 0 && (
+          <div>
+            <Label className="text-xs font-medium">Child Category (Level 3)</Label>
+            <Select
+              value={form.child_category_id || ''}
+              onValueChange={v => handleChange('child_category_id', v)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select child category..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">— None —</SelectItem>
+                {childCategories.map(c => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.icon ? `${c.icon} ` : ''}{getName(c)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+      </div>
+
+      <div>
+        <Label className="text-xs">{t('unit')}</Label>
+        <Input value={form.unit} onChange={e => handleChange('unit', e.target.value)} placeholder={t('optional')} />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>

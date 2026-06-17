@@ -110,7 +110,8 @@ export default function PurchaseForm({ initial, onSubmit, onCancel }) {
       current_price: form.current_price ? Number(form.current_price) : null,
       used_price: usedPrice,
       product_name: selectedProduct?.name || '',
-      category: selectedCat ? (selectedCat.cat.name_en || selectedCat.cat.name_ar || selectedCat.cat.name_fa) : form.category,
+        purchase_category_id: form.category || null,
+      category: selectedCat ? (selectedCat.cat.name || selectedCat.cat.name_ar || selectedCat.cat.name_fa) : form.category,
     });
   };
 
@@ -136,7 +137,7 @@ export default function PurchaseForm({ initial, onSubmit, onCancel }) {
             <Tag className="w-3 h-3" /> {u.category}
           </Label>
           <Link
-            to="/categories"
+            to="/category-manager"
             className="text-[10px] text-primary hover:underline flex items-center gap-1"
             onClick={() => onCancel?.()}
           >
@@ -151,7 +152,7 @@ export default function PurchaseForm({ initial, onSubmit, onCancel }) {
           <div className="flex items-center gap-2 p-2 rounded-lg border border-dashed border-border bg-muted/30">
             <span className="text-xs text-muted-foreground flex-1">{u.no_categories}</span>
             <Link
-              to="/categories"
+              to="/category-manager"
               className="text-xs text-primary font-medium flex items-center gap-1 hover:underline"
               onClick={() => onCancel?.()}
             >
