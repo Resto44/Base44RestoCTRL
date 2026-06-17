@@ -162,7 +162,7 @@ export default function ProductMasterForm({ initial, onSubmit, onCancel }) {
                 <SelectTrigger><SelectValue placeholder={t('select')} /></SelectTrigger>
                 <SelectContent>
                   {parentCategories.map(c => (
-                    <SelectItem key={c.id} value={c.id || ""}>{c.name_en || c.name}</SelectItem>
+                    <SelectItem key={c.id} value={c.id}>{c.name_en || c.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -173,7 +173,7 @@ export default function ProductMasterForm({ initial, onSubmit, onCancel }) {
                 <SelectTrigger><SelectValue placeholder={t('select')} /></SelectTrigger>
                 <SelectContent>
                   {subCategories.map(c => (
-                    <SelectItem key={c.id} value={c.id || ""}>{c.name_en || c.name}</SelectItem>
+                    <SelectItem key={c.id} value={c.id}>{c.name_en || c.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -186,7 +186,7 @@ export default function ProductMasterForm({ initial, onSubmit, onCancel }) {
                 <SelectTrigger><SelectValue placeholder={t('select')} /></SelectTrigger>
                 <SelectContent>
                   {units.map(u => (
-                    <SelectItem key={u.id} value={u.abbreviation || u.name || ""}>
+                    <SelectItem key={u.id} value={u.abbreviation || u.name || u.id}>
                       {u.name} {u.abbreviation ? `(${u.abbreviation})` : ''}
                     </SelectItem>
                   ))}
@@ -200,12 +200,12 @@ export default function ProductMasterForm({ initial, onSubmit, onCancel }) {
           </div>
           <div>
             <Label className="text-xs">{t('supplier')}</Label>
-            <Select value={form.supplier_id || ''} onValueChange={v => set('supplier_id', v)}>
+            <Select value={form.supplier_id || '__none__'} onValueChange={v => set('supplier_id', v === '__none__' ? '' : v)}>
               <SelectTrigger><SelectValue placeholder={t('select')} /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="">— {t('none')} —</SelectItem>
+                <SelectItem value="__none__">— {t('none')} —</SelectItem>
                 {suppliers.map(s => (
-                  <SelectItem key={s.id} value={s.id || ""}>{s.name}</SelectItem>
+                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
