@@ -59,6 +59,7 @@ const APPROVAL_CONFIG = {
 const emptyItem = () => ({
   _id: Math.random().toString(36).slice(2),
   category: '',
+  category_id: '',
   product_id: '',
   product_name: '',
   unit: '',
@@ -133,6 +134,19 @@ export default function PurchaseInvoiceForm({ invoice = null, onSuccess, onCance
     queryFn: () => base44.entities.Product.filter(ownerFilter || {}, 'name', 1000),
     enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
   });
+
+  const { data: categories = [] } = useQuery({
+    queryKey: ['purchase_categories', ownerFilter],
+    queryFn: () => base44.entities.PurchaseCategory.filter({ ...ownerFilter, is_active: true }, 'name', 100),
+    enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
+  });
+
+  useEffect(() => {
+    console.log('[PurchaseInvoiceForm] categories.length:', categories.length);
+    if (categories.length > 0) {
+      console.log('[PurchaseInvoiceForm] categories sample:', categories[0]);
+    }
+  }, [categories]);
 
   // ── Totals ─────────────────────────────────────────────────────────────
   const totals = calcInvoiceTotals(items, additionalCosts);
@@ -391,7 +405,20 @@ export default function PurchaseInvoiceForm({ invoice = null, onSuccess, onCance
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <Label className="text-[10px] text-muted-foreground">Category</Label>
-                  <Input value={item.category} onChange={e => updateItem(item._id, 'category', e.target.value)} placeholder="e.g. ingredients" className="h-8 text-xs" />
+                  <Select value={item.category_id} onValueChange={v => {
+                    const cat = categories.find(c => c.id === v);
+                    updateItem(item._id, 'category_id', v);
+                    updateItem(item._id, 'category', cat?.name || '');
+                  }}>
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="Select..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.map(c => (
+                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
                   <Label className="text-[10px] text-muted-foreground">Product *</Label>
