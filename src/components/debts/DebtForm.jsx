@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
@@ -6,12 +6,18 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
 import { useTenant } from '@/lib/TenantContext';
 import { useDebtI18n } from '@/lib/debtI18n';
+import { useAuth } from '@/lib/AuthContext';
 import { format } from 'date-fns';
+import { FileText, MessageCircle, Loader2, CheckCircle, Clock } from 'lucide-react';
+import { generateInvoiceNumber, processDebtSave, generateInvoicePDF, openPDFInNewTab } from '@/lib/debtInvoiceService';
+import { isWhatsAppConfigured } from '@/lib/whatsappService';
 
 export default function DebtForm({ initial = {}, onSave, onCancel }) {
   const { branches, activeRestaurantId, ownerFilter } = useTenant();
+  const { user } = useAuth();
   const d = useDebtI18n();
 
   const partyTypes = [
@@ -44,8 +50,21 @@ export default function DebtForm({ initial = {}, onSave, onCancel }) {
     ...initial,
   });
   const [saving, setSaving] = useState(false);
+  const [autoInvoiceNum, setAutoInvoiceNum] = useState('');
+  const [saveResult, setSaveResult] = useState(null);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  // Pre-generate invoice number for new records
+  useEffect(() => {
+    if (!initial.id && activeRestaurantId) {
+      generateInvoiceNumber(activeRestaurantId).then(num => {
+        setAutoInvoiceNum(num);
+      });
+    } else if (initial.invoice_auto_number) {
+      setAutoInvoiceNum(initial.invoice_auto_number);
+    }
+  }, [initial.id, activeRestaurantId]);
 
   // Load Employees
   const { data: employees = [] } = useQuery({
@@ -64,6 +83,7 @@ export default function DebtForm({ initial = {}, onSave, onCancel }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
+    setSaveResult(null);
     const total = parseFloat(form.total_amount) || 0;
     const paid = parseFloat(form.paid_amount) || 0;
     const data = {
@@ -87,12 +107,25 @@ export default function DebtForm({ initial = {}, onSave, onCancel }) {
       }
       delete finalData.party_id;
 
+      let savedRecord;
       if (initial.id) {
-        await base44.entities.DebtRecord.update(initial.id, finalData);
+        savedRecord = await base44.entities.DebtRecord.update(initial.id, finalData);
       } else {
-        await base44.entities.DebtRecord.create(finalData);
+        savedRecord = await base44.entities.DebtRecord.create(finalData);
       }
-      onSave();
+
+      // Auto-create invoice + send WhatsApp (only for new records)
+      if (!initial.id && savedRecord) {
+        const result = await processDebtSave({
+          debtRecord: { ...savedRecord, ...finalData },
+          restaurantId: activeRestaurantId,
+          createdBy: user?.email,
+          brandName: 'RestoCTRL',
+        });
+        setSaveResult(result);
+      }
+
+      onSave(savedRecord);
     } catch (err) {
       console.error('Failed to save debt:', err);
       alert('Error: ' + (err.message || 'Unknown error'));
@@ -126,8 +159,48 @@ export default function DebtForm({ initial = {}, onSave, onCancel }) {
     }
   };
 
+  const handlePreviewInvoice = () => {
+    const total = parseFloat(form.total_amount) || 0;
+    const paid = parseFloat(form.paid_amount) || 0;
+    const invoiceData = {
+      invoice_number: autoInvoiceNum || 'DBT-PREVIEW',
+      party_name: form.party_name || 'Customer',
+      party_phone: form.party_phone,
+      invoice_date: form.date,
+      due_date: form.due_date,
+      branch: form.branch,
+      total_amount: total,
+      paid_amount: paid,
+      remaining_amount: total - paid,
+      description: form.description,
+      status: paid >= total ? 'paid' : paid > 0 ? 'partial' : 'open',
+    };
+    const html = generateInvoicePDF(invoiceData);
+    openPDFInNewTab(html);
+  };
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4 py-2">
+      {/* Auto Invoice Number Banner */}
+      {!initial.id && autoInvoiceNum && (
+        <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+          <FileText className="w-4 h-4 text-blue-600 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <div className="text-xs text-blue-600 font-medium">Auto Invoice Number</div>
+            <div className="text-sm font-bold text-blue-800">{autoInvoiceNum}</div>
+          </div>
+          {isWhatsAppConfigured() ? (
+            <Badge className="bg-green-100 text-green-700 text-[10px]">
+              <MessageCircle className="w-3 h-3 mr-1" /> WhatsApp Ready
+            </Badge>
+          ) : (
+            <Badge className="bg-amber-100 text-amber-700 text-[10px]">
+              <Clock className="w-3 h-3 mr-1" /> Will Queue
+            </Badge>
+          )}
+        </div>
+      )}
+
       {/* Type + Party Type */}
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
@@ -183,26 +256,20 @@ export default function DebtForm({ initial = {}, onSave, onCancel }) {
           )}
         </div>
         <div className="space-y-1">
-          <Label>{d.phone_label}</Label>
+          <Label>{d.phone_label} <span className="text-[10px] text-blue-500">(WhatsApp)</span></Label>
           <Input value={form.party_phone} onChange={e => set('party_phone', e.target.value)} placeholder="05xxxxxxxx" />
         </div>
       </div>
 
-      {/* Branch + Invoice */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1">
-          <Label>{d.branch_label}</Label>
-          <Select value={form.branch} onValueChange={v => set('branch', v)}>
-            <SelectTrigger><SelectValue placeholder={d.choose_branch} /></SelectTrigger>
-            <SelectContent>
-              {branches.map(b => <SelectItem key={b.key} value={b.key}>{b.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1">
-          <Label>{d.invoice_label}</Label>
-          <Input value={form.invoice_number} onChange={e => set('invoice_number', e.target.value)} placeholder="INV-001" />
-        </div>
+      {/* Branch */}
+      <div className="space-y-1">
+        <Label>{d.branch_label}</Label>
+        <Select value={form.branch} onValueChange={v => set('branch', v)}>
+          <SelectTrigger><SelectValue placeholder={d.choose_branch} /></SelectTrigger>
+          <SelectContent>
+            {branches.map(b => <SelectItem key={b.key} value={b.key}>{b.label}</SelectItem>)}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Dates */}
@@ -253,12 +320,33 @@ export default function DebtForm({ initial = {}, onSave, onCancel }) {
         <Textarea rows={2} value={form.notes} onChange={e => set('notes', e.target.value)} placeholder={d.notes_placeholder} />
       </div>
 
+      {/* Preview Invoice Button */}
+      {!initial.id && form.party_name && form.total_amount && (
+        <Button type="button" variant="outline" size="sm" className="w-full text-blue-600 border-blue-200" onClick={handlePreviewInvoice}>
+          <FileText className="w-4 h-4 mr-2" /> Preview Invoice
+        </Button>
+      )}
+
       <div className="flex gap-2 pt-2">
         <Button type="submit" disabled={saving} className="flex-1">
-          {saving ? d.saving : (initial.id ? d.update : d.add)}
+          {saving ? (
+            <span className="flex items-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              {d.saving}
+            </span>
+          ) : (initial.id ? d.update : d.add)}
         </Button>
         <Button type="button" variant="outline" onClick={onCancel}>{d.cancel}</Button>
       </div>
+
+      {/* WhatsApp info note */}
+      {!initial.id && (
+        <div className="text-[10px] text-muted-foreground text-center">
+          {isWhatsAppConfigured()
+            ? '📲 Invoice will be sent to customer WhatsApp automatically'
+            : '📋 Invoice will be queued for WhatsApp delivery (Pending WhatsApp Delivery)'}
+        </div>
+      )}
     </form>
   );
 }

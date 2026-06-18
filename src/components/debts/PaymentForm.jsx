@@ -5,14 +5,20 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { useAuth } from '@/lib/AuthContext';
+import { useTenant } from '@/lib/TenantContext';
 import { useDebtI18n } from '@/lib/debtI18n';
 import { useNotify } from '@/lib/useNotify';
+import { Loader2, Receipt, MessageCircle, Clock, FileText } from 'lucide-react';
+import { processPaymentSave, generateReceiptPDF, openPDFInNewTab } from '@/lib/debtInvoiceService';
+import { isWhatsAppConfigured } from '@/lib/whatsappService';
 
 export default function PaymentForm({ debt, onSave, onCancel }) {
   const notif = useNotify();
   const { user } = useAuth();
+  const { activeRestaurantId } = useTenant();
   const d = useDebtI18n();
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState('cash');
@@ -28,34 +34,70 @@ export default function PaymentForm({ debt, onSave, onCancel }) {
     if (amt <= 0) return;
     setSaving(true);
 
-    await base44.entities.DebtPayment.create({
-      debt_id: debt.id,
+    try {
+      // 1. Create payment record
+      const payment = await base44.entities.DebtPayment.create({
+        debt_id: debt.id,
+        party_name: debt.party_name,
+        date,
+        amount: amt,
+        payment_method: method,
+        notes,
+        recorded_by: user?.email,
+        recorded_by_name: user?.full_name || user?.email,
+      });
+
+      // 2. Update debt record
+      const newPaid = (debt.paid_amount || 0) + amt;
+      const newRemaining = debt.total_amount - newPaid;
+      const newStatus = newRemaining <= 0 ? 'paid' : 'partial';
+      await base44.entities.DebtRecord.update(debt.id, {
+        paid_amount: newPaid,
+        remaining_amount: Math.max(0, newRemaining),
+        status: newStatus,
+      });
+
+      // 3. Auto-create receipt + send WhatsApp
+      if (payment) {
+        await processPaymentSave({
+          payment: { ...payment, amount: amt, payment_method: method, date, notes },
+          debtRecord: debt,
+          restaurantId: activeRestaurantId,
+          createdBy: user?.email,
+          brandName: 'RestoCTRL',
+        });
+      }
+
+      // 4. Notify
+      await notif.creditCollection({
+        branch: debt.branch || 'General',
+        amount: amt,
+        action: 'create'
+      });
+
+      setSaving(false);
+      onSave();
+    } catch (err) {
+      console.error('Payment error:', err);
+      alert('Error: ' + (err.message || 'Unknown error'));
+      setSaving(false);
+    }
+  };
+
+  const handlePreviewReceipt = () => {
+    const amt = parseFloat(amount) || 0;
+    const receiptData = {
+      receipt_number: 'RCP-PREVIEW',
       party_name: debt.party_name,
-      date,
+      party_phone: debt.party_phone,
+      receipt_date: date,
       amount: amt,
       payment_method: method,
+      invoice_number: debt.invoice_auto_number || debt.invoice_number,
       notes,
-      recorded_by: user?.email,
-      recorded_by_name: user?.full_name,
-    });
-
-    const newPaid = (debt.paid_amount || 0) + amt;
-    const newRemaining = debt.total_amount - newPaid;
-    const newStatus = newRemaining <= 0 ? 'paid' : 'partial';
-    await base44.entities.DebtRecord.update(debt.id, {
-      paid_amount: newPaid,
-      remaining_amount: Math.max(0, newRemaining),
-      status: newStatus,
-    });
-
-    await notif.creditCollection({ 
-      branch: debt.branch || 'General', 
-      amount: amt, 
-      action: 'create' 
-    });
-
-    setSaving(false);
-    onSave();
+    };
+    const html = generateReceiptPDF(receiptData);
+    openPDFInNewTab(html);
   };
 
   return (
@@ -106,11 +148,49 @@ export default function PaymentForm({ debt, onSave, onCancel }) {
         <Textarea rows={2} value={notes} onChange={e => setNotes(e.target.value)} />
       </div>
 
+      {/* WhatsApp status banner */}
+      <div className="flex items-center justify-between bg-blue-50 rounded-lg px-3 py-2">
+        <div className="flex items-center gap-2 text-xs text-blue-700">
+          <Receipt className="w-3.5 h-3.5" />
+          <span>Receipt will be auto-created</span>
+        </div>
+        {isWhatsAppConfigured() ? (
+          <Badge className="bg-green-100 text-green-700 text-[10px]">
+            <MessageCircle className="w-3 h-3 mr-1" /> WhatsApp Ready
+          </Badge>
+        ) : (
+          <Badge className="bg-amber-100 text-amber-700 text-[10px]">
+            <Clock className="w-3 h-3 mr-1" /> Will Queue
+          </Badge>
+        )}
+      </div>
+
+      {/* Preview Receipt Button */}
+      {amount && parseFloat(amount) > 0 && (
+        <Button type="button" variant="outline" size="sm" className="w-full text-green-600 border-green-200" onClick={handlePreviewReceipt}>
+          <FileText className="w-4 h-4 mr-2" /> Preview Receipt
+        </Button>
+      )}
+
       <div className="flex gap-2 pt-2">
         <Button type="submit" disabled={saving} className="flex-1 bg-green-600 hover:bg-green-700">
-          {saving ? d.recording : d.submit_payment}
+          {saving ? (
+            <span className="flex items-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              {d.recording}
+            </span>
+          ) : d.submit_payment}
         </Button>
         <Button type="button" variant="outline" onClick={onCancel}>{d.cancel}</Button>
+      </div>
+
+      {/* WhatsApp note */}
+      <div className="text-[10px] text-muted-foreground text-center">
+        {debt.party_phone
+          ? isWhatsAppConfigured()
+            ? '📲 Receipt will be sent to customer WhatsApp automatically'
+            : '📋 Receipt queued for WhatsApp delivery (Pending WhatsApp Delivery)'
+          : '⚠️ No phone number — WhatsApp delivery skipped'}
       </div>
     </form>
   );

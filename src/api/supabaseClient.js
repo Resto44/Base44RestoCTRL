@@ -344,6 +344,8 @@ const entities = {
   PurchaseCategory: createEntity('purchase_categories'), Notification: createEntity('notifications'),
   DailySales: createEntity('daily_sales'), DebtRecord: createEntity('debt_records'),
   DebtPayment: createEntity('debt_payments'), CreditCollection: createEntity('customer_collections'),
+  DebtInvoice: createEntity('debt_invoices'), DebtReceipt: createEntity('debt_receipts'),
+  WhatsAppQueue: createEntity('whatsapp_outbound_queue'), InvoiceSequence: createEntity('invoice_sequences'),
   CollectionAction: createEntity('collection_actions'), Restaurant: createEntity('restaurants'),
   NetworkAccount: createEntity('network_accounts'), SettlementRecord: createEntity('settlement_records'),
   Subscription: createEntity('subscriptions'), WalletTransaction: createEntity('wallet_transactions'),

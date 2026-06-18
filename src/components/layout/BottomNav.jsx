@@ -83,7 +83,7 @@ const MORE_SECTIONS_OWNER = [
       { path: '/driver-management',        icon: Truck,       labelKey: 'driver_management' },
       { path: '/customer-management',      icon: Star,        labelKey: 'customer_management' },
       { path: '/employees',                icon: Users,       labelKey: 'employees' },
-      { path: '/debts',                    icon: CreditCard,  labelKey: 'debts' },
+      { path: '/debt-management',           icon: CreditCard,  labelKey: 'debt_management' },
       { path: '/treasury',                 icon: Wallet,      labelKey: 'treasury' },
       { path: '/payroll',                  icon: Receipt,     labelKey: 'payroll' },
     ],

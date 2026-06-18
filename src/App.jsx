@@ -266,6 +266,7 @@ const SubscribedRoutes = () => {
         <Route path="/treasury" element={<RoleGuard permission="viewTreasury"><Treasury /></RoleGuard>} />
         <Route path="/sponsor-treasury" element={<RoleGuard permission="viewSponsorTreasury"><SponsorTreasury /></RoleGuard>} />
         <Route path="/debts" element={<RoleGuard permission="viewDebts"><DebtManagement /></RoleGuard>} />
+        <Route path="/debt-management" element={<RoleGuard permission="viewDebts"><DebtManagement /></RoleGuard>} />
         <Route path="/network-accounts" element={<RoleGuard permission="viewNetworkAccounts"><NetworkAccounts /></RoleGuard>} />
         <Route path="/network-analytics" element={<RoleGuard permission="viewNetworkAnalytics"><NetworkAnalytics /></RoleGuard>} />
         <Route path="/network-hub" element={<RoleGuard permission="viewDashboard"><NetworkHub /></RoleGuard>} />
