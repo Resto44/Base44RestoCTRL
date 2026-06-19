@@ -64,11 +64,10 @@ export default function NetworkHub() {
   const createNetworkMutation = useMutation({
     mutationFn: (data) => {
       // Map 'description' to 'address' and remove fields not in schema
-      const { description, country, ...rest } = data;
+      const { description, country, status, owner, ...rest } = data;
       return createRestaurant({ 
         ...rest, 
         address: description,
-        created_by: ownerFilter.created_by 
       });
     },
     onSuccess: () => {
