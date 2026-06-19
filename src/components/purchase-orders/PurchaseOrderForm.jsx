@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { useLanguage } from '@/lib/LanguageContext';
+import { useTenant } from '@/lib/TenantContext';
 import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,6 +17,7 @@ const emptyItem = { product_id: '', product_name: '', qty: 1, unit: '', unit_pri
 
 export default function PurchaseOrderForm({ order, onClose, onSaved }) {
   const { currency } = useLanguage();
+  const { activeRestaurantId } = useTenant();
   const [form, setForm] = useState({
     supplier_id: order?.supplier_id || '',
     supplier_name: order?.supplier_name || '',
@@ -59,6 +61,7 @@ export default function PurchaseOrderForm({ order, onClose, onSaved }) {
     
     const orderNum = order?.order_number || `PO-${Date.now().toString().slice(-6)}`;
     saveMutation.mutate({ 
+      restaurant_id: activeRestaurantId,
       branch: form.branch,
       supplier_id: supplierId,
       supplier_name: form.supplier_name,
