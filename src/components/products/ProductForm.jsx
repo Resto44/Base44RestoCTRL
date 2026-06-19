@@ -57,10 +57,11 @@ export default function ProductForm({ initial, onSubmit, onCancel }) {
   const handleChange = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
 
   const handleMainCategoryChange = (value) => {
-    const selected = mainCategories.find(c => c.id === value);
+    const real = value === '__none__' ? '' : value;
+    const selected = mainCategories.find(c => c.id === real);
     setForm(prev => ({
       ...prev,
-      category_id: value,
+      category_id: real,
       subcategory_id: '',
       child_category_id: '',
       category: selected ? getName(selected) : '',
@@ -103,12 +104,12 @@ export default function ProductForm({ initial, onSubmit, onCancel }) {
       <div className="space-y-2">
         <div>
           <Label className="text-xs font-medium">{t('category')} (Level 1)</Label>
-          <Select value={form.category_id || ''} onValueChange={handleMainCategoryChange}>
+          <Select value={form.category_id || '__none__'} onValueChange={handleMainCategoryChange}>
             <SelectTrigger>
               <SelectValue placeholder="Select main category..." />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">— None —</SelectItem>
+              <SelectItem value="__none__">— None —</SelectItem>
               {mainCategories.map(c => (
                 <SelectItem key={c.id} value={c.id}>
                   {c.icon ? `${c.icon} ` : ''}{getName(c)}
@@ -122,14 +123,14 @@ export default function ProductForm({ initial, onSubmit, onCancel }) {
           <div>
             <Label className="text-xs font-medium">Sub-category (Level 2)</Label>
             <Select
-              value={form.subcategory_id || ''}
-              onValueChange={v => { handleChange('subcategory_id', v); handleChange('child_category_id', ''); }}
+              value={form.subcategory_id || '__none__'}
+              onValueChange={v => { handleChange('subcategory_id', v === '__none__' ? '' : v); handleChange('child_category_id', ''); }}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select sub-category..." />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">— None —</SelectItem>
+                <SelectItem value="__none__">— None —</SelectItem>
                 {subCategories.map(c => (
                   <SelectItem key={c.id} value={c.id}>
                     {c.icon ? `${c.icon} ` : ''}{getName(c)}
@@ -144,14 +145,14 @@ export default function ProductForm({ initial, onSubmit, onCancel }) {
           <div>
             <Label className="text-xs font-medium">Child Category (Level 3)</Label>
             <Select
-              value={form.child_category_id || ''}
-              onValueChange={v => handleChange('child_category_id', v)}
+              value={form.child_category_id || '__none__'}
+              onValueChange={v => handleChange('child_category_id', v === '__none__' ? '' : v)}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select child category..." />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">— None —</SelectItem>
+                <SelectItem value="__none__">— None —</SelectItem>
                 {childCategories.map(c => (
                   <SelectItem key={c.id} value={c.id}>
                     {c.icon ? `${c.icon} ` : ''}{getName(c)}
