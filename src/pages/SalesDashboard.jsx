@@ -77,7 +77,7 @@ export default function SalesDashboard() {
     [sales, from, fromPrev, branchFilter]
   );
 
-  const total = (arr) => arr.reduce((s, r) => s + (r.cash || 0) + (r.network || 0) + (r.credit || 0), 0);
+  const total = (arr) => arr.reduce((s, r) => s + (r.cash || 0) + (r.network || 0), 0);
   const totalCurrent = total(filtered);
   const totalPrev = total(prevPeriod);
 
@@ -91,10 +91,9 @@ export default function SalesDashboard() {
     filtered.forEach(s => {
       const d = s.date;
       if (!map[d]) map[d] = { date: d, Total: 0, Cash: 0, Network: 0, Credit: 0 };
-      map[d].Total += (s.cash || 0) + (s.network || 0) + (s.credit || 0);
+      map[d].Total += (s.cash || 0) + (s.network || 0);
       map[d].Cash += (s.cash || 0);
       map[d].Network += (s.network || 0);
-      map[d].Credit += (s.credit || 0);
     });
     return Object.values(map).sort((a, b) => a.date.localeCompare(b.date)).map(d => ({
       ...d,
@@ -108,7 +107,7 @@ export default function SalesDashboard() {
     filtered.forEach(s => {
       const wk = `W${getWeek(parseISO(s.date))}-${parseISO(s.date).getFullYear()}`;
       if (!map[wk]) map[wk] = { week: wk, Total: 0 };
-      map[wk].Total += (s.cash || 0) + (s.network || 0) + (s.credit || 0);
+      map[wk].Total += (s.cash || 0) + (s.network || 0);
     });
     return Object.values(map).sort((a, b) => a.week.localeCompare(b.week));
   }, [filtered]);
@@ -119,7 +118,7 @@ export default function SalesDashboard() {
     filtered.forEach(s => {
       const mo = format(parseISO(s.date), 'MMM yyyy');
       if (!map[mo]) map[mo] = { month: mo, Total: 0 };
-      map[mo].Total += (s.cash || 0) + (s.network || 0) + (s.credit || 0);
+      map[mo].Total += (s.cash || 0) + (s.network || 0);
     });
     return Object.values(map);
   }, [filtered]);
@@ -130,7 +129,7 @@ export default function SalesDashboard() {
     filtered.forEach(s => {
       const bl = branches.find(b => b.key === s.branch)?.label || s.branch;
       if (!map[bl]) map[bl] = { branch: bl, Total: 0, Cash: 0, Network: 0 };
-      map[bl].Total += (s.cash || 0) + (s.network || 0) + (s.credit || 0);
+      map[bl].Total += (s.cash || 0) + (s.network || 0);
       map[bl].Cash += (s.cash || 0);
       map[bl].Network += (s.network || 0);
     });
@@ -141,7 +140,6 @@ export default function SalesDashboard() {
   const paymentMix = [
     { name: 'Cash', value: cashTotal },
     { name: 'Network', value: networkTotal },
-    { name: 'Credit', value: creditTotal },
   ].filter(x => x.value > 0);
 
   // Top performing day
@@ -185,7 +183,7 @@ export default function SalesDashboard() {
         <KPICard label="Total Revenue" value={totalCurrent} prev={totalPrev} currency={currency} />
         <KPICard label="Cash Sales" value={cashTotal} currency={currency} />
         <KPICard label="Network Sales" value={networkTotal} currency={currency} />
-        <KPICard label="Credit Sales" value={creditTotal} currency={currency} />
+
       </div>
 
       {topDay && (
@@ -239,7 +237,7 @@ export default function SalesDashboard() {
                   <Legend wrapperStyle={{ fontSize: 11 }} />
                   <Bar dataKey="Cash" stackId="a" fill="#10b981" />
                   <Bar dataKey="Network" stackId="a" fill="#3b82f6" />
-                  <Bar dataKey="Credit" stackId="a" fill="#f59e0b" radius={[3, 3, 0, 0]} />
+
                 </BarChart>
               </ResponsiveContainer>
             )}

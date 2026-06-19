@@ -88,7 +88,7 @@ export default function Sales() {
       const sale = await base44.entities.DailySales.create(data);
       await autoWalletTx(data, sale.id);
       try { await autoSettle(data, sale.id, proofUrl || null, ocr || null, null); } catch (e) { console.warn('autoSettle skipped:', e.message); }
-      const total = (data.restaurant_cash || 0) + (data.restaurant_network || 0) + (data.credit || 0);
+      const total = (data.restaurant_cash || 0) + (data.restaurant_network || 0);
       await notif.sale({ branch: data.branch, amount: total, action: 'create' });
       return sale;
     },
@@ -107,7 +107,7 @@ export default function Sales() {
       const sale = await base44.entities.DailySales.update(id, data);
       await autoWalletTx(data, id, prev);
       try { await autoSettle(data, id, proofUrl || null, ocr || null, prev); } catch (e) { console.warn('autoSettle skipped:', e.message); }
-      const total = (data.restaurant_cash || 0) + (data.restaurant_network || 0) + (data.credit || 0);
+      const total = (data.restaurant_cash || 0) + (data.restaurant_network || 0);
       await notif.sale({ branch: data.branch, amount: total, action: 'update' });
       return sale;
     },
@@ -146,7 +146,7 @@ export default function Sales() {
       if (filters.branch !== 'all' && s.branch !== filters.branch) return false;
       if (filters.from && s.date < filters.from) return false;
       if (filters.to && s.date > filters.to) return false;
-      const total = (s.restaurant_cash || s.cash || 0) + (s.restaurant_network || s.network || 0) + (s.credit || 0);
+      const total = (s.restaurant_cash || s.cash || 0) + (s.restaurant_network || s.network || 0);
       if (filters.minTotal && total < Number(filters.minTotal)) return false;
       if (filters.maxTotal && total > Number(filters.maxTotal)) return false;
       return true;

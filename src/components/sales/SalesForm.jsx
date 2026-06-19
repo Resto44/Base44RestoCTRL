@@ -1,6 +1,6 @@
 /**
  * SalesForm — Professional Restaurant ERP Sales Entry
- * Supports: Cash Sales, Dynamic POS/Network entries, Customer Credit Sales
+ * Supports: Cash Sales, Dynamic POS/Network entries
  * Backward-compatible with legacy restaurant_cash / restaurant_network fields.
  */
 import React, { useState } from 'react';
@@ -14,7 +14,7 @@ import NetworkAccountSelect from '@/components/network/NetworkAccountSelect';
 import SmartUploadZone from '@/components/shared/SmartUploadZone';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { format } from 'date-fns';
-import { Store, Receipt, Plus, Trash2, Wifi, Users } from 'lucide-react';
+import { Store, Receipt, Plus, Trash2, Wifi } from 'lucide-react';
 
 const LABELS = {
   en: {
@@ -23,8 +23,6 @@ const LABELS = {
     network_sales: 'Network Sales', add_pos: 'Add POS Device',
     pos_device: 'POS Device', amount: 'Amount', notes_optional: 'Notes (optional)',
     remove: 'Remove', network_total: 'Network Total',
-    credit_sales: 'Customer Credit Sales', add_credit: 'Add Credit Sale',
-    customer: 'Customer', credit_total: 'Credit Sales Total',
     sales_total: 'Sales Total', total: 'Total',
     optional: 'optional', proof: 'Network Proof', ocr_detected: 'OCR detected',
   },
@@ -34,8 +32,6 @@ const LABELS = {
     network_sales: 'مبيعات الشبكة', add_pos: 'إضافة جهاز POS',
     pos_device: 'جهاز POS', amount: 'المبلغ', notes_optional: 'ملاحظات (اختياري)',
     remove: 'حذف', network_total: 'إجمالي الشبكة',
-    credit_sales: 'مبيعات العملاء الآجلة', add_credit: 'إضافة بيع آجل',
-    customer: 'العميل', credit_total: 'إجمالي المبيعات الآجلة',
     sales_total: 'إجمالي المبيعات', total: 'المجموع',
     optional: 'اختياري', proof: 'إثبات الشبكة', ocr_detected: 'تم اكتشاف مبلغ',
   },
@@ -45,10 +41,8 @@ const LABELS = {
     network_sales: 'فروش شبکه', add_pos: 'افزودن دستگاه POS',
     pos_device: 'دستگاه POS', amount: 'مبلغ', notes_optional: 'یادداشت (اختیاری)',
     remove: 'حذف', network_total: 'جمع شبکه',
-    credit_sales: 'فروش نسیه مشتریان', add_credit: 'افزودن فروش نسیه',
-    customer: 'مشتری', credit_total: 'جمع فروش نسیه',
     sales_total: 'جمع فروش', total: 'جمع کل',
-    optional: 'اختیاری', proof: 'رسید شبکه', ocr_detected: 'مبلغ شناسایی شد',
+    optional: 'اختياري', proof: 'رسید شبکه', ocr_detected: 'مبلغ شناسایی شد',
   },
 };
 
@@ -96,17 +90,6 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
     return [];
   };
 
-  const parseCreditEntries = () => {
-    if (initial?.credit_entries_json) {
-      try { return JSON.parse(initial.credit_entries_json).map((e, i) => ({ ...e, id: Date.now() + i })); } catch { /* ignore */ }
-    }
-    const legacyCredit = initial?.credit ?? 0;
-    if (legacyCredit > 0) {
-      return [{ id: Date.now(), customer: '', amount: legacyCredit, notes: '' }];
-    }
-    return [];
-  };
-
   const [form, setForm] = useState({
     date: format(new Date(), 'yyyy-MM-dd'),
     branch: defaultBranch,
@@ -115,7 +98,6 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
   });
   const [cashAmount, setCashAmount] = useState(initial?.restaurant_cash ?? initial?.cash ?? 0);
   const [posEntries, setPosEntries] = useState(parsePosEntries);
-  const [creditEntries, setCreditEntries] = useState(parseCreditEntries);
   const [proofUrl, setProofUrl] = useState(initial?.proof_url || '');
   const [ocrData, setOcrData] = useState(null);
   const [zoomImg, setZoomImg] = useState(null);
@@ -125,10 +107,6 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
   const addPos = () => setPosEntries(prev => [...prev, { id: Date.now(), device_id: '', amount: '', notes: '' }]);
   const removePos = (id) => setPosEntries(prev => prev.filter(e => e.id !== id));
   const updatePos = (id, field, value) => setPosEntries(prev => prev.map(e => e.id === id ? { ...e, [field]: value } : e));
-
-  const addCredit = () => setCreditEntries(prev => [...prev, { id: Date.now(), customer: '', amount: '', notes: '' }]);
-  const removeCredit = (id) => setCreditEntries(prev => prev.filter(e => e.id !== id));
-  const updateCredit = (id, field, value) => setCreditEntries(prev => prev.map(e => e.id === id ? { ...e, [field]: value } : e));
 
   const handleOcrResult = ({ file_url, ocr }) => {
     setProofUrl(file_url);
@@ -140,21 +118,11 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
   };
 
   const networkTotal = posEntries.reduce((s, e) => s + (Number(e.amount) || 0), 0);
-  const creditTotal = creditEntries.reduce((s, e) => s + (Number(e.amount) || 0), 0);
   const cash = Number(cashAmount) || 0;
-  const grandTotal = cash + networkTotal + creditTotal;
+  const grandTotal = cash + networkTotal;
 
   const handleSubmit = (e) => {
     e.preventDefault();
-
-    // Issue 2: Customer name required when credit amount > 0
-    const invalidCredit = creditEntries.find(
-      entry => Number(entry.amount) > 0 && (!entry.customer || entry.customer.trim() === '')
-    );
-    if (invalidCredit) {
-      alert('Customer name is required for each credit sale entry.');
-      return;
-    }
 
     const firstPos = posEntries[0];
     const payload = {
@@ -162,9 +130,9 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
       restaurant_cash: cash,
       restaurant_network: networkTotal,
       restaurant_network_account_id: firstPos?.device_id || '',
-      credit: creditTotal,
+      credit: 0,
       pos_entries_json: JSON.stringify(posEntries.map(({ id, ...rest }) => rest)),
-      credit_entries_json: JSON.stringify(creditEntries.map(({ id, ...rest }) => rest)),
+      credit_entries_json: '[]',
       cash: cash,
       network: networkTotal,
       driver_cash: 0,
@@ -245,46 +213,6 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
         </div>
       </div>
 
-      {/* CUSTOMER CREDIT SALES */}
-      <div className="rounded-xl border border-amber-200 overflow-hidden">
-        <SectionHeader icon={Users} title={lbl.credit_sales} total={creditTotal} currency={currency} />
-        <div className="p-3 space-y-3">
-          {creditEntries.map((entry, idx) => (
-            <div key={entry.id} className="rounded-lg border border-amber-200 bg-amber-50/50 p-3 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-amber-700">Credit #{idx + 1}</span>
-                <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => removeCredit(entry.id)}>
-                  <Trash2 className="w-3.5 h-3.5" />
-                </Button>
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground">{lbl.customer}</Label>
-                <Input value={entry.customer || ''} placeholder="Customer name..." onChange={e => updateCredit(entry.id, 'customer', e.target.value)} className="h-10" />
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <Label className="text-xs text-muted-foreground">{lbl.amount}</Label>
-                  <Input type="number" inputMode="decimal" step="0.01" min="0" value={entry.amount || ''} placeholder="0" onChange={e => updateCredit(entry.id, 'amount', e.target.value)} className="h-10" />
-                </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground">{lbl.notes_optional}</Label>
-                  <Input value={entry.notes || ''} placeholder="..." onChange={e => updateCredit(entry.id, 'notes', e.target.value)} className="h-10" />
-                </div>
-              </div>
-            </div>
-          ))}
-          <Button type="button" variant="outline" size="sm" className="w-full border-amber-300 text-amber-700 hover:bg-amber-50" onClick={addCredit}>
-            <Plus className="w-3.5 h-3.5 mr-1" />{lbl.add_credit}
-          </Button>
-          {creditTotal > 0 && (
-            <div className="flex justify-between items-center bg-amber-50 rounded-lg px-3 py-2">
-              <span className="text-xs text-amber-700 font-medium">{lbl.credit_total}</span>
-              <span className="text-sm font-bold text-amber-700">{currency}{creditTotal.toLocaleString()}</span>
-            </div>
-          )}
-        </div>
-      </div>
-
       {/* SALES TOTAL SUMMARY */}
       <div className="rounded-xl border border-primary/20 bg-primary/5 overflow-hidden">
         <div className="px-4 py-2.5 bg-primary/10">
@@ -298,10 +226,6 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
           <div className="flex justify-between text-xs">
             <span className="text-muted-foreground">{lbl.network_sales}</span>
             <span className="font-semibold">{currency}{networkTotal.toLocaleString()}</span>
-          </div>
-          <div className="flex justify-between text-xs">
-            <span className="text-muted-foreground">{lbl.credit_sales}</span>
-            <span className="font-semibold text-amber-700">{currency}{creditTotal.toLocaleString()}</span>
           </div>
           <div className="border-t border-primary/20 pt-1.5 flex justify-between items-center">
             <div className="flex items-center gap-1 text-xs text-muted-foreground">

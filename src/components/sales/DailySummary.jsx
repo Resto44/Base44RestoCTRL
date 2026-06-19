@@ -17,7 +17,7 @@ const LABELS = {
     sales: 'Sales',
     cash_sales: 'Cash Sales',
     network_sales: 'Network Sales',
-    credit_sales: 'Customer Credit Sales',
+
     gross_sales: 'Gross Sales',
     collections: 'Collections',
     customer_collections: 'Customer Collections',
@@ -32,7 +32,7 @@ const LABELS = {
     sales: 'المبيعات',
     cash_sales: 'المبيعات النقدية',
     network_sales: 'مبيعات الشبكة',
-    credit_sales: 'مبيعات العملاء الآجلة',
+
     gross_sales: 'إجمالي المبيعات',
     collections: 'التحصيلات',
     customer_collections: 'تحصيلات العملاء',
@@ -47,7 +47,7 @@ const LABELS = {
     sales: 'فروش',
     cash_sales: 'فروش نقدی',
     network_sales: 'فروش شبکه',
-    credit_sales: 'فروش نسیه مشتریان',
+
     gross_sales: 'جمع فروش',
     collections: 'وصولی‌ها',
     customer_collections: 'وصولی مشتریان',
@@ -141,8 +141,7 @@ export default function DailySummary({ date, branch }) {
   const metrics = useMemo(() => {
     const cashSales = daySales.reduce((s, r) => s + (Number(r.restaurant_cash) || Number(r.cash) || 0), 0);
     const networkSales = daySales.reduce((s, r) => s + (Number(r.restaurant_network) || Number(r.network) || 0), 0);
-    const creditSales = daySales.reduce((s, r) => s + (Number(r.credit) || 0), 0);
-    const grossSales = cashSales + networkSales + creditSales;
+    const grossSales = cashSales + networkSales;
 
     const customerCollections = dayCollections.reduce((s, c) => s + (Number(c.amount) || 0), 0);
 
@@ -165,7 +164,7 @@ export default function DailySummary({ date, branch }) {
       .reduce((s, d) => s + (Number(d.remaining_amount) || 0), 0);
 
     return {
-      cashSales, networkSales, creditSales, grossSales,
+      cashSales, networkSales, grossSales,
       customerCollections, newPurchases,
       supplierPaymentsToday, supplierDebtBalance, customerDebtBalance,
     };
@@ -183,7 +182,7 @@ export default function DailySummary({ date, branch }) {
       <SectionCard icon={TrendingUp} title={lbl.sales} color="bg-blue-50">
         <SummaryRow label={lbl.cash_sales} value={metrics.cashSales} currency={currency} indent />
         <SummaryRow label={lbl.network_sales} value={metrics.networkSales} currency={currency} indent />
-        <SummaryRow label={lbl.credit_sales} value={metrics.creditSales} currency={currency} indent color="text-amber-700" />
+
         <SummaryRow label={lbl.gross_sales} value={metrics.grossSales} currency={currency} highlight color="text-blue-700" />
       </SectionCard>
 
