@@ -59,6 +59,78 @@ function DriverCard({ driver, onClick }) {
 function DriverProfileModal({ driver, onClose }) {
   const { t, currency } = useLanguage();
   const [tab, setTab] = useState('overview');
+  const [showDebtDialog, setShowDebtDialog] = useState(false);
+  const [debtAmount, setDebtAmount] = useState('');
+  const [debtReason, setDebtReason] = useState('');
+  const qc = useQueryClient();
+
+  const { data: shifts = [] } = useQuery({
+    queryKey: ['driver-shifts', driver?.id],
+    queryFn: () => base44.entities.DriverShift.filter({ driver_id: driver.id }, '-shift_date', 50),
+    enabled: !!driver?.id && tab === 'shifts',
+  });
+
+  const { data: debts = [] } = useQuery({
+    queryKey: ['driver-debts', driver?.id],
+    queryFn: () => base44.entities.DriverDebt.filter({ driver_id: driver.id }, '-date', 50),
+    enabled: !!driver?.id && tab === 'debts',
+  });
+
+  const shiftMutation = useMutation({
+    mutationFn: (data) => data.id ? base44.entities.DriverShift.update(data.id, data) : base44.entities.DriverShift.create(data),
+    onSuccess: () => {
+      toast.success('Shift updated');
+      qc.invalidateQueries({ queryKey: ['driver-shifts', driver.id] });
+    },
+  });
+
+  const debtMutation = useMutation({
+    mutationFn: (data) => base44.entities.DriverDebt.create(data),
+    onSuccess: () => {
+      toast.success('Debt record added');
+      qc.invalidateQueries({ queryKey: ['driver-debts', driver.id] });
+      setShowDebtDialog(false);
+      setDebtAmount('');
+      setDebtReason('');
+    },
+  });
+
+  const handleClockIn = () => {
+    shiftMutation.mutate({
+      driver_id: driver.id,
+      driver_name: driver.name || driver.full_name,
+      branch: driver.branch,
+      shift_date: new Date().toISOString().split('T')[0],
+      start_time: new Date().toLocaleTimeString('en-GB', { hour12: false }),
+      status: 'open'
+    });
+  };
+
+  const handleClockOut = () => {
+    const openShift = shifts.find(s => s.status === 'open');
+    if (!openShift) {
+      toast.error('No open shift found');
+      return;
+    }
+    shiftMutation.mutate({
+      id: openShift.id,
+      end_time: new Date().toLocaleTimeString('en-GB', { hour12: false }),
+      status: 'closed'
+    });
+  };
+
+  const handleAddDebt = () => {
+    if (!debtAmount) return;
+    debtMutation.mutate({
+      driver_id: driver.id,
+      driver_name: driver.name || driver.full_name,
+      branch: driver.branch,
+      amount: Number(debtAmount),
+      reason: debtReason,
+      date: new Date().toISOString().split('T')[0],
+      status: 'pending'
+    });
+  };
 
   if (!driver) return null;
 
@@ -142,10 +214,18 @@ function DriverProfileModal({ driver, onClose }) {
           {tab === 'shifts' && (
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-2">
-                <Button className="h-10 bg-emerald-500 hover:bg-emerald-600 text-white text-xs gap-1">
+                <Button 
+                  className="h-10 bg-emerald-500 hover:bg-emerald-600 text-white text-xs gap-1"
+                  onClick={handleClockIn}
+                  disabled={shiftMutation.isPending || shifts.some(s => s.status === 'open')}
+                >
                   <CheckCircle2 className="w-4 h-4" />{t('clock_in')}
                 </Button>
-                <Button className="h-10 bg-red-500 hover:bg-red-600 text-white text-xs gap-1">
+                <Button 
+                  className="h-10 bg-red-500 hover:bg-red-600 text-white text-xs gap-1"
+                  onClick={handleClockOut}
+                  disabled={shiftMutation.isPending || !shifts.some(s => s.status === 'open')}
+                >
                   <Clock className="w-4 h-4" />{t('clock_out')}
                 </Button>
               </div>
@@ -154,7 +234,21 @@ function DriverProfileModal({ driver, onClose }) {
                   <CardTitle className="text-xs font-semibold text-muted-foreground uppercase">{t('shift_history')}</CardTitle>
                 </CardHeader>
                 <CardContent className="px-3 pb-3">
-                  <p className="text-sm text-muted-foreground text-center py-4">{t('no_data')}</p>
+                  {shifts.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">{t('no_data')}</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {shifts.map(s => (
+                        <div key={s.id} className="flex justify-between text-xs py-1 border-b last:border-0">
+                          <span>{s.shift_date}</span>
+                          <span className="font-medium">{s.start_time} - {s.end_time || '...'}</span>
+                          <Badge variant={s.status === 'open' ? 'default' : 'secondary'} className="text-[10px] h-4">
+                            {s.status}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
@@ -164,22 +258,52 @@ function DriverProfileModal({ driver, onClose }) {
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-2">
                 {[
-                  { label: t('fuel_advances'),      color: 'bg-amber-50 text-amber-700', value: 0 },
-                  { label: t('cash_shortages'),     color: 'bg-red-50 text-red-700',    value: 0 },
-                  { label: t('equipment_liability'), color: 'bg-blue-50 text-blue-700', value: 0 },
-                  { label: t('installments'),       color: 'bg-purple-50 text-purple-700', value: 0 },
+                  { label: t('fuel_advances'),      color: 'bg-amber-50 text-amber-700', value: debts.filter(d => d.reason?.toLowerCase().includes('fuel')).reduce((sum, d) => sum + Number(d.amount || 0), 0) },
+                  { label: t('cash_shortages'),     color: 'bg-red-50 text-red-700',    value: debts.filter(d => d.reason?.toLowerCase().includes('cash')).reduce((sum, d) => sum + Number(d.amount || 0), 0) },
+                  { label: t('equipment_liability'), color: 'bg-blue-50 text-blue-700', value: debts.filter(d => d.reason?.toLowerCase().includes('equipment')).reduce((sum, d) => sum + Number(d.amount || 0), 0) },
+                  { label: t('installments'),       color: 'bg-purple-50 text-purple-700', value: debts.filter(d => d.reason?.toLowerCase().includes('installment')).reduce((sum, d) => sum + Number(d.amount || 0), 0) },
                 ].map(d => (
                   <Card key={d.label} className={d.color}>
                     <CardContent className="p-3">
-                      <p className="text-lg font-bold">{currency}{d.value}</p>
+                      <p className="text-lg font-bold">{currency}{d.value.toLocaleString()}</p>
                       <p className="text-[11px] font-medium">{d.label}</p>
                     </CardContent>
                   </Card>
                 ))}
               </div>
-              <Button className="w-full h-9 text-xs" variant="outline">
+              <Button className="w-full h-9 text-xs" variant="outline" onClick={() => setShowDebtDialog(true)}>
                 <Plus className="w-3 h-3 mr-1" /> Add Debt Record
               </Button>
+
+              <Dialog open={showDebtDialog} onOpenChange={setShowDebtDialog}>
+                <DialogContent className="max-w-sm">
+                  <DialogHeader><DialogTitle>Add Debt Record</DialogTitle></DialogHeader>
+                  <div className="space-y-3">
+                    <div>
+                      <Label className="text-xs">Amount</Label>
+                      <Input type="number" value={debtAmount} onChange={e => setDebtAmount(e.target.value)} />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Reason</Label>
+                      <Select value={debtReason} onValueChange={setDebtReason}>
+                        <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select reason" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Fuel Advance">Fuel Advance</SelectItem>
+                          <SelectItem value="Cash Shortage">Cash Shortage</SelectItem>
+                          <SelectItem value="Equipment Liability">Equipment Liability</SelectItem>
+                          <SelectItem value="Installment">Installment</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <DialogFooter className="mt-4">
+                    <Button variant="outline" onClick={() => setShowDebtDialog(false)}>Cancel</Button>
+                    <Button onClick={handleAddDebt} disabled={debtMutation.isPending || !debtAmount}>
+                      {debtMutation.isPending ? 'Saving...' : 'Save Record'}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </div>
           )}
 
