@@ -62,13 +62,16 @@ export default function NetworkHub() {
 
   // Mutations
   const createNetworkMutation = useMutation({
-    mutationFn: (data) => createRestaurant(data),
+    mutationFn: (data) => createRestaurant({ ...data, created_by: ownerFilter.created_by }),
     onSuccess: () => {
       toast.success(t('success') || 'Network created successfully');
       setShowNetworkModal(false);
       queryClient.invalidateQueries(['restaurants']);
     },
-    onError: () => toast.error(t('error') || 'Failed to create network'),
+    onError: (err) => {
+      console.error('Create network error:', err);
+      toast.error(t('error') || 'Failed to create network');
+    },
   });
 
   const createBranchMutation = useMutation({
