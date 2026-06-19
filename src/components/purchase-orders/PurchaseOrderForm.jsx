@@ -59,11 +59,16 @@ export default function PurchaseOrderForm({ order, onClose, onSaved }) {
     
     const orderNum = order?.order_number || `PO-${Date.now().toString().slice(-6)}`;
     saveMutation.mutate({ 
-      ...form, 
+      branch: form.branch,
       supplier_id: supplierId,
+      supplier_name: form.supplier_name,
+      date: form.date,
+      expected_date: form.expected_delivery,
+      status: form.status,
       items: JSON.stringify(items), 
       total_amount: total, 
-      order_number: orderNum 
+      order_number: orderNum,
+      notes: form.notes
     });
   };
 
