@@ -62,7 +62,15 @@ export default function NetworkHub() {
 
   // Mutations
   const createNetworkMutation = useMutation({
-    mutationFn: (data) => createRestaurant({ ...data, created_by: ownerFilter.created_by }),
+    mutationFn: (data) => {
+      // Map 'description' to 'address' and remove fields not in schema
+      const { description, country, ...rest } = data;
+      return createRestaurant({ 
+        ...rest, 
+        address: description,
+        created_by: ownerFilter.created_by 
+      });
+    },
     onSuccess: () => {
       toast.success(t('success') || 'Network created successfully');
       setShowNetworkModal(false);
