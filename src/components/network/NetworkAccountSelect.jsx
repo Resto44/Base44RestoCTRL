@@ -7,12 +7,20 @@ import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Wifi } from 'lucide-react';
+import { useTenant } from '@/lib/TenantContext';
 
 export default function NetworkAccountSelect({ branch, value, onChange, placeholder = 'Select network account...' }) {
+  const { ownerFilter, activeRestaurant } = useTenant();
   const { data: accounts = [] } = useQuery({
-    queryKey: ['network_accounts'],
-    queryFn: () => base44.entities.NetworkAccount.list('-created_date', 500),
+    queryKey: ['network_accounts', ownerFilter, activeRestaurant?.id],
+    queryFn: () => {
+      const filter = activeRestaurant?.id
+        ? { ...ownerFilter, restaurant_id: activeRestaurant.id }
+        : (ownerFilter || {});
+      return base44.entities.NetworkAccount.filter(filter, '-created_date', 500);
+    },
     staleTime: 60000,
+    enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
   });
 
   const filtered = accounts.filter(a => a.is_active && (!branch || a.branch === branch));

@@ -15,15 +15,20 @@ const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4'
 
 export default function NetworkAnalytics() {
   const { currency } = useLanguage();
-  const { ownerFilter } = useTenant();
+  const { ownerFilter, activeRestaurant } = useTenant();
   const fmt = v => formatCurrency(v, currency);
   const [filterBranch, setFilterBranch] = useState('all');
 
   const { data: accounts = [] } = useQuery({
-    queryKey: ['network_accounts', ownerFilter],
-    queryFn: () => base44.entities.NetworkAccount.filter(ownerFilter || {}, '-created_date', 500),
+    queryKey: ['network_accounts', ownerFilter, activeRestaurant?.id],
+    queryFn: () => {
+      const filter = activeRestaurant?.id
+        ? { ...ownerFilter, restaurant_id: activeRestaurant.id }
+        : (ownerFilter || {});
+      return base44.entities.NetworkAccount.filter(filter, '-created_date', 500);
+    },
     staleTime: 30000,
-    enabled: !!ownerFilter?.created_by,
+    enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
   });
 
   const { data: sales = [] } = useQuery({

@@ -18,7 +18,6 @@ import { Plus, Smartphone, Edit2, Trash2, WifiOff, Wifi, Hash } from 'lucide-rea
 const EMPTY = { account_name: '', branch: '', network_provider: '', account_number: '', device_name: '', notes: '', is_active: true };
 
 export default function NetworkAccounts() {
-  const { branches = [] } = useLanguage();
   const qc = useQueryClient();
   const [filterBranch, setFilterBranch] = useState('all');
   const [showForm, setShowForm] = useState(false);
@@ -26,17 +25,28 @@ export default function NetworkAccounts() {
   const [deleting, setDeleting] = useState(null);
   const [form, setForm] = useState(EMPTY);
 
-  const { ownerFilter } = useTenant();
+  // Pull both ownerFilter (tenant isolation) and activeRestaurant (restaurant_id scoping)
+  const { ownerFilter, activeRestaurant } = useTenant();
 
   const { data: accounts = [], isLoading } = useQuery({
-    queryKey: ['network_accounts', ownerFilter],
-    queryFn: () => base44.entities.NetworkAccount.filter(ownerFilter || {}, '-created_date', 500),
+    queryKey: ['network_accounts', ownerFilter, activeRestaurant?.id],
+    queryFn: () => {
+      // Scope query to the active restaurant when available, otherwise fall back to ownerFilter
+      const filter = activeRestaurant?.id
+        ? { ...ownerFilter, restaurant_id: activeRestaurant.id }
+        : (ownerFilter || {});
+      return base44.entities.NetworkAccount.filter(filter, '-created_date', 500);
+    },
     staleTime: 30000,
-    enabled: !!ownerFilter?.created_by,
+    enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
   });
 
   const createMut = useMutation({
-    mutationFn: (data) => base44.entities.NetworkAccount.create(data),
+    mutationFn: (data) => base44.entities.NetworkAccount.create({
+      ...data,
+      // Always persist restaurant_id so records are branch-isolated per restaurant
+      restaurant_id: activeRestaurant?.id || undefined,
+    }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['network_accounts'] }); closeForm(); },
   });
 
@@ -55,12 +65,17 @@ export default function NetworkAccounts() {
   const openEdit = (a) => { setForm({ ...a }); setEditing(a); setShowForm(true); };
 
   const handleSave = () => {
-    if (!form.account_name || !form.branch) return alert('Account name and branch are required.');
+    if (!form.account_name) return alert('Account name is required.');
+    if (!form.branch) return alert('Branch is required. Please select a branch.');
     if (editing) updateMut.mutate({ id: editing.id, data: form });
     else createMut.mutate(form);
   };
 
-  const filtered = filterBranch === 'all' ? (accounts || []) : (accounts || []).filter(a => a && a.branch === filterBranch);
+  // Filter by selected branch — only show accounts belonging to the active restaurant
+  const filtered = filterBranch === 'all'
+    ? (accounts || [])
+    : (accounts || []).filter(a => a && a.branch === filterBranch);
+
   const grouped = filtered.reduce((acc, a) => {
     if (!a) return acc;
     const b = a.branch || 'Unassigned';
@@ -80,7 +95,7 @@ export default function NetworkAccounts() {
         }
       />
 
-      {/* Branch filter */}
+      {/* Branch filter — shows only branches of the active restaurant */}
       <div className="mb-4">
         <BranchSelect value={filterBranch} onChange={setFilterBranch} includeAll />
       </div>
@@ -100,9 +115,9 @@ export default function NetworkAccounts() {
               <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide mb-2">{branch}</p>
               <div className="space-y-2">
                 {accs.map(a => (
-                  <Card key={a.id} className={`p-3 ${!a.is_active ? 'opacity-60' : ''}`}>
+                  <Card key={a.id} className={"p-3 " + (!a.is_active ? 'opacity-60' : '')}>
                     <div className="flex items-start gap-3">
-                      <div className={`p-2 rounded-lg ${a.is_active ? 'bg-emerald-100' : 'bg-slate-100'}`}>
+                      <div className={"p-2 rounded-lg " + (a.is_active ? 'bg-emerald-100' : 'bg-slate-100')}>
                         {a.is_active ? <Wifi className="w-4 h-4 text-emerald-600" /> : <WifiOff className="w-4 h-4 text-slate-400" />}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -148,9 +163,13 @@ export default function NetworkAccounts() {
               <Label className="text-xs">Account Name * <span className="text-muted-foreground">(e.g. شبكة النخيل — 1002)</span></Label>
               <Input value={form.account_name} onChange={e => setForm(f => ({ ...f, account_name: e.target.value }))} placeholder="شبكة فرع النخيل — ID 1002" />
             </div>
+            {/* Branch selector — mandatory, loaded from active restaurant branches */}
             <div>
-              <Label className="text-xs">Branch *</Label>
+              <Label className="text-xs">Branch * <span className="text-red-500">(required)</span></Label>
               <BranchSelect value={form.branch} onChange={v => setForm(f => ({ ...f, branch: v }))} />
+              {!form.branch && (
+                <p className="text-[10px] text-red-500 mt-1">Select a branch before saving.</p>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
@@ -175,7 +194,11 @@ export default function NetworkAccounts() {
               <Label className="text-sm">Active</Label>
             </div>
             <div className="flex gap-2 pt-1">
-              <Button className="flex-1" onClick={handleSave} disabled={createMut.isPending || updateMut.isPending}>
+              <Button
+                className="flex-1"
+                onClick={handleSave}
+                disabled={createMut.isPending || updateMut.isPending || !form.branch || !form.account_name}
+              >
                 {editing ? 'Save Changes' : 'Add Account'}
               </Button>
               <Button variant="outline" className="flex-1" onClick={closeForm}>Cancel</Button>
