@@ -8,7 +8,9 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 import { Progress } from '@/components/ui/progress';
 import {
@@ -230,11 +232,37 @@ function DriverProfileModal({ driver, onClose }) {
   );
 }
 
+const emptyDriverForm = { full_name: '', phone: '', branch: '', position: 'Driver', is_active: true };
+
 export default function DriverManagement() {
   const { t } = useLanguage();
-  const { ownerFilter } = useTenant();
+  const { ownerFilter, branches } = useTenant();
   const [search, setSearch] = useState('');
   const [selectedDriver, setSelectedDriver] = useState(null);
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [driverForm, setDriverForm] = useState(emptyDriverForm);
+  const qc = useQueryClient();
+
+  const addMutation = useMutation({
+    mutationFn: (data) => base44.entities.Employee.create(data),
+    onSuccess: () => {
+      toast.success('Driver added successfully');
+      qc.invalidateQueries({ queryKey: ['drivers'] });
+      setShowAddDialog(false);
+      setDriverForm(emptyDriverForm);
+    },
+    onError: (err) => {
+      toast.error(err?.message || 'Failed to add driver');
+    },
+  });
+
+  const handleAddDriver = () => {
+    if (!driverForm.full_name || !driverForm.branch) {
+      toast.error('Full name and branch are required');
+      return;
+    }
+    addMutation.mutate({ ...driverForm, is_driver: true });
+  };
 
   const { data: employees = [], isLoading } = useQuery({
     queryKey: ['drivers', ownerFilter],
@@ -261,7 +289,7 @@ export default function DriverManagement() {
           <h1 className="text-xl font-bold">{t('driver_management')}</h1>
           <p className="text-xs text-muted-foreground">{activeCount} active drivers</p>
         </div>
-        <Button size="sm" className="h-8 gap-1 text-xs">
+        <Button size="sm" className="h-8 gap-1 text-xs" onClick={() => setShowAddDialog(true)}>
           <Plus className="w-3 h-3" /> Add Driver
         </Button>
       </div>
@@ -312,6 +340,52 @@ export default function DriverManagement() {
 
       {/* Driver Profile Modal */}
       <DriverProfileModal driver={selectedDriver} onClose={() => setSelectedDriver(null)} />
+
+      {/* Add Driver Dialog */}
+      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Add Driver</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs">Full Name *</Label>
+              <Input
+                value={driverForm.full_name}
+                onChange={e => setDriverForm(f => ({ ...f, full_name: e.target.value }))}
+                placeholder="Driver full name"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Phone</Label>
+              <Input
+                value={driverForm.phone}
+                onChange={e => setDriverForm(f => ({ ...f, phone: e.target.value }))}
+                placeholder="Phone number"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Branch *</Label>
+              <Select value={driverForm.branch} onValueChange={v => setDriverForm(f => ({ ...f, branch: v }))}>
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="Select branch" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(branches || []).map(b => (
+                    <SelectItem key={b.key} value={b.key}>{b.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setShowAddDialog(false)}>Cancel</Button>
+            <Button onClick={handleAddDriver} disabled={addMutation.isPending}>
+              {addMutation.isPending ? 'Saving...' : 'Add Driver'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
