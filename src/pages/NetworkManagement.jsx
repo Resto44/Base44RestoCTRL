@@ -241,11 +241,16 @@ function NetworkAccountsTab({ accounts, branches, currency, onRefresh }) {
   const [filterBranch, setFilterBranch] = useState('all');
 
   const createMut = useMutation({
-    mutationFn: (data) => base44.entities.NetworkAccount.create({
-      ...data,
-      restaurant_id: activeRestaurant?.id || '',
-      created_by: ownerFilter?.created_by || '',
-    }),
+    mutationFn: (data) => {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data.branch_id);
+      return base44.entities.NetworkAccount.create({
+        ...data,
+        branch: isUuid ? undefined : data.branch_id,
+        branch_id: isUuid ? data.branch_id : null,
+        restaurant_id: activeRestaurant?.id || '',
+        created_by: ownerFilter?.created_by || '',
+      });
+    },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['network_accounts'] }); setShowForm(false); },
   });
 
