@@ -39,6 +39,7 @@ import PageHeader from '@/components/shared/PageHeader';
 // CONSTANTS
 // ─────────────────────────────────────────────────────────────────────────────
 const PROVIDERS = ['Mada', 'Visa', 'Mastercard', 'STC Pay', 'Apple Pay', 'Tamara', 'Tabby', 'Other'];
+const EMPTY_POS = { branch_id: '', device_name: '', device_serial: '', provider: '', network_account_id: '', status: 'active', notes: '' };
 const CURRENCIES = ['SAR', 'USD', 'EUR', 'AED', 'KWD', 'BHD', 'QAR', 'OMR'];
 const STATUS_COLORS = {
   active:   'bg-emerald-100 text-emerald-700 border-emerald-200',
@@ -96,18 +97,16 @@ function StatCard({ icon: Icon, label, value, sub, color = 'blue', trend }) {
 // BRANCH SELECTOR (used inside forms)
 // ─────────────────────────────────────────────────────────────────────────────
 function BranchSelect({ value, onChange, required, placeholder = 'Select branch...' }) {
-  const { branches } = useTenant();
+  const { branches = [] } = useTenant();
   return (
-    <Select value={value || ''} onValueChange={onChange} required={required}>
+    <Select value={value || 'none'} onValueChange={v => onChange(v === 'none' ? '' : v)} required={required}>
       <SelectTrigger>
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>
-        {branches.length === 0 && (
-          <div className="px-3 py-2 text-xs text-muted-foreground">No branches found</div>
-        )}
+        <SelectItem value="none">{placeholder}</SelectItem>
         {branches.map(b => (
-          <SelectItem key={b.key || b.id || b.name} value={b.key || b.id || b.name}>
+          <SelectItem key={b.key || b.id || b.name} value={String(b.key || b.id || b.name)}>
             {b.name}
           </SelectItem>
         ))}
@@ -419,8 +418,6 @@ function NetworkAccountsTab({ accounts, branches, currency, onRefresh }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // POS DEVICES TAB
 // ─────────────────────────────────────────────────────────────────────────────
-const EMPTY_POS = { branch_id: '', device_name: '', device_serial: '', provider: '', network_account_id: '', status: 'active', notes: '' };
-
 function PosDevicesTab({ accounts, branches, currency }) {
   const qc = useQueryClient();
   const { ownerFilter, activeRestaurant } = useTenant();
@@ -566,10 +563,10 @@ function PosDevicesTab({ accounts, branches, currency }) {
   );
 }
 
-function PosDeviceForm({ initial, accounts, onSubmit, onCancel }) {
-  const [form, setForm] = useState({ ...EMPTY_POS, ...initial });
+function PosDeviceForm({ initial, accounts = [], onSubmit, onCancel }) {
+  const [form, setForm] = useState({ ...EMPTY_POS, ...(initial || {}) });
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-  const { branches } = useTenant();
+  const { branches = [] } = useTenant();
 
   // Filter accounts by selected branch
   const branchAccounts = useMemo(() => {
@@ -608,12 +605,12 @@ function PosDeviceForm({ initial, accounts, onSubmit, onCancel }) {
       </div>
       <div>
         <Label className="text-xs font-semibold text-muted-foreground mb-1 block">Assign to Network Account</Label>
-        <Select value={form.network_account_id || ''} onValueChange={v => set('network_account_id', v)}>
+        <Select value={form.network_account_id || 'none'} onValueChange={v => set('network_account_id', v === 'none' ? '' : v)}>
           <SelectTrigger><SelectValue placeholder={form.branch_id ? 'Select account...' : 'Select branch first'} /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="">None</SelectItem>
+            <SelectItem value="none">None</SelectItem>
             {branchAccounts.map(a => (
-              <SelectItem key={a.id} value={a.id}>{a.account_name || a.network_name}</SelectItem>
+              <SelectItem key={a.id} value={String(a.id)}>{a.account_name || a.network_name}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -963,11 +960,11 @@ function ReconForm({ accounts, currency, onSubmit, onCancel }) {
       </div>
       <div>
         <Label className="text-xs font-semibold text-muted-foreground mb-1 block">Network Account</Label>
-        <Select value={form.network_account_id || ''} onValueChange={v => set('network_account_id', v)}>
+        <Select value={form.network_account_id || 'all'} onValueChange={v => set('network_account_id', v === 'all' ? '' : v)}>
           <SelectTrigger><SelectValue placeholder={form.branch_id ? 'Select account...' : 'Select branch first'} /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All accounts</SelectItem>
-            {branchAccounts.map(a => <SelectItem key={a.id} value={a.id}>{a.account_name || a.network_name}</SelectItem>)}
+            <SelectItem value="all">All accounts</SelectItem>
+            {branchAccounts.map(a => <SelectItem key={a.id} value={String(a.id)}>{a.account_name || a.network_name}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>
