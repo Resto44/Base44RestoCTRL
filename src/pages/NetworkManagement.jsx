@@ -107,7 +107,7 @@ function BranchSelect({ value, onChange, required, placeholder = 'Select branch.
         <SelectItem value="none">{placeholder}</SelectItem>
         {branches.map(b => (
           <SelectItem key={b.key || b.id || b.name} value={String(b.key || b.id || b.name)}>
-            {b.name}
+            {b.label || b.name}
           </SelectItem>
         ))}
       </SelectContent>
