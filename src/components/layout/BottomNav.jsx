@@ -60,7 +60,7 @@ const MORE_SECTIONS_OWNER = [
   {
     title: 'Analytics',
     items: [
-      { path: '/network-hub',              icon: Building2,   labelKey: 'network_management' },
+      { path: '/network-management',        icon: Building2,   labelKey: 'network_management' },
       { path: '/bi-center',                icon: BarChart3,   labelKey: 'bi_center' },
       { path: '/branch-command-center',    icon: Building2,   labelKey: 'branch_command_center' },
       { path: '/reports',                  icon: TrendingUp,  labelKey: 'reports' },

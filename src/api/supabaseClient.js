@@ -191,7 +191,7 @@ function createEntity(tableName) {
       
       // Only add audit fields if they are standard for this project's base entities
       // Recipes and some new tables use 'created_at' instead of 'created_date'
-      const CREATED_AT_TABLES = ['product_categories', 'expense_categories', 'purchase_categories', 'sales_categories', 'online_order_categories', 'recipes', 'recipe_ingredients', 'product_modifiers', 'product_modifier_options', 'customer_addresses', 'customer_favorites', 'promotions', 'driver_requests'];
+      const CREATED_AT_TABLES = ['product_categories', 'expense_categories', 'purchase_categories', 'sales_categories', 'online_order_categories', 'recipes', 'recipe_ingredients', 'product_modifiers', 'product_modifier_options', 'customer_addresses', 'customer_favorites', 'promotions', 'driver_requests', 'network_pos_devices', 'network_transfers', 'network_reconciliations'];
       if (!CREATED_AT_TABLES.includes(tableName)) {
         payload.created_by = email;
         payload.created_date = now;
@@ -228,7 +228,7 @@ function createEntity(tableName) {
         records.map(r => {
           const safe = Object.fromEntries(Object.entries(r).filter(([k]) => !GENERATED_COLS.includes(k)));
           const payload = { ...safe };
-          if (!['recipes', 'recipe_ingredients', 'product_modifiers', 'product_modifier_options', 'customer_addresses', 'customer_favorites', 'promotions', 'driver_requests'].includes(tableName)) {
+          if (!['recipes', 'recipe_ingredients', 'product_modifiers', 'product_modifier_options', 'customer_addresses', 'customer_favorites', 'promotions', 'driver_requests', 'network_pos_devices', 'network_transfers', 'network_reconciliations'].includes(tableName)) {
             payload.created_by = email;
             payload.created_date = now;
             payload.updated_date = now;
@@ -348,6 +348,9 @@ const entities = {
   WhatsAppQueue: createEntity('whatsapp_outbound_queue'), InvoiceSequence: createEntity('invoice_sequences'),
   CollectionAction: createEntity('collection_actions'), Restaurant: createEntity('restaurants'),
   NetworkAccount: createEntity('network_accounts'), SettlementRecord: createEntity('settlement_records'),
+  NetworkPosDevice: createEntity('network_pos_devices'),
+  NetworkTransfer: createEntity('network_transfers'),
+  NetworkReconciliation: createEntity('network_reconciliations'),
   Subscription: createEntity('subscriptions'), WalletTransaction: createEntity('wallet_transactions'),
   Supplier: createEntity('suppliers'), SupplierInvoice: createEntity('supplier_invoices'),
   SupplierPayment: createEntity('supplier_payments'), OcrLog: createEntity('ocr_logs'),

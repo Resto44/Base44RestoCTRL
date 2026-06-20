@@ -74,9 +74,7 @@ const Payroll             = lazy(() => import('@/pages/Payroll'));
 const Treasury            = lazy(() => import('@/pages/Treasury'));
 const SponsorTreasury     = lazy(() => import('@/pages/SponsorTreasury'));
 const DebtManagement      = lazy(() => import('@/pages/DebtManagement'));
-const NetworkAccounts     = lazy(() => import('@/pages/NetworkAccounts'));
-const NetworkAnalytics    = lazy(() => import('@/pages/NetworkAnalytics'));
-const NetworkHub          = lazy(() => import('@/pages/NetworkHub'));
+const NetworkManagement   = lazy(() => import('@/pages/NetworkManagement'));
 
 const DeliveryOrders      = lazy(() => import('@/pages/DeliveryOrders'));
 const MenuProducts        = lazy(() => import('@/pages/MenuProducts'));
@@ -267,9 +265,11 @@ const SubscribedRoutes = () => {
         <Route path="/sponsor-treasury" element={<RoleGuard permission="viewSponsorTreasury"><SponsorTreasury /></RoleGuard>} />
         <Route path="/debts" element={<RoleGuard permission="viewDebts"><DebtManagement /></RoleGuard>} />
         <Route path="/debt-management" element={<RoleGuard permission="viewDebts"><DebtManagement /></RoleGuard>} />
-        <Route path="/network-accounts" element={<RoleGuard permission="viewNetworkAccounts"><NetworkAccounts /></RoleGuard>} />
-        <Route path="/network-analytics" element={<RoleGuard permission="viewNetworkAnalytics"><NetworkAnalytics /></RoleGuard>} />
-        <Route path="/network-hub" element={<RoleGuard permission="viewDashboard"><NetworkHub /></RoleGuard>} />
+        <Route path="/network-management" element={<RoleGuard permission="viewNetworkAccounts"><NetworkManagement /></RoleGuard>} />
+        {/* Legacy redirects */}
+        <Route path="/network-accounts" element={<RoleGuard permission="viewNetworkAccounts"><NetworkManagement /></RoleGuard>} />
+        <Route path="/network-analytics" element={<RoleGuard permission="viewNetworkAccounts"><NetworkManagement /></RoleGuard>} />
+        <Route path="/network-hub" element={<RoleGuard permission="viewDashboard"><NetworkManagement /></RoleGuard>} />
 
         {/* ── Delivery ── */}
         <Route path="/delivery" element={<RoleGuard permission="viewDelivery"><DeliveryOrders /></RoleGuard>} />
