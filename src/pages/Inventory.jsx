@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertTriangle, Plus, Package, Pencil, MessageSquare, Bell } from 'lucide-react';
 import { format } from 'date-fns';
@@ -26,7 +27,8 @@ const ui = {
 const emptyForm = { product_id: '', product_name: '', branch: '', unit: 'kg', opening_stock: 0, low_stock_threshold: 5, date: format(new Date(), 'yyyy-MM-dd') };
 
 export default function Inventory() {
-  const { lang, branches } = useLanguage();
+  const { lang } = useLanguage();
+  const { branches } = useTenant();
   const m = ui[lang] || ui.en;
   const qc = useQueryClient();
   const notif = useNotify();
@@ -189,17 +191,17 @@ export default function Inventory() {
           <div className="space-y-3">
             <div>
               <Label className="text-xs">{m.product}</Label>
-              <select
-                className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background"
-                value={form.product_id}
-                onChange={e => {
-                  const p = products.find(x => x.product_id === e.target.value);
-                  setForm(f => ({ ...f, product_id: e.target.value, product_name: p?.name || e.target.value, unit: p?.unit || 'kg' }));
-                }}
-              >
-                <option value="">--</option>
-                {products.map(p => <option key={p.product_id} value={p.product_id}>{p.name}</option>)}
-              </select>
+              <Select value={form.product_id || '__none__'} onValueChange={v => {
+                const val = v === '__none__' ? '' : v;
+                const p = products.find(x => x.product_id === val);
+                setForm(f => ({ ...f, product_id: val, product_name: p?.name || val, unit: p?.unit || 'kg' }));
+              }}>
+                <SelectTrigger className="w-full"><SelectValue placeholder="--" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">--</SelectItem>
+                  {products.map(p => <SelectItem key={p.product_id} value={p.product_id}>{p.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label className="text-xs">{m.branch}</Label>
