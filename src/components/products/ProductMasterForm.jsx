@@ -45,6 +45,8 @@ export default function ProductMasterForm({ initial, onSubmit, onCancel }) {
     image_url: '',
     status: 'active',
     is_active: true,
+    subcategory_id: '',
+    child_category_id: '',
     restaurant_id: activeRestaurant?.id,
     ...initial,
   });
@@ -167,10 +169,10 @@ export default function ProductMasterForm({ initial, onSubmit, onCancel }) {
           <div className="space-y-2">
             <div>
               <Label className="text-xs">{t('category')} (Level 1)</Label>
-              <Select value={form.category_id || ''} onValueChange={v => { set('category_id', v); set('subcategory_id', ''); set('child_category_id', ''); }}>
+              <Select value={form.category_id || '__none__'} onValueChange={v => { const val = v === '__none__' ? '' : v; set('category_id', val); set('subcategory_id', ''); set('child_category_id', ''); }}>
                 <SelectTrigger><SelectValue placeholder="Select main category..." /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">— None —</SelectItem>
+                  <SelectItem value="__none__">— None —</SelectItem>
                   {parentCategories.map(c => (
                     <SelectItem key={c.id} value={c.id}>
                       {c.icon ? `${c.icon} ` : ''}{c.name}
@@ -182,10 +184,10 @@ export default function ProductMasterForm({ initial, onSubmit, onCancel }) {
             {subCategories.length > 0 && (
               <div>
                 <Label className="text-xs">Sub-category (Level 2)</Label>
-                <Select value={form.subcategory_id || ''} onValueChange={v => { set('subcategory_id', v); set('child_category_id', ''); }}>
+                <Select value={form.subcategory_id || '__none__'} onValueChange={v => { const val = v === '__none__' ? '' : v; set('subcategory_id', val); set('child_category_id', ''); }}>
                   <SelectTrigger><SelectValue placeholder="Select sub-category..." /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">— None —</SelectItem>
+                    <SelectItem value="__none__">— None —</SelectItem>
                     {subCategories.map(c => (
                       <SelectItem key={c.id} value={c.id}>
                         {c.icon ? `${c.icon} ` : ''}{c.name}
@@ -198,10 +200,10 @@ export default function ProductMasterForm({ initial, onSubmit, onCancel }) {
             {childCategories.length > 0 && (
               <div>
                 <Label className="text-xs">Child Category (Level 3)</Label>
-                <Select value={form.child_category_id || ''} onValueChange={v => set('child_category_id', v)}>
+                <Select value={form.child_category_id || '__none__'} onValueChange={v => set('child_category_id', v === '__none__' ? '' : v)}>
                   <SelectTrigger><SelectValue placeholder="Select child category..." /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">— None —</SelectItem>
+                    <SelectItem value="__none__">— None —</SelectItem>
                     {childCategories.map(c => (
                       <SelectItem key={c.id} value={c.id}>
                         {c.icon ? `${c.icon} ` : ''}{c.name}
