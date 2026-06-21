@@ -127,7 +127,11 @@ export default function CashRegisterCenter() {
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">{t('all_branches')}</SelectItem>
-          {branches.map(b => <SelectItem key={b.id} value={b.name}>{b.name}</SelectItem>)}
+          {branches.length > 0 ? (
+            branches.map(b => <SelectItem key={b.key} value={b.key}>{b.label}</SelectItem>)
+          ) : (
+            <div className="py-2 px-3 text-xs text-muted-foreground text-center">No branches found</div>
+          )}
         </SelectContent>
       </Select>
 
