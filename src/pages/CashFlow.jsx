@@ -78,10 +78,31 @@ export default function CashFlow() {
     return user?.branch || selectedBranch === 'all' ? null : selectedBranch;
   }, [role, user, selectedBranch]);
 
-  const { data: sales = [] } = useQuery({ queryKey: ['sales'], queryFn: () => base44.entities.DailySales.list('-date', 2000), staleTime: 120000 });
-  const { data: purchases = [] } = useQuery({ queryKey: ['purchases'], queryFn: () => base44.entities.Purchase.list('-date', 2000), staleTime: 120000 });
-  const { data: expenses = [] } = useQuery({ queryKey: ['expenses'], queryFn: () => base44.entities.Expense.list('-date', 2000), staleTime: 120000 });
-  const { data: collections = [] } = useQuery({ queryKey: ['collections'], queryFn: () => base44.entities.CreditCollection.list('-date', 2000), staleTime: 120000 });
+  const { activeRestaurant } = useTenant();
+  const { data: sales = [] } = useQuery({
+    queryKey: ['sales', activeRestaurant?.id],
+    queryFn: () => base44.entities.DailySales.filter(activeRestaurant?.id ? { restaurant_id: activeRestaurant.id } : {}, '-date', 2000),
+    enabled: !!activeRestaurant?.id,
+    staleTime: 120000
+  });
+  const { data: purchases = [] } = useQuery({
+    queryKey: ['purchases', activeRestaurant?.id],
+    queryFn: () => base44.entities.Purchase.filter(activeRestaurant?.id ? { restaurant_id: activeRestaurant.id } : {}, '-date', 2000),
+    enabled: !!activeRestaurant?.id,
+    staleTime: 120000
+  });
+  const { data: expenses = [] } = useQuery({
+    queryKey: ['expenses', activeRestaurant?.id],
+    queryFn: () => base44.entities.Expense.filter(activeRestaurant?.id ? { restaurant_id: activeRestaurant.id } : {}, '-date', 2000),
+    enabled: !!activeRestaurant?.id,
+    staleTime: 120000
+  });
+  const { data: collections = [] } = useQuery({
+    queryKey: ['collections', activeRestaurant?.id],
+    queryFn: () => base44.entities.CreditCollection.filter(activeRestaurant?.id ? { restaurant_id: activeRestaurant.id } : {}, '-date', 2000),
+    enabled: !!activeRestaurant?.id,
+    staleTime: 120000
+  });
 
   const dateRange = useMemo(() => getDateRange(rangeType), [rangeType]);
   const fromStr = formatDate(dateRange.from);

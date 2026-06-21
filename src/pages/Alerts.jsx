@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { useLanguage } from '@/lib/LanguageContext';
+import { useTenant } from '@/lib/TenantContext';
 import PageHeader from '@/components/shared/PageHeader';
 import { Card } from '@/components/ui/card';
 import { AlertTriangle, TrendingDown, DollarSign, Bell, UserX, Gift } from 'lucide-react';
@@ -11,12 +12,38 @@ import { currentMonth, monthRange, summariseAttendance } from '@/lib/payrollEngi
 
 export default function Alerts() {
   const { t, currency, branches } = useLanguage();
+  const { activeRestaurant } = useTenant();
 
-  const { data: sales = [] } = useQuery({ queryKey: ['sales'], queryFn: () => base44.entities.DailySales.list('-date', 1000), staleTime: 120000 });
-  const { data: purchases = [] } = useQuery({ queryKey: ['purchases'], queryFn: () => base44.entities.Purchase.list('-date', 1000), staleTime: 120000 });
-  const { data: attendanceAll = [] } = useQuery({ queryKey: ['attendance'], queryFn: () => base44.entities.Attendance.list('-date', 1000), staleTime: 300000 });
-  const { data: bonusesAll = [] } = useQuery({ queryKey: ['employee_bonuses'], queryFn: () => base44.entities.EmployeeBonus.list('-date', 500), staleTime: 300000 });
-  const { data: employees = [] } = useQuery({ queryKey: ['employees'], queryFn: () => base44.entities.Employee.list('name', 500), staleTime: 600000 });
+  const { data: sales = [] } = useQuery({
+    queryKey: ['sales', activeRestaurant?.id],
+    queryFn: () => base44.entities.DailySales.filter(activeRestaurant?.id ? { restaurant_id: activeRestaurant.id } : {}, '-date', 1000),
+    enabled: !!activeRestaurant?.id,
+    staleTime: 120000
+  });
+  const { data: purchases = [] } = useQuery({
+    queryKey: ['purchases', activeRestaurant?.id],
+    queryFn: () => base44.entities.Purchase.filter(activeRestaurant?.id ? { restaurant_id: activeRestaurant.id } : {}, '-date', 1000),
+    enabled: !!activeRestaurant?.id,
+    staleTime: 120000
+  });
+  const { data: attendanceAll = [] } = useQuery({
+    queryKey: ['attendance', activeRestaurant?.id],
+    queryFn: () => base44.entities.Attendance.filter(activeRestaurant?.id ? { restaurant_id: activeRestaurant.id } : {}, '-date', 1000),
+    enabled: !!activeRestaurant?.id,
+    staleTime: 300000
+  });
+  const { data: bonusesAll = [] } = useQuery({
+    queryKey: ['employee_bonuses', activeRestaurant?.id],
+    queryFn: () => base44.entities.EmployeeBonus.filter(activeRestaurant?.id ? { restaurant_id: activeRestaurant.id } : {}, '-date', 500),
+    enabled: !!activeRestaurant?.id,
+    staleTime: 300000
+  });
+  const { data: employees = [] } = useQuery({
+    queryKey: ['employees', activeRestaurant?.id],
+    queryFn: () => base44.entities.Employee.filter(activeRestaurant?.id ? { restaurant_id: activeRestaurant.id } : {}, 'name', 500),
+    enabled: !!activeRestaurant?.id,
+    staleTime: 600000
+  });
 
   const alerts = useMemo(() => {
     const result = [];
