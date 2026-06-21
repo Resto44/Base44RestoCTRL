@@ -95,7 +95,15 @@ export default function ProductMasterForm({ initial, onSubmit, onCancel }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    console.log('Submitting Product Form:', form);
     const selectedCat = categories.find(c => c.id === form.category_id);
+    console.log('Selected Category:', selectedCat);
+    
+    if (form.category_id && !selectedCat) {
+      toast.error('Invalid category selected. Please choose a category from the list.');
+      return;
+    }
+
     onSubmit({
       name: form.name || form.name_en || form.name_ar,
       name_ar: form.name_ar || null,
