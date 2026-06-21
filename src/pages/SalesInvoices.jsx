@@ -20,9 +20,10 @@ import {
 } from 'lucide-react';
 import {
   openInvoicePrint,
-  downloadInvoiceHTML,
+  downloadInvoicePDF,
   printInvoice,
   shareInvoiceWhatsApp,
+  shareInvoiceNative,
 } from '@/lib/salesInvoiceService';
 
 function CashStatusBadge({ status }) {
@@ -41,7 +42,7 @@ function CashStatusBadge({ status }) {
   );
 }
 
-function InvoiceCard({ invoice, currency, onView, onDownload, onPrint, onWhatsApp }) {
+function InvoiceCard({ invoice, currency, onView, onDownload, onPrint, onWhatsApp, onShare }) {
   const fmt = (n) => `${currency}${Number(n || 0).toLocaleString()}`;
   return (
     <div className="rounded-xl border border-border bg-card p-4 space-y-3">
@@ -73,18 +74,21 @@ function InvoiceCard({ invoice, currency, onView, onDownload, onPrint, onWhatsAp
         </div>
       </div>
 
-      <div className="grid grid-cols-4 gap-1.5">
-        <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => onView(invoice)}>
-          <Eye className="w-3 h-3 mr-1" />View
+      <div className="grid grid-cols-5 gap-1">
+        <Button size="sm" variant="outline" className="h-8 px-0 text-[10px]" onClick={() => onView(invoice)}>
+          <Eye className="w-3 h-3 mr-0.5" />View
         </Button>
-        <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => onDownload(invoice)}>
-          <Download className="w-3 h-3 mr-1" />Save
+        <Button size="sm" variant="outline" className="h-8 px-0 text-[10px]" onClick={() => onDownload(invoice)}>
+          <Download className="w-3 h-3 mr-0.5" />Save
         </Button>
-        <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => onPrint(invoice)}>
-          <Printer className="w-3 h-3 mr-1" />Print
+        <Button size="sm" variant="outline" className="h-8 px-0 text-[10px]" onClick={() => onShare(invoice)}>
+          <Share2 className="w-3 h-3 mr-0.5" />Share
         </Button>
-        <Button size="sm" className="h-8 text-xs bg-green-600 hover:bg-green-700 text-white" onClick={() => onWhatsApp(invoice)}>
-          <MessageCircle className="w-3 h-3 mr-1" />WA
+        <Button size="sm" variant="outline" className="h-8 px-0 text-[10px]" onClick={() => onPrint(invoice)}>
+          <Printer className="w-3 h-3 mr-0.5" />Print
+        </Button>
+        <Button size="sm" className="h-8 px-0 text-[10px] bg-green-600 hover:bg-green-700 text-white" onClick={() => onWhatsApp(invoice)}>
+          <MessageCircle className="w-3 h-3 mr-0.5" />WA
         </Button>
       </div>
     </div>
@@ -198,9 +202,10 @@ export default function SalesInvoices() {
               invoice={inv}
               currency={currency}
               onView={(i) => setViewInvoice(i)}
-              onDownload={(i) => downloadInvoiceHTML(i, 'RestoCTRL', currency)}
+              onDownload={(i) => downloadInvoicePDF(i, 'RestoCTRL', currency)}
               onPrint={(i) => printInvoice(i, 'RestoCTRL', currency)}
               onWhatsApp={(i) => shareInvoiceWhatsApp(i, currency)}
+              onShare={(i) => shareInvoiceNative(i, 'RestoCTRL', currency)}
             />
           ))}
         </div>
@@ -291,17 +296,20 @@ export default function SalesInvoices() {
 
               {/* Action buttons */}
               <div className="grid grid-cols-2 gap-2">
-                <Button variant="outline" className="h-10" onClick={() => downloadInvoiceHTML(viewInvoice, 'RestoCTRL', currency)}>
+                <Button variant="outline" className="h-10" onClick={() => downloadInvoicePDF(viewInvoice, 'RestoCTRL', currency)}>
                   <Download className="w-4 h-4 mr-1" />Download
                 </Button>
                 <Button variant="outline" className="h-10" onClick={() => openInvoicePrint(viewInvoice, 'RestoCTRL', currency)}>
                   <FileText className="w-4 h-4 mr-1" />View PDF
                 </Button>
+                <Button variant="outline" className="h-10" onClick={() => shareInvoiceNative(viewInvoice, 'RestoCTRL', currency)}>
+                  <Share2 className="w-4 h-4 mr-1" />Share PDF
+                </Button>
                 <Button variant="outline" className="h-10" onClick={() => printInvoice(viewInvoice, 'RestoCTRL', currency)}>
                   <Printer className="w-4 h-4 mr-1" />Print
                 </Button>
-                <Button className="h-10 bg-green-600 hover:bg-green-700 text-white" onClick={() => shareInvoiceWhatsApp(viewInvoice, currency)}>
-                  <MessageCircle className="w-4 h-4 mr-1" />WhatsApp
+                <Button className="h-10 col-span-2 bg-green-600 hover:bg-green-700 text-white" onClick={() => shareInvoiceWhatsApp(viewInvoice, currency)}>
+                  <MessageCircle className="w-4 h-4 mr-1" />WhatsApp Share
                 </Button>
               </div>
             </div>

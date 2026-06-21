@@ -25,8 +25,10 @@ import POSReconciliation from '@/components/sales/POSReconciliation';
 import {
   generateSalesInvoiceNumber,
   createSalesInvoice,
+  generateAndUploadPDF,
+  shareInvoiceNative,
   openInvoicePrint,
-  downloadInvoiceHTML,
+  downloadInvoicePDF,
   printInvoice,
   shareInvoiceWhatsApp,
 } from '@/lib/salesInvoiceService';
@@ -97,10 +99,12 @@ export default function Sales() {
   const autoGenerateInvoice = async (saleData, saleId) => {
     try {
       const restaurantId = activeRestaurant?.id;
-      const invNum = await generateSalesInvoiceNumber(restaurantId, saleData.date);
+      const invNum = saleData.invoice_number || await generateSalesInvoiceNumber(restaurantId, saleData.date);
 
       // Update daily_sales with invoice_number
-      await base44.entities.DailySales.update(saleId, { invoice_number: invNum });
+      if (!saleData.invoice_number) {
+        await base44.entities.DailySales.update(saleId, { invoice_number: invNum });
+      }
 
       const invoice = await createSalesInvoice({
         invoiceNumber: invNum,
@@ -110,7 +114,21 @@ export default function Sales() {
         createdBy: user?.email || '',
       });
 
-      setSavedInvoice(invoice);
+      // Phase 8: Generate and store permanent PDF
+      try {
+        await generateAndUploadPDF(invoice, 'RestoCTRL', currency);
+        // Re-fetch to get the pdf_url
+        const { data: updatedInv } = await base44.entities.SalesInvoice.filter({ invoice_number: invNum });
+        if (updatedInv && updatedInv[0]) {
+          setSavedInvoice(updatedInv[0]);
+        } else {
+          setSavedInvoice(invoice);
+        }
+      } catch (pdfErr) {
+        console.error('[Sales] PDF generation failed:', pdfErr);
+        setSavedInvoice(invoice);
+      }
+
       setShowInvoiceDialog(true);
       qc.invalidateQueries({ queryKey: ['sales_invoices'] });
       return invoice;
@@ -342,7 +360,7 @@ export default function Sales() {
                 <Button
                   variant="outline"
                   className="flex items-center gap-2 h-11"
-                  onClick={() => downloadInvoiceHTML(savedInvoice, 'RestoCTRL', currency)}
+                  onClick={() => downloadInvoicePDF(savedInvoice, 'RestoCTRL', currency)}
                 >
                   <Download className="w-4 h-4" />
                   Download
@@ -358,17 +376,25 @@ export default function Sales() {
                 <Button
                   variant="outline"
                   className="flex items-center gap-2 h-11"
+                  onClick={() => shareInvoiceNative(savedInvoice, 'RestoCTRL', currency)}
+                >
+                  <Share2 className="w-4 h-4" />
+                  Share PDF
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex items-center gap-2 h-11"
                   onClick={() => printInvoice(savedInvoice, 'RestoCTRL', currency)}
                 >
                   <Printer className="w-4 h-4" />
                   Print
                 </Button>
                 <Button
-                  className="flex items-center gap-2 h-11 bg-green-600 hover:bg-green-700 text-white"
+                  className="flex items-center gap-2 h-11 col-span-2 bg-green-600 hover:bg-green-700 text-white"
                   onClick={() => shareInvoiceWhatsApp(savedInvoice, currency)}
                 >
                   <MessageCircle className="w-4 h-4" />
-                  WhatsApp
+                  WhatsApp Share
                 </Button>
               </div>
 
