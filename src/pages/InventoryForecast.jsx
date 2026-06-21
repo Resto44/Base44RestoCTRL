@@ -27,17 +27,33 @@ export default function InventoryForecast() {
   const [selectedBranch, setSelectedBranch] = useState('all');
   const [lookbackDays, setLookbackDays] = useState(30);
 
+  const { activeRestaurant } = useTenant();
   const { data: inventory = [] } = useQuery({
-    queryKey: ['inventory'],
-    queryFn: () => base44.entities.Inventory.list('-date', 2000), staleTime: 300000,
+    queryKey: ['inventory', activeRestaurant?.id],
+    queryFn: () => base44.entities.Inventory.filter(
+      activeRestaurant?.id ? { restaurant_id: activeRestaurant.id } : {},
+      '-date', 2000
+    ),
+    enabled: !!activeRestaurant?.id,
+    staleTime: 300000,
   });
   const { data: purchases = [] } = useQuery({
-    queryKey: ['purchases'],
-    queryFn: () => base44.entities.Purchase.list('-date', 2000), staleTime: 120000,
+    queryKey: ['purchases', activeRestaurant?.id],
+    queryFn: () => base44.entities.Purchase.filter(
+      activeRestaurant?.id ? { restaurant_id: activeRestaurant.id } : {},
+      '-date', 2000
+    ),
+    enabled: !!activeRestaurant?.id,
+    staleTime: 120000,
   });
   const { data: wastes = [] } = useQuery({
-    queryKey: ['inventory_waste'],
-    queryFn: () => base44.entities.InventoryWaste.list('-date', 2000), staleTime: 120000,
+    queryKey: ['inventory_waste', activeRestaurant?.id],
+    queryFn: () => base44.entities.InventoryWaste.filter(
+      activeRestaurant?.id ? { restaurant_id: activeRestaurant.id } : {},
+      '-date', 2000
+    ),
+    enabled: !!activeRestaurant?.id,
+    staleTime: 120000,
   });
 
   const cutoffDate = useMemo(() => {

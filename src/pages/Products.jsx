@@ -23,8 +23,13 @@ export default function Products() {
   const [search, setSearch] = useState('');
 
   const { data: products = [], isLoading } = useQuery({
-    queryKey: ['products'],
-    queryFn: () => base44.entities.Product.list('name', 2000), staleTime: 300000,
+    queryKey: ['products', activeRestaurant?.id],
+    queryFn: () => base44.entities.Product.filter(
+      activeRestaurant?.id ? { restaurant_id: activeRestaurant.id } : {},
+      'name', 2000
+    ),
+    enabled: !!activeRestaurant?.id,
+    staleTime: 300000,
   });
 
   const createMut = useMutation({

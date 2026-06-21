@@ -459,12 +459,12 @@ function CategoryManagementTab({ categories, isLoading }) {
       </div>
       <div>
         <Label className="text-xs">{t('parent_category')} (leave blank for top-level)</Label>
-        <Select value={form.parent_id || ''} onValueChange={v => set('parent_id', v)}>
+        <Select value={form.parent_id || '__none__'} onValueChange={v => set('parent_id', v === '__none__' ? '' : v)}>
           <SelectTrigger><SelectValue placeholder="— Top Level —" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="">— Top Level —</SelectItem>
+            <SelectItem value="__none__">— Top Level —</SelectItem>
             {parentCats.filter(c => c.id !== editing?.id).map(c => (
-              <SelectItem key={c.id} value={c.id || ""}>{c.name_en || c.name}</SelectItem>
+              <SelectItem key={c.id} value={c.id || "__none__"}>{c.name_en || c.name}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -581,7 +581,11 @@ function UnitManagementTab() {
 
   const { data: units = [], isLoading } = useQuery({
     queryKey: ['product_units', activeRestaurant?.id],
-    queryFn: () => base44.entities.ProductUnit.list('sort_order', 200),
+    queryFn: () => base44.entities.ProductUnit.filter(
+      activeRestaurant?.id ? { restaurant_id: activeRestaurant.id } : {},
+      'sort_order', 200
+    ),
+    enabled: !!activeRestaurant?.id,
     staleTime: 60000,
   });
 
@@ -819,7 +823,7 @@ function InventoryIntegrationTab({ products, currency }) {
     queryKey: ['inventory_transactions_recent', activeRestaurant?.id],
     queryFn: () => base44.entities.InventoryTransaction.filter(
       activeRestaurant?.id ? { restaurant_id: activeRestaurant.id } : {},
-      '-created_date', 50
+      '-created_date', 100
     ),
     enabled: !!activeRestaurant?.id,
     staleTime: 30000,
