@@ -35,7 +35,7 @@ import {
 } from '@/lib/procurementEngine';
 import OcrScanDialog from './OcrScanDialog';
 
-const CURRENCIES = ['USD', 'SAR', 'AED', 'EGP', 'KWD', 'QAR', 'BHD', 'OMR', 'EUR', 'GBP'];
+const CURRENCIES = ['SAR', 'USD', 'AED', 'EGP', 'KWD', 'QAR', 'BHD', 'OMR', 'EUR', 'GBP'];
 const PAYMENT_METHODS = ['cash', 'bank', 'pos', 'transfer'];
 const ADDITIONAL_COST_TYPES = ['delivery', 'transport', 'customs', 'packaging', 'miscellaneous'];
 
@@ -101,7 +101,7 @@ export default function PurchaseInvoiceForm({ invoice = null, onSuccess, onCance
     branch: invoice?.branch || '',
     date: invoice?.date || new Date().toISOString().split('T')[0],
     due_date: invoice?.due_date || '',
-    currency: invoice?.currency || 'USD',
+    currency: invoice?.currency || 'SAR',
     notes: invoice?.notes || '',
     status: invoice?.status || 'draft',
   });
@@ -121,6 +121,27 @@ export default function PurchaseInvoiceForm({ invoice = null, onSuccess, onCance
   const [attachments, setAttachments] = useState(invoice?.attachment_urls || []);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const { activeRestaurantId } = useTenant();
+
+  // ── Auto-numbering ─────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!isEdit && !form.invoice_number && activeRestaurantId) {
+      const fetchNumber = async () => {
+        try {
+          const { data, error } = await supabase.rpc('generate_purchase_invoice_number', {
+            p_restaurant_id: activeRestaurantId,
+            p_date: form.date
+          });
+          if (!error && data) {
+            setForm(f => ({ ...f, invoice_number: data }));
+          }
+        } catch (err) {
+          console.error('[PurchaseInvoiceForm] Failed to generate invoice number:', err);
+        }
+      };
+      fetchNumber();
+    }
+  }, [isEdit, activeRestaurantId, form.date]);
 
   // ── Data fetches ───────────────────────────────────────────────────────
   const { data: suppliers = [] } = useQuery({
