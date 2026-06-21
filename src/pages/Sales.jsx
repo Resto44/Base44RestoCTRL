@@ -94,6 +94,7 @@ export default function Sales() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['sales'] });
+      qc.invalidateQueries({ queryKey: ['sales_cash'] });
       qc.invalidateQueries({ queryKey: ['sales_daily'] });
       qc.invalidateQueries({ queryKey: ['settlements_all'] });
       qc.invalidateQueries({ queryKey: ['settlements_mgr'] });
@@ -113,6 +114,7 @@ export default function Sales() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['sales'] });
+      qc.invalidateQueries({ queryKey: ['sales_cash'] });
       qc.invalidateQueries({ queryKey: ['sales_daily'] });
       qc.invalidateQueries({ queryKey: ['settlements_all'] });
       qc.invalidateQueries({ queryKey: ['settlements_mgr'] });

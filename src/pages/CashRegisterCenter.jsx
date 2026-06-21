@@ -259,7 +259,7 @@ export default function CashRegisterCenter() {
                   { label: `- ${t('cash_out')}`, value: cashOut,          color: 'text-red-500' },
                   { label: t('expected_closing'), value: expectedClosing,  color: 'text-amber-600', bold: true },
                   { label: t('actual_closing'),   value: actualClosing,    color: 'text-foreground', bold: true },
-                  { label: t('variance'),         value: variance,         color: variance >= 0 ? 'text-emerald-600' : 'text-red-500', bold: true },
+                  { label: t('variance'),         value: variance,         color: actualClosing > 0 ? (variance >= 0 ? 'text-emerald-600' : 'text-red-500') : 'text-muted-foreground', bold: true },
                 ].map(row => (
                   <div key={row.label} className="flex items-center justify-between py-1.5 border-b border-border last:border-0">
                     <span className="text-sm text-muted-foreground">{row.label}</span>
