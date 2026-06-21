@@ -52,6 +52,7 @@ const MORE_SECTIONS_OWNER = [
     title: 'Operations',
     items: [
       { path: '/cash-register',            icon: CreditCard,  labelKey: 'cash_register' },
+      { path: '/sales/invoices',            icon: Receipt,     labelKey: 'sales_invoices' },
       { path: '/kds',                      icon: ChefHat,     labelKey: 'kds' },
       { path: '/online-ordering',          icon: ShoppingCart,labelKey: 'online_ordering' },
       { path: '/reservations',             icon: Calendar,    labelKey: 'reservations' },
@@ -103,6 +104,7 @@ const MORE_SECTIONS_MANAGER = [
     title: 'Operations',
     items: [
       { path: '/cash-register',    icon: CreditCard,  labelKey: 'cash_register' },
+      { path: '/sales/invoices',    icon: Receipt,     labelKey: 'sales_invoices' },
       { path: '/kds',              icon: ChefHat,     labelKey: 'kds' },
       { path: '/reservations',     icon: Calendar,    labelKey: 'reservations' },
     ],

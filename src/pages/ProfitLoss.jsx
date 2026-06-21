@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import PageHeader from '@/components/shared/PageHeader';
 import { getDateRange, getPreviousDateRange, formatDate, computeDashboardMetrics, formatCurrency } from '@/lib/helpers';
+import { useExpenseCategories } from '@/components/expenses/ExpenseCategoryManager';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 
@@ -92,6 +93,7 @@ export default function ProfitLoss() {
     enabled: !!activeRestaurant?.id,
     staleTime: 120000
   });
+  const { data: expenseCategories = [] } = useExpenseCategories();
   const { data: wastes = [] } = useQuery({
     queryKey: ['inventory_waste', activeRestaurant?.id],
     queryFn: () => base44.entities.InventoryWaste.filter(activeRestaurant?.id ? { restaurant_id: activeRestaurant.id } : {}, '-date', 2000),
@@ -105,11 +107,20 @@ export default function ProfitLoss() {
 
   const fSales = useMemo(() => sales.filter(s => s.date >= fromStr && s.date <= toStr), [sales, fromStr, toStr]);
   const fPurch = useMemo(() => purchases.filter(p => p.date >= fromStr && p.date <= toStr), [purchases, fromStr, toStr]);
-  const fExp = useMemo(() => expenses.filter(e => e.date >= fromStr && e.date <= toStr), [expenses, fromStr, toStr]);
+  // Tag each expense with _is_fixed based on its category
+  const expensesTagged = useMemo(() => {
+    const catMap = {};
+    expenseCategories.forEach(c => { catMap[c.id] = !!c.is_fixed; });
+    return expenses.map(e => ({
+      ...e,
+      _is_fixed: catMap[e.category_id] ?? catMap[e.expense_category_id] ?? false,
+    }));
+  }, [expenses, expenseCategories]);
+  const fExp = useMemo(() => expensesTagged.filter(e => e.date >= fromStr && e.date <= toStr), [expensesTagged, fromStr, toStr]);
   const fWaste = useMemo(() => wastes.filter(w => w.date >= fromStr && w.date <= toStr), [wastes, fromStr, toStr]);
   const totalWasteCost = useMemo(() => fWaste.reduce((s, w) => s + (w.total_loss || 0), 0), [fWaste]);
 
-  const metrics = useMemo(() => computeDashboardMetrics(fSales, fPurch, fExp), [fSales, fPurch, fExp]);
+  const metrics = useMemo(() => computeDashboardMetrics(fSales, fPurch, fExp, rangeType), [fSales, fPurch, fExp, rangeType]);
 
   // Previous period comparison
   const prevDateRange = useMemo(() => getPreviousDateRange(rangeType), [rangeType]);
@@ -117,8 +128,8 @@ export default function ProfitLoss() {
   const prevToStr = formatDate(prevDateRange.to);
   const prevSales = useMemo(() => sales.filter(s => s.date >= prevFromStr && s.date <= prevToStr), [sales, prevFromStr, prevToStr]);
   const prevPurch = useMemo(() => purchases.filter(p => p.date >= prevFromStr && p.date <= prevToStr), [purchases, prevFromStr, prevToStr]);
-  const prevExp = useMemo(() => expenses.filter(e => e.date >= prevFromStr && e.date <= prevToStr), [expenses, prevFromStr, prevToStr]);
-  const prevMetrics = useMemo(() => computeDashboardMetrics(prevSales, prevPurch, prevExp), [prevSales, prevPurch, prevExp]);
+  const prevExp = useMemo(() => expensesTagged.filter(e => e.date >= prevFromStr && e.date <= prevToStr), [expensesTagged, prevFromStr, prevToStr]);
+  const prevMetrics = useMemo(() => computeDashboardMetrics(prevSales, prevPurch, prevExp, rangeType), [prevSales, prevPurch, prevExp, rangeType]);
 
   const pctChange = (cur, prev) => {
     if (!prev || prev === 0) return null;
@@ -175,7 +186,7 @@ export default function ProfitLoss() {
     const bs = fSales.filter(s => s.branch === b.key);
     const bp = fPurch.filter(p => p.branch === b.key);
     const be = fExp.filter(e => e.branch === b.key || e.branch === 'all');
-    const bm = computeDashboardMetrics(bs, bp, be);
+    const bm = computeDashboardMetrics(bs, bp, be, rangeType);
     const bWaste = fWaste.filter(w => w.branch === b.key).reduce((s, w) => s + (w.total_loss || 0), 0);
     const adjNet = bm.netProfit - bWaste;
     const nm = bm.totalSales > 0 ? (adjNet / bm.totalSales * 100).toFixed(1) : null;
@@ -223,6 +234,15 @@ export default function ProfitLoss() {
           </Button>
         ))}
       </div>
+
+      {/* Fixed expenses excluded notice */}
+      {metrics.fixedExpensesExcluded && (
+        <div className="mb-4 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3">
+          <p className="text-xs text-amber-800 font-medium">
+            ⚠️ Fixed monthly expenses ({formatCurrency(metrics.totalFixedExpenses, currency)}) are excluded from Net Profit on weekly/daily view. Switch to Month or Year to include them.
+          </p>
+        </div>
+      )}
 
       {/* KPI Grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-5">

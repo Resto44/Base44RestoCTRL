@@ -42,6 +42,7 @@ const BICenter               = lazy(() => import('./pages/BICenter'));
 const ReservationTableManagement = lazy(() => import('./pages/ReservationTableManagement'));
 
 const Sales               = lazy(() => import('./pages/Sales'));
+const SalesInvoices       = lazy(() => import('./pages/SalesInvoices'));
 const Purchases           = lazy(() => import('./pages/Purchases'));
 const Expenses            = lazy(() => import('@/pages/Expenses'));
 const Products            = lazy(() => import('@/pages/Products'));
@@ -225,6 +226,7 @@ const SubscribedRoutes = () => {
 
         {/* ── Core Operations ── */}
         <Route path="/sales" element={<RoleGuard permission="viewSales"><Sales /></RoleGuard>} />
+        <Route path="/sales/invoices" element={<RoleGuard permission="viewSales"><SalesInvoices /></RoleGuard>} />
         <Route path="/purchases" element={<RoleGuard permission="viewPurchases"><Purchases /></RoleGuard>} />
         <Route path="/expenses" element={<RoleGuard permission="viewExpenses"><Expenses /></RoleGuard>} />
 

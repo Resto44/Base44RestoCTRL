@@ -33,13 +33,43 @@ export function getPreviousDateRange(type, customFrom, customTo) {
 export const getSaleCash    = r => Number(r.restaurant_cash    ?? r.cash    ?? 0);
 export const getSaleNetwork = r => Number(r.restaurant_network ?? r.network ?? 0);
 
-export function computeDashboardMetrics(sales, purchases, expenses = []) {
+/**
+ * computeDashboardMetrics
+ *
+ * rangeType: 'day' | 'week' | 'month' | 'year'
+ *
+ * Fixed-expense deduction rule (Phase 3):
+ *  - 'day' or 'week' → fixed expenses are NOT deducted (they are monthly overhead).
+ *    Net Profit = Gross Profit (Revenue − COGS) only.
+ *  - 'month' | 'year' | undefined → fixed expenses ARE deducted.
+ *
+ * Variable expenses (non-fixed) are always deducted regardless of range.
+ * An expense is considered fixed when its category has is_fixed = true.
+ * If category info is not available, fall back to deducting all expenses.
+ */
+export function computeDashboardMetrics(sales, purchases, expenses = [], rangeType = 'month') {
   const totalSales   = sales.reduce((s, r) => s + getSaleCash(r) + getSaleNetwork(r) + (Number(r.credit) || 0), 0);
   const totalCredit  = sales.reduce((s, r) => s + (Number(r.credit) || 0), 0);
   const totalCash    = sales.reduce((s, r) => s + getSaleCash(r), 0);
   const totalNetwork = sales.reduce((s, r) => s + getSaleNetwork(r), 0);
   const totalPurchaseCost = purchases.reduce((s, r) => s + ((r.qty || 0) * (r.used_price || r.current_price || 0)), 0);
-  const totalExpenses = expenses.reduce((s, r) => s + (r.amount || 0), 0);
+
+  // Separate fixed vs variable expenses
+  const isShortRange = rangeType === 'day' || rangeType === 'week';
+  const variableExpenses = expenses.filter(e => !e._is_fixed);
+  const fixedExpenses    = expenses.filter(e => !!e._is_fixed);
+
+  const totalVariableExpenses = variableExpenses.reduce((s, r) => s + (r.amount || 0), 0);
+  const totalFixedExpenses    = fixedExpenses.reduce((s, r) => s + (r.amount || 0), 0);
+
+  // On short ranges (day/week), exclude fixed expenses from net profit
+  const totalExpenses = isShortRange
+    ? totalVariableExpenses
+    : totalVariableExpenses + totalFixedExpenses;
+
+  // Always report the full expense total for display purposes
+  const totalExpensesAll = totalVariableExpenses + totalFixedExpenses;
+
   const grossProfit = totalSales - totalPurchaseCost;
   const netProfit = totalSales - totalPurchaseCost - totalExpenses;
   const margin = totalSales > 0 ? (grossProfit / totalSales) * 100 : 0;
@@ -52,7 +82,11 @@ export function computeDashboardMetrics(sales, purchases, expenses = []) {
     totalCash,
     totalNetwork,
     totalPurchaseCost,
-    totalExpenses,
+    totalExpenses,           // expenses actually deducted from net profit
+    totalExpensesAll,        // all expenses (for display)
+    totalFixedExpenses,
+    totalVariableExpenses,
+    fixedExpensesExcluded: isShortRange && totalFixedExpenses > 0,
     profit: grossProfit,
     netProfit,
     margin,

@@ -1,18 +1,22 @@
+/**
+ * CashRegisterCenter — READ ONLY.
+ * Reads opening_cash, closing_cash, cash_difference, cash_status
+ * from the latest DailySales record per branch per date.
+ * NO manual entry. Source of truth = Add Sale records.
+ *
+ * Cash Movement (today's cash inflow) = closing_cash - opening_cash
+ */
 import React, { useState, useMemo } from 'react';
 import { useLanguage } from '@/lib/LanguageContext';
 import { useTenant } from '@/lib/TenantContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   Wallet, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2,
-  Plus, Download, Printer, Share2, Clock, DollarSign, ArrowUpRight,
-  ArrowDownRight, BarChart3, RefreshCw, Lock, Unlock
+  Clock, DollarSign, ArrowUpRight, ArrowDownRight, BarChart3, Lock,
+  Banknote, Info
 } from 'lucide-react';
 import { format, subDays } from 'date-fns';
 import { useQuery } from '@tanstack/react-query';
@@ -41,24 +45,36 @@ function KPITile({ label, value, icon: Icon, color = 'blue', sub }) {
   );
 }
 
+function CashStatusBadge({ status }) {
+  if (!status) return null;
+  const config = {
+    Balanced: { color: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: CheckCircle2 },
+    Shortage: { color: 'bg-red-100 text-red-700 border-red-200', icon: TrendingDown },
+    Overage:  { color: 'bg-amber-100 text-amber-700 border-amber-200', icon: TrendingUp },
+  };
+  const c = config[status] || config.Balanced;
+  const Icon = c.icon;
+  return (
+    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border ${c.color}`}>
+      <Icon className="w-3.5 h-3.5" />{status}
+    </span>
+  );
+}
+
 export default function CashRegisterCenter() {
-  const { t, currency, lang } = useLanguage();
+  const { t, currency } = useLanguage();
   const { branches, ownerFilter } = useTenant();
   const [tab, setTab] = useState('dashboard');
   const [selectedBranch, setSelectedBranch] = useState('all');
   const today = format(new Date(), 'yyyy-MM-dd');
 
   const { activeRestaurant } = useTenant();
-  const { data: allSales = [] } = useQuery({
+  const { data: allSales = [], isLoading } = useQuery({
     queryKey: ['sales_cash', activeRestaurant?.id],
-    queryFn: () => base44.entities.DailySales.filter(activeRestaurant?.id ? { restaurant_id: activeRestaurant.id } : {}, '-date', 500),
-    enabled: !!activeRestaurant?.id,
-    staleTime: 60000,
-  });
-
-  const { data: allExpenses = [] } = useQuery({
-    queryKey: ['expenses_cash', activeRestaurant?.id],
-    queryFn: () => base44.entities.Expense.filter(activeRestaurant?.id ? { restaurant_id: activeRestaurant.id } : {}, '-date', 500),
+    queryFn: () => base44.entities.DailySales.filter(
+      activeRestaurant?.id ? { restaurant_id: activeRestaurant.id } : {},
+      '-date', 500
+    ),
     enabled: !!activeRestaurant?.id,
     staleTime: 60000,
   });
@@ -68,39 +84,50 @@ export default function CashRegisterCenter() {
     [allSales, today, selectedBranch]
   );
 
-  const todayExpenses = useMemo(() =>
-    allExpenses.filter(e => e.date === today && (selectedBranch === 'all' || e.branch === selectedBranch || e.branch === 'all')),
-    [allExpenses, today, selectedBranch]
+  // Latest sale record for today (source of truth for cash register)
+  const latestSale = useMemo(() => {
+    return todaySales.sort((a, b) => new Date(b.created_date || 0) - new Date(a.created_date || 0))[0] || null;
+  }, [todaySales]);
+
+  const openingCash = Number(latestSale?.opening_cash || 0);
+  const closingCash = Number(latestSale?.closing_cash || 0);
+
+  // Cash Movement = closing_cash - opening_cash (today's cash inflow only)
+  const cashMovement = latestSale ? (closingCash - openingCash) : 0;
+
+  // Cash status from record, or computed
+  const cashStatus = latestSale?.cash_status || (
+    !latestSale ? null :
+    cashMovement === 0 ? 'Balanced' :
+    cashMovement < 0 ? 'Shortage' : 'Overage'
   );
 
-  const cashIn = todaySales.reduce((s, r) => s + (r.cash || 0), 0);
-  const cashOut = todayExpenses.reduce((s, r) => s + (r.amount || 0), 0);
-  
-  // Get latest opening/closing cash from the most recent sale record of today
-  const latestSale = useMemo(() => todaySales[0], [todaySales]);
-  const openingCash = latestSale?.opening_cash || 0;
-  const actualClosing = latestSale?.closing_cash || 0;
-  
-  const expectedClosing = openingCash + cashIn - cashOut;
-  const variance = actualClosing > 0 ? actualClosing - expectedClosing : 0;
+  const cashDifference = latestSale?.cash_difference ?? cashMovement;
 
   const fmt = (n) => `${currency}${(n || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 
-  // Last 7 days chart data
+  // Last 7 days chart data — uses cash_difference (movement) per day
   const chartData = useMemo(() =>
     Array.from({ length: 7 }, (_, i) => {
       const d = format(subDays(new Date(), 6 - i), 'yyyy-MM-dd');
       const label = format(subDays(new Date(), 6 - i), 'MM/dd');
-      const daySales = allSales.filter(s => s.date === d);
-      const dayExp = allExpenses.filter(e => e.date === d);
+      const daySales = allSales.filter(s => s.date === d && (selectedBranch === 'all' || s.branch === selectedBranch));
+      // Latest sale for that day
+      const latest = daySales.sort((a, b) => new Date(b.created_date || 0) - new Date(a.created_date || 0))[0];
+      const opening = Number(latest?.opening_cash || 0);
+      const closing = Number(latest?.closing_cash || 0);
+      const movement = latest ? (closing - opening) : 0;
       return {
         date: label,
-        cashIn: daySales.reduce((s, r) => s + (r.cash || 0), 0),
-        cashOut: dayExp.reduce((s, r) => s + (r.amount || 0), 0),
+        opening,
+        closing,
+        movement,
       };
     }),
-    [allSales, allExpenses]
+    [allSales, selectedBranch]
   );
+
+  const diffColor = cashDifference > 0 ? 'text-amber-600' : cashDifference < 0 ? 'text-red-600' : 'text-emerald-600';
 
   return (
     <div className="space-y-4 pb-24">
@@ -110,13 +137,9 @@ export default function CashRegisterCenter() {
           <h1 className="text-xl font-bold">{t('cash_register')}</h1>
           <p className="text-xs text-muted-foreground">{format(new Date(), 'EEEE, MMMM d')}</p>
         </div>
-        <div className="flex gap-2">
-          <Button size="sm" variant="outline" className="h-8 text-xs gap-1">
-            <Download className="w-3 h-3" /> PDF
-          </Button>
-          <Button size="sm" variant="outline" className="h-8 text-xs gap-1">
-            <Printer className="w-3 h-3" />
-          </Button>
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/60 rounded-lg px-2.5 py-1.5">
+          <Lock className="w-3 h-3" />
+          <span>Read Only</span>
         </div>
       </div>
 
@@ -135,22 +158,40 @@ export default function CashRegisterCenter() {
         </SelectContent>
       </Select>
 
-      {/* Shift Info */}
-      <div className="bg-muted/50 rounded-xl p-3 border border-border">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-          <Clock className="w-3 h-3" />
-          <span>Values below are automatically read from the latest **Add Sale** record for today.</span>
+      {/* Read-only source info */}
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
+        <div className="flex items-center gap-2 text-xs text-blue-700 mb-2">
+          <Info className="w-3.5 h-3.5 flex-shrink-0" />
+          <span className="font-medium">Values are automatically read from the latest Add Sale record for today.</span>
         </div>
-        <div className="grid grid-cols-2 gap-2">
-          <div className="bg-background rounded-lg p-2 border border-border">
-            <p className="text-[10px] text-muted-foreground uppercase font-bold">{t('opening_cash')}</p>
-            <p className="text-sm font-bold text-emerald-600">{fmt(openingCash)}</p>
+        {isLoading ? (
+          <p className="text-xs text-muted-foreground">Loading...</p>
+        ) : !latestSale ? (
+          <p className="text-xs text-muted-foreground">No sale record found for today{selectedBranch !== 'all' ? ` (${selectedBranch})` : ''}.</p>
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bg-white rounded-lg p-2 border border-blue-100">
+              <p className="text-[10px] text-muted-foreground uppercase font-bold">{t('opening_cash')}</p>
+              <p className="text-sm font-bold text-blue-600">{fmt(openingCash)}</p>
+            </div>
+            <div className="bg-white rounded-lg p-2 border border-blue-100">
+              <p className="text-[10px] text-muted-foreground uppercase font-bold">{t('closing_cash')}</p>
+              <p className="text-sm font-bold text-foreground">{fmt(closingCash)}</p>
+            </div>
+            <div className="bg-white rounded-lg p-2 border border-blue-100">
+              <p className="text-[10px] text-muted-foreground uppercase font-bold">Cash Movement</p>
+              <p className={`text-sm font-bold ${diffColor}`}>
+                {cashMovement >= 0 ? '+' : ''}{fmt(cashMovement)}
+              </p>
+            </div>
+            <div className="bg-white rounded-lg p-2 border border-blue-100">
+              <p className="text-[10px] text-muted-foreground uppercase font-bold">Cash Status</p>
+              <div className="mt-0.5">
+                <CashStatusBadge status={cashStatus} />
+              </div>
+            </div>
           </div>
-          <div className="bg-background rounded-lg p-2 border border-border">
-            <p className="text-[10px] text-muted-foreground uppercase font-bold">{t('closing_cash')}</p>
-            <p className="text-sm font-bold text-red-600">{fmt(actualClosing)}</p>
-          </div>
-        </div>
+        )}
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
@@ -163,28 +204,30 @@ export default function CashRegisterCenter() {
         {/* Dashboard Tab */}
         <TabsContent value="dashboard" className="space-y-3 mt-3">
           <div className="grid grid-cols-2 gap-3">
-            <KPITile label={t('opening_cash')}    value={fmt(openingCash)}      icon={Unlock}         color="blue"  />
-            <KPITile label={t('cash_in')}          value={fmt(cashIn)}           icon={ArrowUpRight}   color="green" />
-            <KPITile label={t('cash_out')}         value={fmt(cashOut)}          icon={ArrowDownRight} color="red"   />
-            <KPITile label={t('expected_closing')} value={fmt(expectedClosing)}  icon={DollarSign}     color="amber" />
+            <KPITile label={t('opening_cash')}   value={fmt(openingCash)}   icon={Banknote}       color="blue"  />
+            <KPITile label={t('closing_cash')}   value={fmt(closingCash)}   icon={DollarSign}     color="green" />
+            <KPITile label="Cash Movement"       value={`${cashMovement >= 0 ? '+' : ''}${fmt(cashMovement)}`} icon={cashMovement >= 0 ? ArrowUpRight : ArrowDownRight} color={cashMovement >= 0 ? 'amber' : 'red'} sub="Closing − Opening" />
+            <KPITile label="Cash Status"         value={cashStatus || '—'}  icon={cashStatus === 'Shortage' ? TrendingDown : cashStatus === 'Overage' ? TrendingUp : CheckCircle2} color={cashStatus === 'Shortage' ? 'red' : cashStatus === 'Overage' ? 'amber' : 'green'} />
           </div>
 
-          {/* Variance indicator */}
-          {actualClosing > 0 && (
-            <Card className={`border-2 ${variance >= 0 ? 'border-emerald-200 bg-emerald-50' : 'border-red-200 bg-red-50'}`}>
+          {/* Cash Difference card */}
+          {latestSale && (
+            <Card className={`border-2 ${cashDifference === 0 ? 'border-emerald-200 bg-emerald-50' : cashDifference > 0 ? 'border-amber-200 bg-amber-50' : 'border-red-200 bg-red-50'}`}>
               <CardContent className="p-3 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  {variance >= 0
+                  {cashDifference === 0
                     ? <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                    : <AlertTriangle className="w-5 h-5 text-red-600" />
+                    : cashDifference > 0
+                      ? <TrendingUp className="w-5 h-5 text-amber-600" />
+                      : <AlertTriangle className="w-5 h-5 text-red-600" />
                   }
                   <div>
-                    <p className="text-sm font-semibold">{t('cash_variance')}</p>
-                    <p className="text-xs text-muted-foreground">{t('actual_closing')}: {fmt(actualClosing)}</p>
+                    <p className="text-sm font-semibold">Cash Difference</p>
+                    <p className="text-xs text-muted-foreground">Closing − Opening</p>
                   </div>
                 </div>
-                <p className={`text-lg font-bold ${variance >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                  {variance >= 0 ? '+' : ''}{fmt(variance)}
+                <p className={`text-lg font-bold ${diffColor}`}>
+                  {cashDifference >= 0 ? '+' : ''}{fmt(cashDifference)}
                 </p>
               </CardContent>
             </Card>
@@ -193,7 +236,7 @@ export default function CashRegisterCenter() {
           {/* Chart */}
           <Card>
             <CardHeader className="pb-2 pt-3 px-4">
-              <CardTitle className="text-sm font-semibold">{t('cash_in')} / {t('cash_out')} — {t('last_7_days')}</CardTitle>
+              <CardTitle className="text-sm font-semibold">Cash Movement — Last 7 Days</CardTitle>
             </CardHeader>
             <CardContent className="px-2 pb-3">
               <ResponsiveContainer width="100%" height={150}>
@@ -202,8 +245,9 @@ export default function CashRegisterCenter() {
                   <XAxis dataKey="date" tick={{ fontSize: 10 }} />
                   <YAxis tick={{ fontSize: 10 }} />
                   <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8 }} formatter={(v) => [`${currency}${v.toLocaleString()}`, '']} />
-                  <Bar dataKey="cashIn"  fill="#10b981" radius={[4, 4, 0, 0]} name={t('cash_in')} />
-                  <Bar dataKey="cashOut" fill="#ef4444" radius={[4, 4, 0, 0]} name={t('cash_out')} />
+                  <Bar dataKey="opening" fill="#3b82f6" radius={[4, 4, 0, 0]} name="Opening" />
+                  <Bar dataKey="closing" fill="#10b981" radius={[4, 4, 0, 0]} name="Closing" />
+                  <Bar dataKey="movement" fill="#f59e0b" radius={[4, 4, 0, 0]} name="Movement" />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
@@ -217,28 +261,42 @@ export default function CashRegisterCenter() {
               <CardTitle className="text-sm font-semibold">{t('cash_book')}</CardTitle>
             </CardHeader>
             <CardContent className="px-4 pb-3">
-              {todaySales.length === 0 && todayExpenses.length === 0 ? (
+              {todaySales.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-6">{t('no_data')}</p>
               ) : (
                 <div className="space-y-2">
-                  {todaySales.map((s, i) => (
-                    <div key={i} className="flex items-center justify-between py-2 border-b border-border last:border-0">
-                      <div>
-                        <p className="text-sm font-medium">{s.branch} — {t('cash')}</p>
-                        <p className="text-xs text-muted-foreground">{s.date}</p>
+                  {todaySales.map((s, i) => {
+                    const op = Number(s.opening_cash || 0);
+                    const cl = Number(s.closing_cash || 0);
+                    const mv = cl - op;
+                    return (
+                      <div key={i} className="rounded-lg border border-border bg-muted/30 p-3 space-y-1">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-medium">{s.branch}</p>
+                          <CashStatusBadge status={s.cash_status} />
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 text-xs text-muted-foreground">
+                          <div>
+                            <span className="block font-medium text-blue-600">{fmt(op)}</span>
+                            <span>Opening</span>
+                          </div>
+                          <div>
+                            <span className="block font-medium text-foreground">{fmt(cl)}</span>
+                            <span>Closing</span>
+                          </div>
+                          <div>
+                            <span className={`block font-medium ${mv >= 0 ? 'text-amber-600' : 'text-red-600'}`}>
+                              {mv >= 0 ? '+' : ''}{fmt(mv)}
+                            </span>
+                            <span>Movement</span>
+                          </div>
+                        </div>
+                        {s.cash_notes && (
+                          <p className="text-xs text-muted-foreground italic">{s.cash_notes}</p>
+                        )}
                       </div>
-                      <span className="text-sm font-bold text-emerald-600">+{fmt(s.cash)}</span>
-                    </div>
-                  ))}
-                  {todayExpenses.map((e, i) => (
-                    <div key={i} className="flex items-center justify-between py-2 border-b border-border last:border-0">
-                      <div>
-                        <p className="text-sm font-medium">{e.category}</p>
-                        <p className="text-xs text-muted-foreground">{e.date}</p>
-                      </div>
-                      <span className="text-sm font-bold text-red-500">-{fmt(e.amount)}</span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
@@ -252,27 +310,38 @@ export default function CashRegisterCenter() {
               <CardTitle className="text-sm font-semibold">{t('cash_reconciliation')}</CardTitle>
             </CardHeader>
             <CardContent className="px-4 pb-4 space-y-3">
-              <div className="space-y-2">
-                {[
-                  { label: t('opening_cash'),    value: openingCash,      color: 'text-blue-600' },
-                  { label: `+ ${t('cash_in')}`,  value: cashIn,           color: 'text-emerald-600' },
-                  { label: `- ${t('cash_out')}`, value: cashOut,          color: 'text-red-500' },
-                  { label: t('expected_closing'), value: expectedClosing,  color: 'text-amber-600', bold: true },
-                  { label: t('actual_closing'),   value: actualClosing,    color: 'text-foreground', bold: true },
-                  { label: t('variance'),         value: variance,         color: actualClosing > 0 ? (variance >= 0 ? 'text-emerald-600' : 'text-red-500') : 'text-muted-foreground', bold: true },
-                ].map(row => (
-                  <div key={row.label} className="flex items-center justify-between py-1.5 border-b border-border last:border-0">
-                    <span className="text-sm text-muted-foreground">{row.label}</span>
-                    <span className={`text-sm ${row.bold ? 'font-bold' : 'font-medium'} ${row.color}`}>{fmt(row.value)}</span>
-                  </div>
-                ))}
-              </div>
+              {!latestSale ? (
+                <p className="text-sm text-muted-foreground text-center py-6">{t('no_data')}</p>
+              ) : (
+                <div className="space-y-2">
+                  {[
+                    { label: t('opening_cash'),   value: openingCash,   color: 'text-blue-600' },
+                    { label: t('closing_cash'),    value: closingCash,   color: 'text-foreground' },
+                    { label: 'Cash Difference (Closing − Opening)', value: cashDifference, color: diffColor, bold: true },
+                    { label: 'Cash Status',        value: cashStatus,    isStatus: true, bold: true },
+                  ].map(row => (
+                    <div key={row.label} className="flex items-center justify-between py-1.5 border-b border-border last:border-0">
+                      <span className="text-sm text-muted-foreground">{row.label}</span>
+                      {row.isStatus ? (
+                        <CashStatusBadge status={row.value} />
+                      ) : (
+                        <span className={`text-sm ${row.bold ? 'font-bold' : 'font-medium'} ${row.color}`}>
+                          {typeof row.value === 'number' ? fmt(row.value) : row.value}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                  {latestSale.cash_notes && (
+                    <div className="rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                      <span className="font-medium">Notes: </span>{latestSale.cash_notes}
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
-
-
     </div>
   );
 }

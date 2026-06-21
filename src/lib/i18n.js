@@ -437,6 +437,7 @@ const translations = {
     supplier_payment: 'Supplier Payment',
     // Cash Register
     cash_register: 'Cash Register',
+    sales_invoices: 'Sales Invoices',
     opening_cash: 'Opening Cash',
     closing_cash: 'Closing Cash',
     cash_reconciliation: 'Cash Reconciliation',
@@ -1350,6 +1351,7 @@ const translations = {
     customer_collection: 'تحصيل العميل',
     supplier_payment: 'دفع المورد',
     cash_register: 'صندوق النقد',
+    sales_invoices: 'فواتير المبيعات',
     opening_cash: 'رصيد الافتتاح',
     closing_cash: 'رصيد الإغلاق',
     cash_reconciliation: 'مطابقة النقد',
@@ -2188,6 +2190,7 @@ const translations = {
     ai_insights: 'بینش هوشمند',
     ai_chat: 'چت',
     cash_register: 'صندوق نقدی',
+    sales_invoices: 'فاکتورهای فروش',
     kds: 'نمایشگر آشپزخانه',
     online_ordering: 'سفارش آنلاین',
     driver_management: 'مدیریت راننده‌ها',

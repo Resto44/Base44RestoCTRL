@@ -7,7 +7,7 @@ import SalesForm from '@/components/sales/SalesForm';
 import SalesListItem from '@/components/sales/SalesListItem';
 import EmptyState from '@/components/shared/EmptyState';
 import { Button } from '@/components/ui/button';
-import { Plus, Download, SlidersHorizontal, BarChart3 } from 'lucide-react';
+import { Plus, Download, SlidersHorizontal, BarChart3, FileText, Share2, Printer, MessageCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { downloadCSV, downloadPDF, buildSalesCSV, buildSalesPDF } from '@/lib/exportUtils';
@@ -22,6 +22,14 @@ import CustomerCollections from '@/components/sales/CustomerCollections';
 import DailySummary from '@/components/sales/DailySummary';
 import CashRegister from '@/components/sales/CashRegister';
 import POSReconciliation from '@/components/sales/POSReconciliation';
+import {
+  generateSalesInvoiceNumber,
+  createSalesInvoice,
+  openInvoicePrint,
+  downloadInvoiceHTML,
+  printInvoice,
+  shareInvoiceWhatsApp,
+} from '@/lib/salesInvoiceService';
 
 export default function Sales() {
   const { t, currency } = useLanguage();
@@ -29,7 +37,7 @@ export default function Sales() {
   const qc = useQueryClient();
   const notif = useNotify();
   const { user } = useAuth();
-  const { orgId, ownerFilter } = useTenant();
+  const { orgId, ownerFilter, activeRestaurant } = useTenant();
   const { autoSettle } = useNetworkSettlement({ orgId, user, currency });
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -40,6 +48,10 @@ export default function Sales() {
   const [filters, setFilters] = useState({ branch: 'all', from: '', to: '', minTotal: '', maxTotal: '' });
   const todayStr = format(new Date(), 'yyyy-MM-dd');
 
+  // Invoice state — shown after successful save
+  const [savedInvoice, setSavedInvoice] = useState(null);
+  const [showInvoiceDialog, setShowInvoiceDialog] = useState(false);
+
   const { data: sales = [], isLoading } = useQuery({
     queryKey: ['sales', ownerFilter],
     queryFn: () => base44.entities.DailySales.filter(ownerFilter || {}, '-date', 2000), staleTime: 120000,
@@ -47,12 +59,10 @@ export default function Sales() {
   });
 
   // Only create wallet transactions for COUNTER (restaurant) sales.
-  // Delivery sales wallet entries are handled by the Delivery settlement workflow.
   const autoWalletTx = async (saleData, saleId, prevSale = null) => {
     const promises = [];
     const base = { date: saleData.date, branch: saleData.branch, auto_generated: true, reference_id: saleId };
 
-    // Remove old auto-generated tx for this sale if updating
     if (prevSale) {
       const existing = await base44.entities.WalletTransaction.filter({ reference_id: prevSale.id, auto_generated: true });
       await Promise.all(existing.map(tx => base44.entities.WalletTransaction.delete(tx.id)));
@@ -83,11 +93,38 @@ export default function Sales() {
     qc.invalidateQueries({ queryKey: ['wallet_transactions'] });
   };
 
+  // Auto-generate invoice after sale save
+  const autoGenerateInvoice = async (saleData, saleId) => {
+    try {
+      const restaurantId = activeRestaurant?.id;
+      const invNum = await generateSalesInvoiceNumber(restaurantId, saleData.date);
+
+      // Update daily_sales with invoice_number
+      await base44.entities.DailySales.update(saleId, { invoice_number: invNum });
+
+      const invoice = await createSalesInvoice({
+        invoiceNumber: invNum,
+        saleId,
+        saleData,
+        restaurantId,
+        createdBy: user?.email || '',
+      });
+
+      setSavedInvoice(invoice);
+      setShowInvoiceDialog(true);
+      qc.invalidateQueries({ queryKey: ['sales_invoices'] });
+      return invoice;
+    } catch (err) {
+      console.warn('[Sales] Invoice generation failed:', err.message);
+    }
+  };
+
   const createMut = useMutation({
     mutationFn: async ({ data, proofUrl, ocr }) => {
       const sale = await base44.entities.DailySales.create(data);
       await autoWalletTx(data, sale.id);
       try { await autoSettle(data, sale.id, proofUrl || null, ocr || null, null); } catch (e) { console.warn('autoSettle skipped:', e.message); }
+      await autoGenerateInvoice(data, sale.id);
       const total = (data.restaurant_cash || 0) + (data.restaurant_network || 0);
       await notif.sale({ branch: data.branch, amount: total, action: 'create' });
       return sale;
@@ -108,6 +145,8 @@ export default function Sales() {
       const sale = await base44.entities.DailySales.update(id, data);
       await autoWalletTx(data, id, prev);
       try { await autoSettle(data, id, proofUrl || null, ocr || null, prev); } catch (e) { console.warn('autoSettle skipped:', e.message); }
+      // Re-generate invoice on update (upsert by invoice_number)
+      await autoGenerateInvoice({ ...data, invoice_number: prev?.invoice_number }, id);
       const total = (data.restaurant_cash || 0) + (data.restaurant_network || 0);
       await notif.sale({ branch: data.branch, amount: total, action: 'update' });
       return sale;
@@ -252,6 +291,7 @@ export default function Sales() {
         </div>
       </div>
 
+      {/* Add Sale Dialog */}
       <Dialog open={showForm} onOpenChange={setShowForm}>
         <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{t('add_sales')}</DialogTitle></DialogHeader>
@@ -259,6 +299,7 @@ export default function Sales() {
         </DialogContent>
       </Dialog>
 
+      {/* Edit Sale Dialog */}
       <Dialog open={!!editing} onOpenChange={(open) => { if (!open) setEditing(null); }}>
         <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{t('edit_sales')}</DialogTitle></DialogHeader>
@@ -266,6 +307,7 @@ export default function Sales() {
         </DialogContent>
       </Dialog>
 
+      {/* Delete Confirmation */}
       <AlertDialog open={!!deleting} onOpenChange={(open) => { if (!open) setDeleting(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -278,6 +320,65 @@ export default function Sales() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Invoice Share/Download Dialog */}
+      <Dialog open={showInvoiceDialog} onOpenChange={setShowInvoiceDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="w-5 h-5 text-primary" />
+              Invoice Generated
+            </DialogTitle>
+          </DialogHeader>
+          {savedInvoice && (
+            <div className="space-y-4">
+              <div className="rounded-xl bg-primary/5 border border-primary/20 px-4 py-3 text-center">
+                <p className="text-xs text-muted-foreground mb-1">Invoice Number</p>
+                <p className="text-xl font-bold text-primary">{savedInvoice.invoice_number}</p>
+                <p className="text-xs text-muted-foreground mt-1">{savedInvoice.branch} · {savedInvoice.sale_date}</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  variant="outline"
+                  className="flex items-center gap-2 h-11"
+                  onClick={() => downloadInvoiceHTML(savedInvoice, 'RestoCTRL', currency)}
+                >
+                  <Download className="w-4 h-4" />
+                  Download
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex items-center gap-2 h-11"
+                  onClick={() => openInvoicePrint(savedInvoice, 'RestoCTRL', currency)}
+                >
+                  <FileText className="w-4 h-4" />
+                  View PDF
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex items-center gap-2 h-11"
+                  onClick={() => printInvoice(savedInvoice, 'RestoCTRL', currency)}
+                >
+                  <Printer className="w-4 h-4" />
+                  Print
+                </Button>
+                <Button
+                  className="flex items-center gap-2 h-11 bg-green-600 hover:bg-green-700 text-white"
+                  onClick={() => shareInvoiceWhatsApp(savedInvoice, currency)}
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  WhatsApp
+                </Button>
+              </div>
+
+              <Button variant="ghost" className="w-full" onClick={() => setShowInvoiceDialog(false)}>
+                Close
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <ExportDialog open={showExport} onClose={() => setShowExport(false)} onExport={handleExport} title={t('daily_sales')} />
     </div>
