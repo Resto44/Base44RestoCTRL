@@ -46,11 +46,6 @@ export default function CashRegisterCenter() {
   const { branches, ownerFilter } = useTenant();
   const [tab, setTab] = useState('dashboard');
   const [selectedBranch, setSelectedBranch] = useState('all');
-  const [showOpenModal, setShowOpenModal] = useState(false);
-  const [showCloseModal, setShowCloseModal] = useState(false);
-  const [openingAmount, setOpeningAmount] = useState('');
-  const [closingAmount, setClosingAmount] = useState('');
-
   const today = format(new Date(), 'yyyy-MM-dd');
 
   const { activeRestaurant } = useTenant();
@@ -80,10 +75,14 @@ export default function CashRegisterCenter() {
 
   const cashIn = todaySales.reduce((s, r) => s + (r.cash || 0), 0);
   const cashOut = todayExpenses.reduce((s, r) => s + (r.amount || 0), 0);
-  const openingCash = parseFloat(openingAmount) || 0;
+  
+  // Get latest opening/closing cash from the most recent sale record of today
+  const latestSale = useMemo(() => todaySales[0], [todaySales]);
+  const openingCash = latestSale?.opening_cash || 0;
+  const actualClosing = latestSale?.closing_cash || 0;
+  
   const expectedClosing = openingCash + cashIn - cashOut;
-  const actualClosing = parseFloat(closingAmount) || 0;
-  const variance = actualClosing - expectedClosing;
+  const variance = actualClosing > 0 ? actualClosing - expectedClosing : 0;
 
   const fmt = (n) => `${currency}${(n || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 
@@ -132,22 +131,22 @@ export default function CashRegisterCenter() {
         </SelectContent>
       </Select>
 
-      {/* Shift Controls */}
-      <div className="grid grid-cols-2 gap-2">
-        <Button
-          onClick={() => setShowOpenModal(true)}
-          className="h-12 gap-2 bg-emerald-500 hover:bg-emerald-600 text-white"
-        >
-          <Unlock className="w-4 h-4" />
-          <span className="text-sm font-semibold">{t('opening_cash')}</span>
-        </Button>
-        <Button
-          onClick={() => setShowCloseModal(true)}
-          className="h-12 gap-2 bg-red-500 hover:bg-red-600 text-white"
-        >
-          <Lock className="w-4 h-4" />
-          <span className="text-sm font-semibold">{t('closing_cash')}</span>
-        </Button>
+      {/* Shift Info */}
+      <div className="bg-muted/50 rounded-xl p-3 border border-border">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+          <Clock className="w-3 h-3" />
+          <span>Values below are automatically read from the latest **Add Sale** record for today.</span>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="bg-background rounded-lg p-2 border border-border">
+            <p className="text-[10px] text-muted-foreground uppercase font-bold">{t('opening_cash')}</p>
+            <p className="text-sm font-bold text-emerald-600">{fmt(openingCash)}</p>
+          </div>
+          <div className="bg-background rounded-lg p-2 border border-border">
+            <p className="text-[10px] text-muted-foreground uppercase font-bold">{t('closing_cash')}</p>
+            <p className="text-sm font-bold text-red-600">{fmt(actualClosing)}</p>
+          </div>
+        </div>
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
@@ -269,66 +268,7 @@ export default function CashRegisterCenter() {
         </TabsContent>
       </Tabs>
 
-      {/* Opening Cash Modal */}
-      <Dialog open={showOpenModal} onOpenChange={setShowOpenModal}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>{t('opening_cash')}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div>
-              <Label className="text-sm">{t('amount')} ({currency})</Label>
-              <Input
-                type="number"
-                value={openingAmount}
-                onChange={e => setOpeningAmount(e.target.value)}
-                placeholder="0.00"
-                className="mt-1.5"
-              />
-            </div>
-            <div className="flex gap-2">
-              <Button onClick={() => setShowOpenModal(false)} variant="outline" className="flex-1">{t('cancel')}</Button>
-              <Button onClick={() => setShowOpenModal(false)} className="flex-1 bg-emerald-500 hover:bg-emerald-600">{t('confirm')}</Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
 
-      {/* Closing Cash Modal */}
-      <Dialog open={showCloseModal} onOpenChange={setShowCloseModal}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>{t('closing_cash')}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="bg-muted rounded-lg p-3 space-y-1">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">{t('expected_closing')}</span>
-                <span className="font-semibold">{fmt(expectedClosing)}</span>
-              </div>
-            </div>
-            <div>
-              <Label className="text-sm">{t('actual_closing')} ({currency})</Label>
-              <Input
-                type="number"
-                value={closingAmount}
-                onChange={e => setClosingAmount(e.target.value)}
-                placeholder="0.00"
-                className="mt-1.5"
-              />
-            </div>
-            {closingAmount && (
-              <div className={`p-2 rounded-lg text-sm font-semibold text-center ${variance >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
-                {t('variance')}: {variance >= 0 ? '+' : ''}{fmt(variance)}
-              </div>
-            )}
-            <div className="flex gap-2">
-              <Button onClick={() => setShowCloseModal(false)} variant="outline" className="flex-1">{t('cancel')}</Button>
-              <Button onClick={() => setShowCloseModal(false)} className="flex-1 bg-red-500 hover:bg-red-600 text-white">{t('confirm')}</Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
