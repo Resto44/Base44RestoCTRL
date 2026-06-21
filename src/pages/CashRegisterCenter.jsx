@@ -53,18 +53,19 @@ export default function CashRegisterCenter() {
 
   const today = format(new Date(), 'yyyy-MM-dd');
 
+  const { activeRestaurant } = useTenant();
   const { data: allSales = [] } = useQuery({
-    queryKey: ['sales_cash', ownerFilter],
-    queryFn: () => base44.entities.DailySales.filter(ownerFilter || {}, '-date', 500),
+    queryKey: ['sales_cash', activeRestaurant?.id],
+    queryFn: () => base44.entities.DailySales.filter(activeRestaurant?.id ? { restaurant_id: activeRestaurant.id } : {}, '-date', 500),
+    enabled: !!activeRestaurant?.id,
     staleTime: 60000,
-    enabled: !!ownerFilter?.created_by,
   });
 
   const { data: allExpenses = [] } = useQuery({
-    queryKey: ['expenses_cash', ownerFilter],
-    queryFn: () => base44.entities.Expense.filter(ownerFilter || {}, '-date', 500),
+    queryKey: ['expenses_cash', activeRestaurant?.id],
+    queryFn: () => base44.entities.Expense.filter(activeRestaurant?.id ? { restaurant_id: activeRestaurant.id } : {}, '-date', 500),
+    enabled: !!activeRestaurant?.id,
     staleTime: 60000,
-    enabled: !!ownerFilter?.created_by,
   });
 
   const todaySales = useMemo(() =>
