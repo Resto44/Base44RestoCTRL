@@ -731,6 +731,13 @@ const translations = {
     powered_by_ai: 'Powered by AI',
     recommendations: 'For You',
     ai_chat: 'AI Chat',
+    // ── Online Ordering V2 ──
+    order_now: 'Order Now',
+    kitchen_v2: 'Kitchen V2',
+    driver_v2: 'Driver V2',
+    order_management: 'Order Management',
+    order_analytics: 'Order Analytics',
+    loyalty_v2: 'Loyalty V2',
     // ── General ──
     profile: 'Profile',
     type: 'Type',
@@ -1594,6 +1601,13 @@ const translations = {
     powered_by_ai: 'مدعوم بالذكاء الاصطناعي',
     recommendations: 'مقترح لك',
     ai_chat: 'محادثة ذكية',
+    // ── Online Ordering V2 ──
+    order_now: 'اطلب الآن',
+    kitchen_v2: 'المطبخ V2',
+    driver_v2: 'السائق V2',
+    order_management: 'إدارة الطلبات',
+    order_analytics: 'تحليلات الطلبات',
+    loyalty_v2: 'برنامج الولاء V2',
     // ── General ──
     profile: 'الملف الشخصي',
     type: 'النوع',

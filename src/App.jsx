@@ -31,6 +31,14 @@ const OwnerDashboard         = lazy(() => import('./pages/OwnerDashboard'));
 const CashRegisterCenter     = lazy(() => import('./pages/CashRegisterCenter'));
 const KitchenDisplaySystem   = lazy(() => import('./pages/KitchenDisplaySystem'));
 const OnlineOrdering         = lazy(() => import('./pages/OnlineOrdering'));
+// ── Online Ordering V2 ──────────────────────────────────────────────────────
+const OnlineOrderingV2       = lazy(() => import('./pages/OnlineOrderingV2'));
+const KitchenDashboardV2     = lazy(() => import('./pages/KitchenDashboardV2'));
+const DriverDashboardV2      = lazy(() => import('./pages/DriverDashboardV2'));
+const OrderManagementV2      = lazy(() => import('./pages/OrderManagementV2'));
+const PromotionsV2           = lazy(() => import('./pages/PromotionsV2'));
+const OrderAnalyticsV2       = lazy(() => import('./pages/OrderAnalyticsV2'));
+const LoyaltyProgramV2       = lazy(() => import('./pages/LoyaltyProgramV2'));
 const DriverManagement       = lazy(() => import('./pages/DriverManagement'));
 const CustomerManagement     = lazy(() => import('./pages/CustomerManagement'));
 const BranchCommandCenter    = lazy(() => import('./pages/BranchCommandCenter'));
@@ -307,6 +315,17 @@ const SubscribedRoutes = () => {
         <Route path="/cash-register" element={<RoleGuard permission="viewSales"><CashRegisterCenter /></RoleGuard>} />
         <Route path="/kds" element={<RoleGuard permission="viewSales"><KitchenDisplaySystem /></RoleGuard>} />
         <Route path="/online-ordering" element={<RoleGuard permission="viewSales"><OnlineOrdering /></RoleGuard>} />
+
+        {/* ── Online Ordering V2 ── */}
+        <Route path="/order" element={<OnlineOrderingV2 />} />
+        <Route path="/order/:branchSlug" element={<OnlineOrderingV2 />} />
+        <Route path="/order/track/:orderId" element={<OnlineOrderingV2 />} />
+        <Route path="/kitchen-v2" element={<KitchenDashboardV2 />} />
+        <Route path="/driver-v2" element={<DriverDashboardV2 />} />
+        <Route path="/order-management" element={<RoleGuard permission="viewSales"><OrderManagementV2 /></RoleGuard>} />
+        <Route path="/promotions" element={<RoleGuard permission="viewSales"><PromotionsV2 /></RoleGuard>} />
+        <Route path="/order-analytics" element={<RoleGuard permission="viewReports"><OrderAnalyticsV2 /></RoleGuard>} />
+        <Route path="/loyalty-v2" element={<RoleGuard permission="viewDebts"><LoyaltyProgramV2 /></RoleGuard>} />
         <Route path="/driver-management" element={<RoleGuard permission="viewEmployees"><DriverManagement /></RoleGuard>} />
         <Route path="/customer-management" element={<RoleGuard permission="viewDebts"><CustomerManagement /></RoleGuard>} />
         <Route path="/branch-command-center" element={<RoleGuard permission="viewDashboard"><BranchCommandCenter /></RoleGuard>} />

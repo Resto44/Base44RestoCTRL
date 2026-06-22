@@ -30,6 +30,7 @@ const PRIMARY_NAV = {
     { path: '/tasks',                icon: ClipboardList,   labelKey: 'tasks' },
   ],
   [ROLES.DRIVER]: [
+    { path: '/driver-v2',            icon: Truck,           labelKey: 'my_orders' },
     { path: '/driver-dashboard',     icon: LayoutDashboard, labelKey: 'dashboard' },
     { path: '/delivery',             icon: Truck,           labelKey: 'delivery' },
   ],
@@ -38,10 +39,12 @@ const PRIMARY_NAV = {
     { path: '/sponsor-treasury',     icon: Wallet,          labelKey: 'treasury' },
   ],
   [ROLES.KITCHEN]: [
+    { path: '/kitchen-v2',           icon: ChefHat,         labelKey: 'kitchen_v2' },
     { path: '/kds',                  icon: ChefHat,         labelKey: 'kds' },
     { path: '/kitchen-dashboard',    icon: LayoutDashboard, labelKey: 'dashboard' },
   ],
   [ROLES.CUSTOMER]: [
+    { path: '/order',                icon: ShoppingBag,     labelKey: 'order_now' },
     { path: '/online-ordering',      icon: ShoppingBag,     labelKey: 'menu_page' },
     { path: '/customer-dashboard',   icon: LayoutDashboard, labelKey: 'dashboard' },
   ],
@@ -55,6 +58,10 @@ const MORE_SECTIONS_OWNER = [
       { path: '/sales/invoices',            icon: Receipt,     labelKey: 'sales_invoices' },
       { path: '/kds',                      icon: ChefHat,     labelKey: 'kds' },
       { path: '/online-ordering',          icon: ShoppingCart,labelKey: 'online_ordering' },
+      { path: '/order',                    icon: ShoppingBag, labelKey: 'order_now' },
+      { path: '/order-management',         icon: Package,     labelKey: 'order_management' },
+      { path: '/kitchen-v2',               icon: ChefHat,     labelKey: 'kitchen_v2' },
+      { path: '/driver-v2',                icon: Truck,       labelKey: 'driver_v2' },
       { path: '/reservations',             icon: Calendar,    labelKey: 'reservations' },
     ],
   },
@@ -62,6 +69,7 @@ const MORE_SECTIONS_OWNER = [
     title: 'Analytics',
     items: [
       { path: '/network-management',        icon: Building2,   labelKey: 'network_management' },
+      { path: '/order-analytics',          icon: BarChart3,   labelKey: 'order_analytics' },
       { path: '/bi-center',                icon: BarChart3,   labelKey: 'bi_center' },
       { path: '/branch-command-center',    icon: Building2,   labelKey: 'branch_command_center' },
       { path: '/reports',                  icon: TrendingUp,  labelKey: 'reports' },
@@ -83,6 +91,8 @@ const MORE_SECTIONS_OWNER = [
     items: [
       { path: '/driver-management',        icon: Truck,       labelKey: 'driver_management' },
       { path: '/customer-management',      icon: Star,        labelKey: 'customer_management' },
+      { path: '/loyalty-v2',               icon: Star,        labelKey: 'loyalty_v2' },
+      { path: '/promotions',               icon: Package,     labelKey: 'promotions' },
       { path: '/employees',                icon: Users,       labelKey: 'employees' },
       { path: '/debt-management',           icon: CreditCard,  labelKey: 'debt_management' },
       { path: '/treasury',                 icon: Wallet,      labelKey: 'treasury' },
