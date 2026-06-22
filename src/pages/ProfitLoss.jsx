@@ -77,26 +77,26 @@ export default function ProfitLoss() {
 
   const { data: sales = [] } = useQuery({
     queryKey: ['sales', activeRestaurant?.id],
-    queryFn: () => base44.entities.DailySales.filter(activeRestaurant?.id ? { restaurant_id: activeRestaurant.id } : {}, '-date', 2000),
+    queryFn: () => base44.entities.DailySales.filter(activeRestaurant?.id ? { restaurant_id: activeRestaurant.id, organization_id: activeRestaurant.org_id } : {}, '-date', 2000),
     enabled: !!activeRestaurant?.id,
     staleTime: 120000
   });
   const { data: purchases = [] } = useQuery({
     queryKey: ['purchases', activeRestaurant?.id],
-    queryFn: () => base44.entities.Purchase.filter(activeRestaurant?.id ? { restaurant_id: activeRestaurant.id } : {}, '-date', 2000),
+    queryFn: () => base44.entities.Purchase.filter(activeRestaurant?.id ? { restaurant_id: activeRestaurant.id, organization_id: activeRestaurant.org_id } : {}, '-date', 2000),
     enabled: !!activeRestaurant?.id,
     staleTime: 120000
   });
   const { data: expenses = [] } = useQuery({
     queryKey: ['expenses', activeRestaurant?.id],
-    queryFn: () => base44.entities.Expense.filter(activeRestaurant?.id ? { restaurant_id: activeRestaurant.id } : {}, '-date', 2000),
+    queryFn: () => base44.entities.Expense.filter(activeRestaurant?.id ? { restaurant_id: activeRestaurant.id, organization_id: activeRestaurant.org_id } : {}, '-date', 2000),
     enabled: !!activeRestaurant?.id,
     staleTime: 120000
   });
   const { data: expenseCategories = [] } = useExpenseCategories();
   const { data: wastes = [] } = useQuery({
     queryKey: ['inventory_waste', activeRestaurant?.id],
-    queryFn: () => base44.entities.InventoryWaste.filter(activeRestaurant?.id ? { restaurant_id: activeRestaurant.id } : {}, '-date', 2000),
+    queryFn: () => base44.entities.InventoryWaste.filter(activeRestaurant?.id ? { restaurant_id: activeRestaurant.id, organization_id: activeRestaurant.org_id } : {}, '-date', 2000),
     enabled: !!activeRestaurant?.id,
     staleTime: 120000
   });

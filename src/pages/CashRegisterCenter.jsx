@@ -70,7 +70,7 @@ export default function CashRegisterCenter() {
 
   const { data: allSales = [], isLoading } = useQuery({
     queryKey: ['sales_cash', ownerFilter],
-    queryFn: () => base44.entities.DailySales.filter(ownerFilter || {}, '-date', 500),
+    queryFn: () => base44.entities.DailySales.filter({ ...ownerFilter, organization_id: ownerFilter?.created_by } || {}, '-date', 500),
     enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
     staleTime: 30000,
   });

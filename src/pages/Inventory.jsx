@@ -64,6 +64,13 @@ export default function Inventory() {
 
   const saveMutation = useMutation({
     mutationFn: async (data) => {
+      if (!data.product_id || !data.branch) {
+        throw new Error('Product and Branch are required');
+      }
+      if (data.opening_stock < 0 || data.low_stock_threshold < 0) {
+        throw new Error('Stock values cannot be negative');
+      }
+      
       const res = editing 
         ? await base44.entities.Inventory.update(editing.id, data) 
         : await base44.entities.Inventory.create({ ...data, ...(ownerFilter || {}) });
@@ -82,6 +89,10 @@ export default function Inventory() {
       return res;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['inventory'] }); closeForm(); },
+    onError: (err) => {
+      console.error('[Inventory] Save error:', err);
+      alert(err.message || 'Failed to save inventory item');
+    },
   });
 
   const openAdd = () => { setEditing(null); setForm(emptyForm); setShowForm(true); };
