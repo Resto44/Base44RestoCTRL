@@ -73,6 +73,34 @@
     "notes": {
       "type": "string",
       "description": "Optional notes"
+    },
+    "restaurant_id": {
+      "type": "string",
+      "description": "Reference to Restaurant"
+    },
+    "opening_cash": {
+      "type": "number",
+      "default": 0,
+      "description": "Opening cash balance"
+    },
+    "closing_cash": {
+      "type": "number",
+      "default": 0,
+      "description": "Closing cash balance"
+    },
+    "cash_difference": {
+      "type": "number",
+      "default": 0,
+      "description": "Closing - Opening difference"
+    },
+    "cash_status": {
+      "type": "string",
+      "default": "Balanced",
+      "description": "Balanced, Shortage, or Overage"
+    },
+    "cash_notes": {
+      "type": "string",
+      "description": "Notes specifically for cash reconciliation"
     }
   },
   "required": [

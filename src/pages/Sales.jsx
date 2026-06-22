@@ -188,6 +188,10 @@ export default function Sales() {
   });
 
   const handleSave = async (data, proofUrl, ocr) => {
+    // Ensure restaurant_id is included for correct scoping in Cash Register Center
+    if (activeRestaurant?.id) {
+      data.restaurant_id = activeRestaurant.id;
+    }
     const existing = sales.find(s => s.date === data.date && s.branch === data.branch);
     if (existing && !editing) {
       await updateMut.mutateAsync({ id: existing.id, data, prev: existing, proofUrl, ocr });
