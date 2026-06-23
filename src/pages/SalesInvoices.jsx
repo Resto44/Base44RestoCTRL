@@ -97,7 +97,7 @@ function InvoiceCard({ invoice, currency, onView, onDownload, onPrint, onWhatsAp
 
 export default function SalesInvoices() {
   const { currency } = useLanguage();
-  const { branches, activeRestaurant } = useTenant();
+  const { branches, activeRestaurant, ownerFilter } = useTenant();
   const [search, setSearch] = useState('');
   const [filterBranch, setFilterBranch] = useState('all');
   const [filterFrom, setFilterFrom] = useState('');
@@ -105,19 +105,26 @@ export default function SalesInvoices() {
   const [viewInvoice, setViewInvoice] = useState(null);
 
   const { data: invoices = [], isLoading } = useQuery({
-    queryKey: ['sales_invoices', activeRestaurant?.id],
+    queryKey: ['sales_invoices', ownerFilter, activeRestaurant?.id],
     queryFn: async () => {
+      // MULTI-TENANT SECURITY: always filter by created_by (owner email)
       let query = supabase
         .from('sales_invoices')
         .select('*')
         .order('sale_date', { ascending: false })
         .order('created_date', { ascending: false })
         .limit(500);
+      // Apply tenant isolation
+      if (ownerFilter?.created_by) {
+        query = query.eq('created_by', ownerFilter.created_by);
+      } else if (ownerFilter?.branch) {
+        query = query.eq('branch', ownerFilter.branch);
+      }
       const { data, error } = await query;
       if (error) throw error;
       return data || [];
     },
-    enabled: true,
+    enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
     staleTime: 30000,
   });
 
@@ -272,6 +279,12 @@ export default function SalesInvoices() {
               {/* Sales */}
               <div className="rounded-xl bg-blue-50 border border-blue-200 p-4 space-y-2">
                 <p className="text-xs font-bold text-blue-800 uppercase">Sales Breakdown</p>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Cash Sales (Closing − Opening)</span>
+                  <span className="font-medium text-emerald-600">
+                    {fmt(viewInvoice.cash_sales ?? Math.max(0, Number(viewInvoice.closing_cash) - Number(viewInvoice.opening_cash)))}
+                  </span>
+                </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Network Sales</span>
                   <span className="font-medium">{fmt(viewInvoice.network_sales)}</span>

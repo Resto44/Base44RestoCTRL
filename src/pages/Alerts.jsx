@@ -12,36 +12,39 @@ import { currentMonth, monthRange, summariseAttendance } from '@/lib/payrollEngi
 
 export default function Alerts() {
   const { t, currency, branches } = useLanguage();
-  const { activeRestaurant } = useTenant();
+  const { activeRestaurant, ownerFilter } = useTenant();
+  // MULTI-TENANT SECURITY: always use ownerFilter (created_by or branch) to scope all queries
+  const tenantFilter = ownerFilter || {};
+  const tenantEnabled = !!(ownerFilter?.created_by || ownerFilter?.branch);
 
   const { data: sales = [] } = useQuery({
-    queryKey: ['sales', activeRestaurant?.id],
-    queryFn: () => base44.entities.DailySales.filter(activeRestaurant?.id ? { restaurant_id: activeRestaurant.id } : {}, '-date', 1000),
-    enabled: !!activeRestaurant?.id,
+    queryKey: ['sales', ownerFilter],
+    queryFn: () => base44.entities.DailySales.filter(tenantFilter, '-date', 1000),
+    enabled: tenantEnabled,
     staleTime: 120000
   });
   const { data: purchases = [] } = useQuery({
-    queryKey: ['purchases', activeRestaurant?.id],
-    queryFn: () => base44.entities.Purchase.filter(activeRestaurant?.id ? { restaurant_id: activeRestaurant.id } : {}, '-date', 1000),
-    enabled: !!activeRestaurant?.id,
+    queryKey: ['purchases', ownerFilter],
+    queryFn: () => base44.entities.Purchase.filter(tenantFilter, '-date', 1000),
+    enabled: tenantEnabled,
     staleTime: 120000
   });
   const { data: attendanceAll = [] } = useQuery({
-    queryKey: ['attendance', activeRestaurant?.id],
-    queryFn: () => base44.entities.Attendance.filter(activeRestaurant?.id ? { restaurant_id: activeRestaurant.id } : {}, '-date', 1000),
-    enabled: !!activeRestaurant?.id,
+    queryKey: ['attendance', ownerFilter],
+    queryFn: () => base44.entities.Attendance.filter(tenantFilter, '-date', 1000),
+    enabled: tenantEnabled,
     staleTime: 300000
   });
   const { data: bonusesAll = [] } = useQuery({
-    queryKey: ['employee_bonuses', activeRestaurant?.id],
-    queryFn: () => base44.entities.EmployeeBonus.filter(activeRestaurant?.id ? { restaurant_id: activeRestaurant.id } : {}, '-date', 500),
-    enabled: !!activeRestaurant?.id,
+    queryKey: ['employee_bonuses', ownerFilter],
+    queryFn: () => base44.entities.EmployeeBonus.filter(tenantFilter, '-date', 500),
+    enabled: tenantEnabled,
     staleTime: 300000
   });
   const { data: employees = [] } = useQuery({
-    queryKey: ['employees', activeRestaurant?.id],
-    queryFn: () => base44.entities.Employee.filter(activeRestaurant?.id ? { restaurant_id: activeRestaurant.id } : {}, 'name', 500),
-    enabled: !!activeRestaurant?.id,
+    queryKey: ['employees', ownerFilter],
+    queryFn: () => base44.entities.Employee.filter(tenantFilter, 'name', 500),
+    enabled: tenantEnabled,
     staleTime: 600000
   });
 

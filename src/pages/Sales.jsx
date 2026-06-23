@@ -95,6 +95,86 @@ export default function Sales() {
     qc.invalidateQueries({ queryKey: ['wallet_transactions'] });
   };
 
+  // Auto-save customer credit entries to DebtRecord + DebtPayment
+  // Debt Management is the single source of truth for customer credit
+  const autoSaveCreditDebts = async (saleData, saleId) => {
+    if (!saleData.credit_entries_json) return;
+    let entries = [];
+    try { entries = JSON.parse(saleData.credit_entries_json); } catch { return; }
+    if (!entries.length) return;
+
+    for (const entry of entries) {
+      const amt = Number(entry.amount) || 0;
+      if (amt <= 0) continue;
+
+      const customerName = entry.customer || 'Unknown Customer';
+      const customerId = entry.customer_id;
+
+      // If we have a customer_id, update their existing DebtRecord
+      if (customerId) {
+        try {
+          // Fetch the current debt record
+          const existing = await base44.entities.DebtRecord.filter({ id: customerId });
+          const debtRecord = existing[0];
+          if (debtRecord) {
+            const newTotal = (debtRecord.total_amount || 0) + amt;
+            const newRemaining = (debtRecord.remaining_amount || 0) + amt;
+            const newStatus = newRemaining > 0 ? (debtRecord.paid_amount > 0 ? 'partial' : 'open') : 'paid';
+            await base44.entities.DebtRecord.update(debtRecord.id, {
+              total_amount: newTotal,
+              remaining_amount: newRemaining,
+              status: newStatus,
+            });
+            // Record the transaction in DebtPayment
+            await base44.entities.DebtPayment.create({
+              debt_id: debtRecord.id,
+              party_name: debtRecord.party_name,
+              date: saleData.date,
+              amount: -amt, // negative = new debt added (not a payment)
+              payment_method: 'credit',
+              notes: `Credit sale from daily sales — ${saleData.date} — Branch: ${saleData.branch}`,
+              recorded_by: user?.email || '',
+              recorded_by_name: user?.full_name || user?.email || '',
+            });
+          }
+        } catch (e) { console.warn('[autoSaveCreditDebts] update failed:', e.message); }
+      } else {
+        // Create a new DebtRecord for this customer
+        try {
+          const newDebt = await base44.entities.DebtRecord.create({
+            type: 'receivable',
+            party_type: 'customer',
+            party_name: customerName,
+            party_phone: entry.customer_phone || '',
+            branch: saleData.branch,
+            date: saleData.date,
+            total_amount: amt,
+            paid_amount: 0,
+            remaining_amount: amt,
+            status: 'open',
+            description: `Credit sale — ${saleData.date}`,
+            notes: entry.notes || '',
+          });
+          // Record the transaction
+          await base44.entities.DebtPayment.create({
+            debt_id: newDebt.id,
+            party_name: customerName,
+            date: saleData.date,
+            amount: -amt,
+            payment_method: 'credit',
+            notes: `Credit sale from daily sales — ${saleData.date}`,
+            recorded_by: user?.email || '',
+          });
+        } catch (e) { console.warn('[autoSaveCreditDebts] create failed:', e.message); }
+      }
+    }
+
+    // Invalidate debt queries so dashboard updates instantly
+    qc.invalidateQueries({ queryKey: ['debts_customer'] });
+    qc.invalidateQueries({ queryKey: ['debts_customer_dash'] });
+    qc.invalidateQueries({ queryKey: ['debt_customers_form'] });
+  };
+
   // Auto-generate invoice after sale save
   const autoGenerateInvoice = async (saleData, saleId) => {
     try {
@@ -142,8 +222,10 @@ export default function Sales() {
       const sale = await base44.entities.DailySales.create(data);
       await autoWalletTx(data, sale.id);
       try { await autoSettle(data, sale.id, proofUrl || null, ocr || null, null); } catch (e) { console.warn('autoSettle skipped:', e.message); }
+      // Save customer credit entries to Debt Management (single source of truth)
+      await autoSaveCreditDebts(data, sale.id);
       await autoGenerateInvoice(data, sale.id);
-      const total = (data.restaurant_cash || 0) + (data.restaurant_network || 0);
+      const total = (data.restaurant_cash || 0) + (data.restaurant_network || 0) + (data.credit || 0);
       await notif.sale({ branch: data.branch, amount: total, action: 'create' });
       return sale;
     },
@@ -151,6 +233,8 @@ export default function Sales() {
       qc.invalidateQueries({ queryKey: ['sales'] });
       qc.invalidateQueries({ queryKey: ['sales_cash'] });
       qc.invalidateQueries({ queryKey: ['sales_daily'] });
+      qc.invalidateQueries({ queryKey: ['sales_today'] });
+      qc.invalidateQueries({ queryKey: ['sales_month'] });
       qc.invalidateQueries({ queryKey: ['settlements_all'] });
       qc.invalidateQueries({ queryKey: ['settlements_mgr'] });
       qc.invalidateQueries({ queryKey: ['wallet_transactions'] });
@@ -163,9 +247,11 @@ export default function Sales() {
       const sale = await base44.entities.DailySales.update(id, data);
       await autoWalletTx(data, id, prev);
       try { await autoSettle(data, id, proofUrl || null, ocr || null, prev); } catch (e) { console.warn('autoSettle skipped:', e.message); }
+      // Save customer credit entries to Debt Management (single source of truth)
+      await autoSaveCreditDebts(data, id);
       // Re-generate invoice on update (upsert by invoice_number)
       await autoGenerateInvoice({ ...data, invoice_number: prev?.invoice_number }, id);
-      const total = (data.restaurant_cash || 0) + (data.restaurant_network || 0);
+      const total = (data.restaurant_cash || 0) + (data.restaurant_network || 0) + (data.credit || 0);
       await notif.sale({ branch: data.branch, amount: total, action: 'update' });
       return sale;
     },
@@ -173,6 +259,8 @@ export default function Sales() {
       qc.invalidateQueries({ queryKey: ['sales'] });
       qc.invalidateQueries({ queryKey: ['sales_cash'] });
       qc.invalidateQueries({ queryKey: ['sales_daily'] });
+      qc.invalidateQueries({ queryKey: ['sales_today'] });
+      qc.invalidateQueries({ queryKey: ['sales_month'] });
       qc.invalidateQueries({ queryKey: ['settlements_all'] });
       qc.invalidateQueries({ queryKey: ['settlements_mgr'] });
       setEditing(null);

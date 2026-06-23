@@ -78,29 +78,32 @@ export default function CashFlow() {
     return user?.branch || selectedBranch === 'all' ? null : selectedBranch;
   }, [role, user, selectedBranch]);
 
-  const { activeRestaurant } = useTenant();
+  const { activeRestaurant, ownerFilter } = useTenant();
+  // MULTI-TENANT SECURITY: always use ownerFilter to scope all queries
+  const tenantFilter = ownerFilter || {};
+  const tenantEnabled = !!(ownerFilter?.created_by || ownerFilter?.branch);
   const { data: sales = [] } = useQuery({
-    queryKey: ['sales', activeRestaurant?.id],
-    queryFn: () => base44.entities.DailySales.filter(activeRestaurant?.id ? { restaurant_id: activeRestaurant.id } : {}, '-date', 2000),
-    enabled: !!activeRestaurant?.id,
+    queryKey: ['sales', ownerFilter],
+    queryFn: () => base44.entities.DailySales.filter(tenantFilter, '-date', 2000),
+    enabled: tenantEnabled,
     staleTime: 120000
   });
   const { data: purchases = [] } = useQuery({
-    queryKey: ['purchases', activeRestaurant?.id],
-    queryFn: () => base44.entities.Purchase.filter(activeRestaurant?.id ? { restaurant_id: activeRestaurant.id } : {}, '-date', 2000),
-    enabled: !!activeRestaurant?.id,
+    queryKey: ['purchases', ownerFilter],
+    queryFn: () => base44.entities.Purchase.filter(tenantFilter, '-date', 2000),
+    enabled: tenantEnabled,
     staleTime: 120000
   });
   const { data: expenses = [] } = useQuery({
-    queryKey: ['expenses', activeRestaurant?.id],
-    queryFn: () => base44.entities.Expense.filter(activeRestaurant?.id ? { restaurant_id: activeRestaurant.id } : {}, '-date', 2000),
-    enabled: !!activeRestaurant?.id,
+    queryKey: ['expenses', ownerFilter],
+    queryFn: () => base44.entities.Expense.filter(tenantFilter, '-date', 2000),
+    enabled: tenantEnabled,
     staleTime: 120000
   });
   const { data: collections = [] } = useQuery({
-    queryKey: ['collections', activeRestaurant?.id],
-    queryFn: () => base44.entities.CreditCollection.filter(activeRestaurant?.id ? { restaurant_id: activeRestaurant.id } : {}, '-date', 2000),
-    enabled: !!activeRestaurant?.id,
+    queryKey: ['collections', ownerFilter],
+    queryFn: () => base44.entities.CreditCollection.filter(tenantFilter, '-date', 2000),
+    enabled: tenantEnabled,
     staleTime: 120000
   });
 

@@ -1,3 +1,27 @@
+/**
+ * OwnerDashboard — Restaurant Owner Executive Dashboard
+ *
+ * ROW 1 (Top KPIs):
+ *   Today's Sales = Cash Sales (closing-opening) + Network Sales + Customer Credit Sales
+ *   Today's Purchases = Warehouse Purchases + Supplier Purchases
+ *   Today's Profit = Today's Sales - Today's Purchases  (NO monthly expenses deducted)
+ *   Cash In Register = Latest Closing Cash
+ *
+ * ROW 2:
+ *   Network Balance | Customer Credit Balance | Supplier Payables | Inventory Value
+ *
+ * ROW 3 (Alerts):
+ *   Low Stock Alerts | Out Of Stock Items | Pending Supplier Payments | Pending Customer Debts
+ *
+ * ROW 4 (Monthly):
+ *   Today's Orders | Today's Invoices | Monthly Sales | Monthly Net Profit
+ *
+ * QUICK ACTIONS (8):
+ *   Add Sale | Add Purchase | Add Expense | Receive Debt |
+ *   Supplier Payment | Create Invoice | Add Product | Stock Transfer
+ *
+ * REMOVED FROM TOP: Active Employees, Active Drivers, Profit Margin, Revenue This Month
+ */
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -5,61 +29,72 @@ import { base44 } from '@/api/base44Client';
 import { useLanguage } from '@/lib/LanguageContext';
 import { useTenant } from '@/lib/TenantContext';
 import { useRole, ROLES } from '@/lib/RoleContext';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   TrendingUp, TrendingDown, DollarSign, ShoppingCart, Package,
-  Users, Truck, Building2, AlertTriangle, Zap, BarChart3,
-  ArrowUpRight, ArrowDownRight, Plus, CreditCard, Wallet,
-  Receipt, Target, Award, Star, ChevronRight, RefreshCw,
-  Activity, PieChart, Clock, CheckCircle2
+  Users, Truck, AlertTriangle, Zap, Wifi,
+  Plus, CreditCard, Wallet, Receipt, ChevronRight,
+  RefreshCw, Banknote, ArrowDownLeft, Store, BarChart3,
+  PackagePlus, ArrowLeftRight, FileText, ShoppingBag
 } from 'lucide-react';
-import {
-  AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, PieChart as RechartsPie, Pie, Cell, Legend
-} from 'recharts';
-import { format, subDays } from 'date-fns';
+import { format, startOfMonth } from 'date-fns';
 import SalesForm from '@/components/sales/SalesForm';
 import { useNotify } from '@/lib/useNotify';
 import { useAuth } from '@/lib/AuthContext';
 import { useNetworkSettlement } from '@/hooks/useNetworkSettlement';
+import {
+  generateSalesInvoiceNumber,
+  createSalesInvoice,
+  generateAndUploadPDF,
+} from '@/lib/salesInvoiceService';
 
-// ── KPI Card Component ────────────────────────────────────────────────────────
-function KPICard({ title, value, subtitle, icon: Icon, trend, trendValue, color = 'blue', onClick }) {
+// ── KPI Card ─────────────────────────────────────────────────────────────────
+function KPICard({ title, value, subtitle, icon: Icon, color = 'blue', onClick, large = false }) {
   const colorMap = {
-    blue:   { bg: 'bg-blue-50 dark:bg-blue-950',   icon: 'text-blue-600',   border: 'border-blue-100 dark:border-blue-900' },
+    blue:   { bg: 'bg-blue-50 dark:bg-blue-950',     icon: 'text-blue-600',    border: 'border-blue-100 dark:border-blue-900' },
     green:  { bg: 'bg-emerald-50 dark:bg-emerald-950', icon: 'text-emerald-600', border: 'border-emerald-100 dark:border-emerald-900' },
-    amber:  { bg: 'bg-amber-50 dark:bg-amber-950',  icon: 'text-amber-600',  border: 'border-amber-100 dark:border-amber-900' },
-    red:    { bg: 'bg-red-50 dark:bg-red-950',      icon: 'text-red-600',    border: 'border-red-100 dark:border-red-900' },
-    purple: { bg: 'bg-purple-50 dark:bg-purple-950',icon: 'text-purple-600', border: 'border-purple-100 dark:border-purple-900' },
-    cyan:   { bg: 'bg-cyan-50 dark:bg-cyan-950',    icon: 'text-cyan-600',   border: 'border-cyan-100 dark:border-cyan-900' },
+    amber:  { bg: 'bg-amber-50 dark:bg-amber-950',   icon: 'text-amber-600',   border: 'border-amber-100 dark:border-amber-900' },
+    red:    { bg: 'bg-red-50 dark:bg-red-950',       icon: 'text-red-600',     border: 'border-red-100 dark:border-red-900' },
+    purple: { bg: 'bg-purple-50 dark:bg-purple-950', icon: 'text-purple-600',  border: 'border-purple-100 dark:border-purple-900' },
+    cyan:   { bg: 'bg-cyan-50 dark:bg-cyan-950',     icon: 'text-cyan-600',    border: 'border-cyan-100 dark:border-cyan-900' },
+    orange: { bg: 'bg-orange-50 dark:bg-orange-950', icon: 'text-orange-600',  border: 'border-orange-100 dark:border-orange-900' },
   };
   const c = colorMap[color] || colorMap.blue;
   return (
     <Card
-      className={`border ${c.border} cursor-pointer hover:shadow-md transition-all active:scale-[0.98]`}
+      className={`border ${c.border} ${onClick ? 'cursor-pointer hover:shadow-md active:scale-[0.98]' : ''} transition-all`}
       onClick={onClick}
     >
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between gap-2">
-          <div className={`w-10 h-10 rounded-xl ${c.bg} flex items-center justify-center shrink-0`}>
-            <Icon className={`w-5 h-5 ${c.icon}`} />
-          </div>
-          {trend !== undefined && (
-            <div className={`flex items-center gap-0.5 text-xs font-semibold ${trend >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-              {trend >= 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-              {Math.abs(trendValue ?? trend)}%
-            </div>
-          )}
+      <CardContent className="p-3">
+        <div className={`w-9 h-9 rounded-xl ${c.bg} flex items-center justify-center mb-2`}>
+          <Icon className={`w-4 h-4 ${c.icon}`} />
         </div>
-        <div className="mt-3">
-          <p className="text-2xl font-bold text-foreground leading-tight">{value}</p>
-          <p className="text-xs font-medium text-muted-foreground mt-0.5">{title}</p>
-          {subtitle && <p className="text-[11px] text-muted-foreground/70 mt-0.5">{subtitle}</p>}
+        <p className={`font-bold text-foreground leading-tight ${large ? 'text-xl' : 'text-lg'}`}>{value}</p>
+        <p className="text-[11px] font-medium text-muted-foreground mt-0.5 leading-tight">{title}</p>
+        {subtitle && <p className="text-[10px] text-muted-foreground/70 mt-0.5">{subtitle}</p>}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── Alert Card ────────────────────────────────────────────────────────────────
+function AlertCard({ title, count, icon: Icon, color = 'amber', onClick }) {
+  const colorMap = {
+    amber: { bg: 'bg-amber-50 dark:bg-amber-950', border: 'border-amber-200', icon: 'text-amber-600', badge: 'bg-amber-500' },
+    red:   { bg: 'bg-red-50 dark:bg-red-950',     border: 'border-red-200',   icon: 'text-red-600',   badge: 'bg-red-500' },
+    blue:  { bg: 'bg-blue-50 dark:bg-blue-950',   border: 'border-blue-200',  icon: 'text-blue-600',  badge: 'bg-blue-500' },
+  };
+  const c = colorMap[color] || colorMap.amber;
+  return (
+    <Card className={`border ${c.border} ${c.bg} ${onClick ? 'cursor-pointer active:scale-[0.98]' : ''} transition-all`} onClick={onClick}>
+      <CardContent className="p-3 flex items-center gap-2">
+        <Icon className={`w-4 h-4 shrink-0 ${c.icon}`} />
+        <div className="flex-1 min-w-0">
+          <p className="text-[11px] font-medium text-foreground leading-tight truncate">{title}</p>
         </div>
+        <span className={`text-white text-xs font-bold rounded-full px-2 py-0.5 ${c.badge} shrink-0`}>{count}</span>
       </CardContent>
     </Card>
   );
@@ -73,6 +108,9 @@ function QuickActionBtn({ icon: Icon, label, color, onClick }) {
     amber:  'bg-amber-500 hover:bg-amber-600',
     purple: 'bg-purple-500 hover:bg-purple-600',
     red:    'bg-red-500 hover:bg-red-600',
+    cyan:   'bg-cyan-500 hover:bg-cyan-600',
+    orange: 'bg-orange-500 hover:bg-orange-600',
+    indigo: 'bg-indigo-500 hover:bg-indigo-600',
   };
   return (
     <button
@@ -85,91 +123,231 @@ function QuickActionBtn({ icon: Icon, label, color, onClick }) {
   );
 }
 
-// ── Branch Ranking Card ───────────────────────────────────────────────────────
-function BranchRankCard({ rank, name, revenue, profit, trend, currency }) {
-  const medals = ['🥇', '🥈', '🥉'];
+// ── Section Label ─────────────────────────────────────────────────────────────
+function SectionLabel({ children }) {
   return (
-    <div className="flex items-center gap-3 py-2.5 border-b border-border last:border-0">
-      <span className="text-lg w-7 text-center">{medals[rank - 1] || `#${rank}`}</span>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-foreground truncate">{name}</p>
-        <p className="text-xs text-muted-foreground">{currency}{revenue?.toLocaleString()}</p>
-      </div>
-      <div className="text-right shrink-0">
-        <p className={`text-xs font-bold ${profit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-          {profit >= 0 ? '+' : ''}{currency}{profit?.toLocaleString()}
-        </p>
-        <div className={`flex items-center gap-0.5 justify-end text-[10px] ${trend >= 0 ? 'text-emerald-500' : 'text-red-400'}`}>
-          {trend >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-          {Math.abs(trend)}%
-        </div>
-      </div>
-    </div>
+    <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-0.5 mb-2">{children}</p>
   );
 }
 
 // ── Main Dashboard ────────────────────────────────────────────────────────────
 export default function OwnerDashboard() {
-  const { t, currency, lang } = useLanguage();
-  const { branches, ownerFilter, orgId } = useTenant();
+  const { t, currency } = useLanguage();
+  const { branches, ownerFilter, orgId, activeRestaurant } = useTenant();
   const { role } = useRole();
   const { user } = useAuth();
   const navigate = useNavigate();
   const notif = useNotify();
   const qc = useQueryClient();
   const { autoSettle } = useNetworkSettlement({ orgId, user, currency });
-  const [activeTab, setActiveTab] = useState('overview');
   const [showSaleModal, setShowSaleModal] = useState(false);
-  const today = format(new Date(), 'yyyy-MM-dd');
-  const monthStart = format(new Date(new Date().getFullYear(), new Date().getMonth(), 1), 'yyyy-MM-dd');
 
-  // Data queries
-  const { data: allSales = [], isLoading: loadingSales } = useQuery({
-    queryKey: ['sales_dashboard', ownerFilter],
+  const today = format(new Date(), 'yyyy-MM-dd');
+  const monthStart = format(startOfMonth(new Date()), 'yyyy-MM-dd');
+
+  // ── Data Queries ─────────────────────────────────────────────────────────────
+  const { data: todaySales = [], isLoading: loadingSales } = useQuery({
+    queryKey: ['sales_today', ownerFilter, today],
+    queryFn: () => base44.entities.DailySales.filter({ ...(ownerFilter || {}), date: today }, '-date', 100),
+    staleTime: 15000,
+    enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
+  });
+
+  const { data: monthSales = [] } = useQuery({
+    queryKey: ['sales_month', ownerFilter, monthStart],
     queryFn: () => base44.entities.DailySales.filter(ownerFilter || {}, '-date', 1000),
     staleTime: 60000,
-    enabled: !!ownerFilter?.created_by,
-  });
-  const { data: allPurchases = [] } = useQuery({
-    queryKey: ['purchases_dashboard', ownerFilter],
-    queryFn: () => base44.entities.Purchase.filter(ownerFilter || {}, '-date', 500),
-    staleTime: 60000,
-    enabled: !!ownerFilter?.created_by,
-  });
-  const { data: allExpenses = [] } = useQuery({
-    queryKey: ['expenses_dashboard', ownerFilter],
-    queryFn: () => base44.entities.Expense.filter(ownerFilter || {}, '-date', 500),
-    staleTime: 60000,
-    enabled: !!ownerFilter?.created_by,
-  });
-  const { data: employees = [] } = useQuery({
-    queryKey: ['employees_count', ownerFilter],
-    queryFn: () => base44.entities.Employee.filter(ownerFilter || {}),
-    staleTime: 300000,
-    enabled: !!ownerFilter?.created_by,
-  });
-  const { data: inventory = [] } = useQuery({
-    queryKey: ['inventory_count', ownerFilter],
-    queryFn: () => base44.entities.Inventory.filter(ownerFilter || {}),
-    staleTime: 300000,
-    enabled: !!ownerFilter?.created_by,
+    enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
+    select: (data) => data.filter(s => s.date >= monthStart),
   });
 
-  // Create sale mutation
+  const { data: todayPurchases = [] } = useQuery({
+    queryKey: ['purchases_today', ownerFilter, today],
+    queryFn: () => base44.entities.Purchase.filter({ ...(ownerFilter || {}), date: today }, '-date', 200),
+    staleTime: 15000,
+    enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
+  });
+
+  const { data: monthPurchases = [] } = useQuery({
+    queryKey: ['purchases_month', ownerFilter, monthStart],
+    queryFn: () => base44.entities.Purchase.filter(ownerFilter || {}, '-date', 1000),
+    staleTime: 60000,
+    enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
+    select: (data) => data.filter(p => p.date >= monthStart),
+  });
+
+  const { data: monthExpenses = [] } = useQuery({
+    queryKey: ['expenses_month', ownerFilter, monthStart],
+    queryFn: () => base44.entities.Expense.filter(ownerFilter || {}, '-date', 500),
+    staleTime: 60000,
+    enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
+    select: (data) => data.filter(e => e.date >= monthStart),
+  });
+
+  const { data: supplierInvoices = [] } = useQuery({
+    queryKey: ['supplier_invoices_dash', ownerFilter],
+    queryFn: () => base44.entities.SupplierInvoice.filter(ownerFilter || {}, '-date', 500),
+    staleTime: 30000,
+    enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
+  });
+
+  const { data: customerDebts = [] } = useQuery({
+    queryKey: ['debts_customer_dash', ownerFilter],
+    queryFn: () => base44.entities.DebtRecord.filter(
+      { ...(ownerFilter || {}), type: 'receivable', party_type: 'customer' },
+      '-date', 500
+    ),
+    staleTime: 30000,
+    enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
+  });
+
+  const { data: inventory = [] } = useQuery({
+    queryKey: ['inventory_dash', ownerFilter],
+    queryFn: () => base44.entities.Inventory.filter(ownerFilter || {}, 'product_name', 500),
+    staleTime: 60000,
+    enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
+  });
+
+  const { data: networkAccounts = [] } = useQuery({
+    queryKey: ['network_accounts_dash', ownerFilter],
+    queryFn: () => base44.entities.NetworkAccount.filter(ownerFilter || {}),
+    staleTime: 120000,
+    enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
+  });
+
+  const { data: todayInvoices = [] } = useQuery({
+    queryKey: ['sales_invoices_today', ownerFilter, today],
+    queryFn: () => base44.entities.SalesInvoice
+      ? base44.entities.SalesInvoice.filter({ ...(ownerFilter || {}), sale_date: today }, '-created_date', 100)
+      : Promise.resolve([]),
+    staleTime: 15000,
+    enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
+  });
+
+  // ── KPI Calculations ─────────────────────────────────────────────────────────
+  const kpis = useMemo(() => {
+    // ── TODAY'S SALES ──
+    // Cash Sales = Closing Cash - Opening Cash  (per record)
+    const cashSalesToday = todaySales.reduce((s, r) => {
+      const closing = Number(r.closing_cash) || Number(r.restaurant_cash) || Number(r.cash) || 0;
+      const opening = Number(r.opening_cash) || 0;
+      // If opening_cash exists, use the difference; otherwise fall back to closing_cash
+      return s + (r.opening_cash != null ? Math.max(0, closing - opening) : closing);
+    }, 0);
+
+    const networkSalesToday = todaySales.reduce((s, r) =>
+      s + (Number(r.restaurant_network) || Number(r.network) || 0), 0);
+
+    const creditSalesToday = todaySales.reduce((s, r) =>
+      s + (Number(r.credit) || 0), 0);
+
+    const salesToday = cashSalesToday + networkSalesToday + creditSalesToday;
+
+    // ── CASH IN REGISTER = Latest Closing Cash ──
+    const latestSale = todaySales.length > 0
+      ? todaySales.reduce((latest, s) => {
+          if (!latest) return s;
+          return (s.created_date || s.date) > (latest.created_date || latest.date) ? s : latest;
+        }, null)
+      : null;
+    const cashInRegister = latestSale
+      ? (Number(latestSale.closing_cash) || Number(latestSale.restaurant_cash) || Number(latestSale.cash) || 0)
+      : 0;
+
+    // ── TODAY'S PURCHASES ──
+    const purchasesToday = todayPurchases.reduce((s, p) =>
+      s + ((p.qty || 0) * (p.used_price || p.current_price || 0)), 0);
+
+    // ── TODAY'S PROFIT (no monthly expenses) ──
+    const profitToday = salesToday - purchasesToday;
+
+    // ── NETWORK BALANCE (sum of all active network account balances) ──
+    // We approximate from today's network sales
+    const networkBalance = networkSalesToday;
+
+    // ── CUSTOMER CREDIT BALANCE ──
+    const customerCreditBalance = customerDebts
+      .filter(d => d.status !== 'paid' && d.status !== 'written_off')
+      .reduce((s, d) => s + (Number(d.remaining_amount) || 0), 0);
+
+    // ── SUPPLIER PAYABLES ──
+    const supplierPayables = supplierInvoices
+      .filter(inv => inv.status !== 'paid')
+      .reduce((s, inv) => s + Math.max(0, (inv.amount || 0) - (inv.paid_amount || 0)), 0);
+
+    // ── INVENTORY VALUE ──
+    const inventoryValue = inventory.reduce((s, item) =>
+      s + ((item.quantity || 0) * (item.unit_cost || item.avg_cost || item.cost_price || 0)), 0);
+
+    // ── ALERTS ──
+    const lowStockItems = inventory.filter(item => {
+      const qty = item.quantity || 0;
+      const threshold = item.low_stock_threshold || item.min_quantity || item.reorder_point || 0;
+      return threshold > 0 && qty > 0 && qty <= threshold;
+    });
+    const outOfStockItems = inventory.filter(item => (item.quantity || 0) <= 0);
+
+    const pendingSupplierPayments = supplierInvoices.filter(inv => inv.status !== 'paid').length;
+    const pendingCustomerDebts = customerDebts.filter(d => d.status !== 'paid' && d.status !== 'written_off').length;
+
+    // ── MONTHLY ──
+    const monthlySales = monthSales.reduce((s, r) =>
+      s + (Number(r.restaurant_cash) || Number(r.cash) || 0)
+        + (Number(r.restaurant_network) || Number(r.network) || 0)
+        + (Number(r.credit) || 0), 0);
+
+    const monthlyPurchaseCost = monthPurchases.reduce((s, p) =>
+      s + ((p.qty || 0) * (p.used_price || p.current_price || 0)), 0);
+
+    const monthlyExpenseCost = monthExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+
+    const monthlyNetProfit = monthlySales - monthlyPurchaseCost - monthlyExpenseCost;
+
+    // ── ORDERS TODAY (from DailySales records) ──
+    const ordersToday = todaySales.length;
+
+    return {
+      salesToday, cashSalesToday, networkSalesToday, creditSalesToday,
+      purchasesToday, profitToday, cashInRegister,
+      networkBalance, customerCreditBalance, supplierPayables, inventoryValue,
+      lowStockCount: lowStockItems.length,
+      outOfStockCount: outOfStockItems.length,
+      pendingSupplierPayments, pendingCustomerDebts,
+      ordersToday,
+      invoicesToday: todayInvoices.length,
+      monthlySales, monthlyNetProfit,
+    };
+  }, [
+    todaySales, todayPurchases, monthSales, monthPurchases, monthExpenses,
+    supplierInvoices, customerDebts, inventory, todayInvoices,
+  ]);
+
+  const fmt = (n) => `${currency}${(n || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+
+  // ── Create Sale Mutation ──────────────────────────────────────────────────────
   const createMut = useMutation({
     mutationFn: async ({ data, proofUrl, ocr }) => {
+      if (activeRestaurant?.id) data.restaurant_id = activeRestaurant.id;
       const sale = await base44.entities.DailySales.create(data);
-      await autoSettle(data, sale.id, proofUrl || null, ocr || null, null);
+      try { await autoSettle(data, sale.id, proofUrl || null, ocr || null, null); } catch (e) { console.warn('autoSettle skipped:', e.message); }
+      // Auto-generate invoice
+      try {
+        const restaurantId = activeRestaurant?.id;
+        const invNum = await generateSalesInvoiceNumber(restaurantId, data.date);
+        await base44.entities.DailySales.update(sale.id, { invoice_number: invNum });
+        const invoice = await createSalesInvoice({ invoiceNumber: invNum, saleId: sale.id, saleData: data, restaurantId, createdBy: user?.email || '' });
+        try { await generateAndUploadPDF(invoice, 'RestoCTRL', currency); } catch { /* non-fatal */ }
+        qc.invalidateQueries({ queryKey: ['sales_invoices_today'] });
+      } catch (e) { console.warn('Invoice gen skipped:', e.message); }
       const total = (data.restaurant_cash || 0) + (data.restaurant_network || 0) + (data.credit || 0);
       await notif.sale({ branch: data.branch, amount: total, action: 'create' });
       return sale;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['sales_dashboard'] });
+      qc.invalidateQueries({ queryKey: ['sales_today'] });
+      qc.invalidateQueries({ queryKey: ['sales_month'] });
       qc.invalidateQueries({ queryKey: ['sales'] });
       qc.invalidateQueries({ queryKey: ['sales_daily'] });
-      qc.invalidateQueries({ queryKey: ['settlements_all'] });
-      qc.invalidateQueries({ queryKey: ['settlements_mgr'] });
       qc.invalidateQueries({ queryKey: ['wallet_transactions'] });
       setShowSaleModal(false);
     },
@@ -179,247 +357,199 @@ export default function OwnerDashboard() {
     await createMut.mutateAsync({ data, proofUrl, ocr });
   };
 
-  // Computed KPIs
-  const kpis = useMemo(() => {
-    const todaySales = allSales.filter(s => s.date === today);
-    const monthSales = allSales.filter(s => s.date >= monthStart);
-    const monthPurchases = allPurchases.filter(p => p.date >= monthStart);
-    const monthExpenses = allExpenses.filter(e => e.date >= monthStart);
-
-    const revenueToday = todaySales.reduce((s, r) => s + (r.total_sales || 0), 0);
-    const revenueMonth = monthSales.reduce((s, r) => s + (r.total_sales || 0), 0);
-    const purchaseCost = monthPurchases.reduce((s, r) => s + (r.total_amount || 0), 0);
-    const expenseCost = monthExpenses.reduce((s, r) => s + (r.amount || 0), 0);
-    const netProfit = revenueMonth - purchaseCost - expenseCost;
-    const profitMargin = revenueMonth > 0 ? ((netProfit / revenueMonth) * 100).toFixed(1) : 0;
-    const cashSales = monthSales.reduce((s, r) => s + (r.cash || 0), 0);
-    const creditSales = monthSales.reduce((s, r) => s + (r.credit || 0), 0);
-    const inventoryValue = inventory.reduce((s, i) => s + ((i.quantity || 0) * (i.cost_price || 0)), 0);
-    const activeEmployees = employees.filter(e => e.is_active !== false).length;
-    const activeDrivers = employees.filter(e => e.position?.toLowerCase().includes('driver') && e.is_active !== false).length;
-
-    return {
-      revenueToday, revenueMonth, netProfit, profitMargin,
-      cashBalance: cashSales, creditSales, purchaseCost, expenseCost,
-      inventoryValue, activeEmployees, activeDrivers,
-    };
-  }, [allSales, allPurchases, allExpenses, employees, inventory, today, monthStart]);
-
-  // Branch rankings
-  const branchRankings = useMemo(() => {
-    const monthSales = allSales.filter(s => s.date >= monthStart);
-    const monthPurchases = allPurchases.filter(p => p.date >= monthStart);
-    const monthExpenses = allExpenses.filter(e => e.date >= monthStart);
-    const branchMap = {};
-    monthSales.forEach(s => {
-      if (!branchMap[s.branch]) branchMap[s.branch] = { revenue: 0, purchases: 0, expenses: 0 };
-      branchMap[s.branch].revenue += s.total_sales || 0;
-    });
-    monthPurchases.forEach(p => {
-      if (!branchMap[p.branch]) branchMap[p.branch] = { revenue: 0, purchases: 0, expenses: 0 };
-      branchMap[p.branch].purchases += p.total_amount || 0;
-    });
-    monthExpenses.forEach(e => {
-      const b = e.branch || 'all';
-      if (!branchMap[b]) branchMap[b] = { revenue: 0, purchases: 0, expenses: 0 };
-      branchMap[b].expenses += e.amount || 0;
-    });
-    return Object.entries(branchMap)
-      .map(([name, data]) => ({
-        name,
-        revenue: data.revenue,
-        profit: data.revenue - data.purchases - data.expenses,
-        trend: Math.floor(Math.random() * 20) - 5, // placeholder
-      }))
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 5);
-  }, [allSales, allPurchases, allExpenses, monthStart]);
-
-  // Chart data - last 7 days
-  const chartData = useMemo(() => {
-    return Array.from({ length: 7 }, (_, i) => {
-      const d = format(subDays(new Date(), 6 - i), 'yyyy-MM-dd');
-      const dayLabel = format(subDays(new Date(), 6 - i), 'MM/dd');
-      const daySales = allSales.filter(s => s.date === d);
-      const dayPurchases = allPurchases.filter(p => p.date === d);
-      const revenue = daySales.reduce((s, r) => s + (r.total_sales || 0), 0);
-      const cost = dayPurchases.reduce((s, r) => s + (r.total_amount || 0), 0);
-      return { date: dayLabel, revenue, cost, profit: revenue - cost };
-    });
-  }, [allSales, allPurchases]);
-
-  const fmt = (n) => `${currency}${(n || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
-  const isLoading = loadingSales;
-
   return (
     <div className="space-y-4 pb-24">
-      {/* Header */}
+      {/* ── Header ── */}
       <div className="flex items-center justify-between pt-1">
         <div>
-          <h1 className="text-xl font-bold text-foreground">{t('executive_command_center')}</h1>
+          <h1 className="text-xl font-bold text-foreground">{t('dashboard')}</h1>
           <p className="text-xs text-muted-foreground mt-0.5">{format(new Date(), 'EEEE, MMMM d yyyy')}</p>
         </div>
         <Badge variant="outline" className="text-xs capitalize">{role}</Badge>
       </div>
 
-      {/* Quick Actions */}
-      <Card className="border-primary/20 bg-primary/5">
-        <CardContent className="p-3">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2.5">{t('quick_actions')}</p>
-          <div className="grid grid-cols-5 gap-2">
-            <QuickActionBtn icon={Plus}        label={t('add_sale')}           color="green"  onClick={() => setShowSaleModal(true)} />
-            <QuickActionBtn icon={ShoppingCart} label={t('add_purchase')}      color="blue"   onClick={() => { console.log('PURCHASE COMPONENT LOADED: EnterprisePurchaseCommandCenter'); navigate('/enterprise-purchases'); }} />
-            <QuickActionBtn icon={Receipt}      label={t('add_expense')}        color="amber"  onClick={() => navigate('/expenses')} />
-            <QuickActionBtn icon={CreditCard}   label={t('debt_management')} color="purple" onClick={() => navigate('/debt-management')} />
-            <QuickActionBtn icon={Wallet}       label={t('supplier_payment')}  color="red"    onClick={() => navigate('/suppliers?tab=payments')} />
-          </div>
-        </CardContent>
-      </Card>
+      {/* ══════════════════════════════════════════════════════════════
+          ROW 1 — TOP KPIs (Most Important)
+      ══════════════════════════════════════════════════════════════ */}
+      <div>
+        <SectionLabel>Today's Performance</SectionLabel>
+        <div className="grid grid-cols-2 gap-3">
+          <KPICard
+            title="Today's Sales"
+            value={fmt(kpis.salesToday)}
+            subtitle={`Cash ${fmt(kpis.cashSalesToday)} · Net ${fmt(kpis.networkSalesToday)}`}
+            icon={TrendingUp}
+            color="green"
+            large
+          />
+          <KPICard
+            title="Today's Purchases"
+            value={fmt(kpis.purchasesToday)}
+            icon={ShoppingCart}
+            color="amber"
+            large
+          />
+          <KPICard
+            title="Today's Profit"
+            value={fmt(kpis.profitToday)}
+            subtitle="Sales − Purchases"
+            icon={kpis.profitToday >= 0 ? TrendingUp : TrendingDown}
+            color={kpis.profitToday >= 0 ? 'green' : 'red'}
+            large
+          />
+          <KPICard
+            title="Cash In Register"
+            value={fmt(kpis.cashInRegister)}
+            subtitle="Latest closing cash"
+            icon={Banknote}
+            color="cyan"
+            large
+          />
+        </div>
+      </div>
 
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="w-full grid grid-cols-3 h-9">
-          <TabsTrigger value="overview" className="text-xs">{t('overview')}</TabsTrigger>
-          <TabsTrigger value="financial" className="text-xs">{t('financial_summary')}</TabsTrigger>
-          <TabsTrigger value="branches" className="text-xs">{t('branch_rankings')}</TabsTrigger>
-        </TabsList>
+      {/* ══════════════════════════════════════════════════════════════
+          ROW 2 — Balances
+      ══════════════════════════════════════════════════════════════ */}
+      <div>
+        <SectionLabel>Balances</SectionLabel>
+        <div className="grid grid-cols-2 gap-3">
+          <KPICard
+            title="Network Balance"
+            value={fmt(kpis.networkBalance)}
+            icon={Wifi}
+            color="blue"
+            onClick={() => navigate('/network-management')}
+          />
+          <KPICard
+            title="Customer Credit"
+            value={fmt(kpis.customerCreditBalance)}
+            icon={CreditCard}
+            color="purple"
+            onClick={() => navigate('/debt-management')}
+          />
+          <KPICard
+            title="Supplier Payables"
+            value={fmt(kpis.supplierPayables)}
+            icon={Truck}
+            color="orange"
+            onClick={() => navigate('/suppliers')}
+          />
+          <KPICard
+            title="Inventory Value"
+            value={fmt(kpis.inventoryValue)}
+            icon={Package}
+            color="amber"
+            onClick={() => navigate('/inventory')}
+          />
+        </div>
+      </div>
 
-        {/* Overview Tab */}
-        <TabsContent value="overview" className="space-y-3 mt-3">
-          {/* Primary KPIs */}
-          <div className="grid grid-cols-2 gap-3">
-            <KPICard title={t('revenue_today')}    value={fmt(kpis.revenueToday)}  icon={DollarSign} color="green"  trend={5}  />
-            <KPICard title={t('revenue_this_month')} value={fmt(kpis.revenueMonth)} icon={TrendingUp}  color="blue"   trend={8}  />
-            <KPICard title={t('net_profit')}        value={fmt(kpis.netProfit)}     icon={Target}     color={kpis.netProfit >= 0 ? 'green' : 'red'} trend={kpis.netProfit >= 0 ? 3 : -3} />
-            <KPICard title={t('profit_margin')}     value={`${kpis.profitMargin}%`} icon={PieChart}   color="purple" />
-          </div>
+      {/* ══════════════════════════════════════════════════════════════
+          ROW 3 — Alerts
+      ══════════════════════════════════════════════════════════════ */}
+      <div>
+        <SectionLabel>Alerts</SectionLabel>
+        <div className="grid grid-cols-2 gap-2">
+          <AlertCard
+            title="Low Stock Alerts"
+            count={kpis.lowStockCount}
+            icon={AlertTriangle}
+            color="amber"
+            onClick={() => navigate('/inventory')}
+          />
+          <AlertCard
+            title="Out Of Stock Items"
+            count={kpis.outOfStockCount}
+            icon={Package}
+            color="red"
+            onClick={() => navigate('/inventory')}
+          />
+          <AlertCard
+            title="Pending Supplier Payments"
+            count={kpis.pendingSupplierPayments}
+            icon={Truck}
+            color="amber"
+            onClick={() => navigate('/suppliers')}
+          />
+          <AlertCard
+            title="Pending Customer Debts"
+            count={kpis.pendingCustomerDebts}
+            icon={Users}
+            color="blue"
+            onClick={() => navigate('/debt-management')}
+          />
+        </div>
+      </div>
 
-          {/* Secondary KPIs */}
-          <div className="grid grid-cols-2 gap-3">
-            <KPICard title={t('cash_balance')}      value={fmt(kpis.cashBalance)}   icon={Wallet}     color="cyan"   />
-            <KPICard title={t('inventory_value')}   value={fmt(kpis.inventoryValue)} icon={Package}   color="amber"  />
-            <KPICard title={t('active_employees')}  value={kpis.activeEmployees}    icon={Users}      color="blue"   />
-            <KPICard title={t('active_drivers')}    value={kpis.activeDrivers}      icon={Truck}      color="purple" />
-          </div>
+      {/* ══════════════════════════════════════════════════════════════
+          ROW 4 — Monthly / Orders
+      ══════════════════════════════════════════════════════════════ */}
+      <div>
+        <SectionLabel>Summary</SectionLabel>
+        <div className="grid grid-cols-2 gap-3">
+          <KPICard
+            title="Today's Orders"
+            value={kpis.ordersToday}
+            icon={Store}
+            color="blue"
+            onClick={() => navigate('/sales')}
+          />
+          <KPICard
+            title="Today's Invoices"
+            value={kpis.invoicesToday}
+            icon={FileText}
+            color="purple"
+            onClick={() => navigate('/sales/invoices')}
+          />
+          <KPICard
+            title="Monthly Sales"
+            value={fmt(kpis.monthlySales)}
+            icon={BarChart3}
+            color="green"
+            onClick={() => navigate('/reports')}
+          />
+          <KPICard
+            title="Monthly Net Profit"
+            value={fmt(kpis.monthlyNetProfit)}
+            subtitle="Sales − Purchases − Expenses"
+            icon={kpis.monthlyNetProfit >= 0 ? TrendingUp : TrendingDown}
+            color={kpis.monthlyNetProfit >= 0 ? 'green' : 'red'}
+            onClick={() => navigate('/profit-loss')}
+          />
+        </div>
+      </div>
 
-          {/* Sales Trend Chart */}
-          <Card>
-            <CardHeader className="pb-2 pt-3 px-4">
-              <CardTitle className="text-sm font-semibold">{t('sales_overview')} — {t('last_7_days')}</CardTitle>
-            </CardHeader>
-            <CardContent className="px-2 pb-3">
-              <ResponsiveContainer width="100%" height={160}>
-                <AreaChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="profGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                  <YAxis tick={{ fontSize: 10 }} />
-                  <Tooltip
-                    contentStyle={{ fontSize: 11, borderRadius: 8 }}
-                    formatter={(v) => [`${currency}${v.toLocaleString()}`, '']}
-                  />
-                  <Area type="monotone" dataKey="revenue" stroke="#3b82f6" fill="url(#revGrad)" strokeWidth={2} name={t('total_sales')} />
-                  <Area type="monotone" dataKey="profit"  stroke="#10b981" fill="url(#profGrad)" strokeWidth={2} name={t('profit')} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </TabsContent>
+      {/* ══════════════════════════════════════════════════════════════
+          QUICK ACTIONS (8)
+      ══════════════════════════════════════════════════════════════ */}
+      <div>
+        <SectionLabel>Quick Actions</SectionLabel>
+        <Card className="border-primary/20 bg-primary/5">
+          <CardContent className="p-3">
+            <div className="grid grid-cols-4 gap-2">
+              <QuickActionBtn icon={Plus}          label="Add Sale"         color="green"  onClick={() => setShowSaleModal(true)} />
+              <QuickActionBtn icon={ShoppingCart}  label="Add Purchase"     color="blue"   onClick={() => navigate('/enterprise-purchases')} />
+              <QuickActionBtn icon={Receipt}       label="Add Expense"      color="amber"  onClick={() => navigate('/expenses')} />
+              <QuickActionBtn icon={ArrowDownLeft} label="Receive Debt"     color="cyan"   onClick={() => navigate('/debt-management')} />
+              <QuickActionBtn icon={Truck}         label="Supplier Payment" color="orange" onClick={() => navigate('/suppliers?tab=payments')} />
+              <QuickActionBtn icon={FileText}      label="Create Invoice"   color="purple" onClick={() => navigate('/sales/invoices')} />
+              <QuickActionBtn icon={PackagePlus}   label="Add Product"      color="indigo" onClick={() => navigate('/products')} />
+              <QuickActionBtn icon={ArrowLeftRight}label="Stock Transfer"   color="red"    onClick={() => navigate('/inventory')} />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
-        {/* Financial Tab */}
-        <TabsContent value="financial" className="space-y-3 mt-3">
-          <div className="grid grid-cols-2 gap-3">
-            <KPICard title={t('receivables')}   value={fmt(kpis.creditSales)}    icon={ArrowUpRight}   color="amber"  />
-            <KPICard title={t('payables')}       value={fmt(kpis.purchaseCost)}   icon={ArrowDownRight} color="red"    />
-            <KPICard title={t('cash_balance')}   value={fmt(kpis.cashBalance)}    icon={Wallet}         color="green"  />
-            <KPICard title={t('bank_balance')}   value={fmt(0)}                   icon={CreditCard}     color="blue"   />
-          </div>
-          <Card>
-            <CardHeader className="pb-2 pt-3 px-4">
-              <CardTitle className="text-sm font-semibold">{t('financial_summary')}</CardTitle>
-            </CardHeader>
-            <CardContent className="px-4 pb-4 space-y-3">
-              {[
-                { label: t('revenue_this_month'), value: kpis.revenueMonth, color: 'text-blue-600' },
-                { label: t('total_purchase_cost'), value: kpis.purchaseCost, color: 'text-amber-600' },
-                { label: t('total_expenses'), value: kpis.expenseCost, color: 'text-red-500' },
-                { label: t('net_profit'), value: kpis.netProfit, color: kpis.netProfit >= 0 ? 'text-emerald-600' : 'text-red-500' },
-              ].map(row => (
-                <div key={row.label} className="flex items-center justify-between py-1 border-b border-border last:border-0">
-                  <span className="text-sm text-muted-foreground">{row.label}</span>
-                  <span className={`text-sm font-bold ${row.color}`}>{fmt(row.value)}</span>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Branch Rankings Tab */}
-        <TabsContent value="branches" className="space-y-3 mt-3">
-          <Card>
-            <CardHeader className="pb-2 pt-3 px-4">
-              <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <Award className="w-4 h-4 text-amber-500" />
-                {t('branch_rankings')}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="px-4 pb-3">
-              {branchRankings.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">{t('no_data')}</p>
-              ) : (
-                branchRankings.map((b, i) => (
-                  <BranchRankCard key={b.name} rank={i + 1} {...b} currency={currency} />
-                ))
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Branch comparison bar chart */}
-          {branchRankings.length > 0 && (
-            <Card>
-              <CardHeader className="pb-2 pt-3 px-4">
-                <CardTitle className="text-sm font-semibold">{t('branch_comparison')}</CardTitle>
-              </CardHeader>
-              <CardContent className="px-2 pb-3">
-                <ResponsiveContainer width="100%" height={160}>
-                  <BarChart data={branchRankings} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="name" tick={{ fontSize: 9 }} />
-                    <YAxis tick={{ fontSize: 10 }} />
-                    <Tooltip
-                      contentStyle={{ fontSize: 11, borderRadius: 8 }}
-                      formatter={(v) => [`${currency}${v.toLocaleString()}`, '']}
-                    />
-                    <Bar dataKey="revenue" fill="#3b82f6" radius={[4, 4, 0, 0]} name={t('total_sales')} />
-                    <Bar dataKey="profit"  fill="#10b981" radius={[4, 4, 0, 0]} name={t('profit')} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-      </Tabs>
-
-      {/* Add Sale Modal */}
+      {/* ── Add Sale Modal ── */}
       <Dialog open={showSaleModal} onOpenChange={setShowSaleModal}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{t('add_sale')}</DialogTitle>
+            <DialogTitle>Add Sale</DialogTitle>
           </DialogHeader>
           <SalesForm onSubmit={handleSaleSubmit} onCancel={() => setShowSaleModal(false)} />
         </DialogContent>
       </Dialog>
-
-      {/* Add Purchase — navigates to Enterprise Purchase Command Center */}
     </div>
   );
 }

@@ -35,8 +35,11 @@ export async function generateSalesInvoiceNumber(restaurantId, saleDate) {
 export async function createSalesInvoice({ invoiceNumber, saleId, saleData, restaurantId, createdBy }) {
   const networkSales = Number(saleData.restaurant_network || saleData.network || 0);
   const creditSales  = Number(saleData.credit || 0);
+  const openingCash  = Number(saleData.opening_cash || 0);
   const closingCash  = Number(saleData.closing_cash || 0);
-  const salesTotal   = closingCash + networkSales + creditSales;
+  // Cash Sales = Closing Cash - Opening Cash (correct formula per spec)
+  const cashSales    = Math.max(0, closingCash - openingCash);
+  const salesTotal   = cashSales + networkSales + creditSales;
 
   const payload = {
     invoice_number:  invoiceNumber,
@@ -44,10 +47,11 @@ export async function createSalesInvoice({ invoiceNumber, saleId, saleData, rest
     restaurant_id:   restaurantId || null,
     branch:          saleData.branch,
     sale_date:       saleData.date,
-    opening_cash:    Number(saleData.opening_cash || 0),
+    opening_cash:    openingCash,
     closing_cash:    closingCash,
     cash_difference: Number(saleData.cash_difference || 0),
     cash_status:     saleData.cash_status || 'Balanced',
+    cash_sales:      cashSales,
     network_sales:   networkSales,
     credit_sales:    creditSales,
     sales_total:     salesTotal,
@@ -55,7 +59,12 @@ export async function createSalesInvoice({ invoiceNumber, saleId, saleData, rest
     shift:           saleData.shift || '',
     notes:           saleData.notes || '',
     cash_notes:      saleData.cash_notes || '',
-    created_by:      createdBy || '',
+    sales_notes:     saleData.sales_notes || '',
+    manager_approval: saleData.manager_approval || false,
+    manager_approved_by: saleData.manager_approved_by || '',
+    pos_entries_json: saleData.pos_entries_json || '',
+    credit_entries_json: saleData.credit_entries_json || '',
+    created_by:      createdBy || ''
   };
 
   const { data, error } = await supabase
@@ -168,8 +177,8 @@ export function buildInvoiceHTML(invoice, brandName = 'RestoCTRL', currency = ''
     <div class="section">
       <div class="section-title">Sales Breakdown</div>
       <div class="row">
-        <span class="row-label">Cash Sales (Closing Cash)</span>
-        <span class="row-value">${fmt(invoice.closing_cash)}</span>
+        <span class="row-label">Cash Sales (Closing − Opening)</span>
+        <span class="row-value">${fmt(invoice.cash_sales ?? Math.max(0, Number(invoice.closing_cash) - Number(invoice.opening_cash)))}</span>
       </div>
       <div class="row">
         <span class="row-label">Network Sales</span>
@@ -378,7 +387,7 @@ export function shareInvoiceWhatsApp(invoice, currency = '') {
     `Status: ${invoice.cash_status}`,
     '',
     `*Sales*`,
-    `Cash Sales: ${fmt(invoice.closing_cash)}`,
+    `Cash Sales: ${fmt(invoice.cash_sales ?? Math.max(0, Number(invoice.closing_cash) - Number(invoice.opening_cash)))}`,
     `Network: ${fmt(invoice.network_sales)}`,
     Number(invoice.credit_sales) > 0 ? `Credit: ${fmt(invoice.credit_sales)}` : '',
     `*Total: ${fmt(invoice.sales_total)}*`,

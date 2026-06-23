@@ -112,6 +112,11 @@
     "is_locked": {
       "type": "boolean",
       "default": false
+    },
+    "credit_limit": {
+      "type": "number",
+      "default": 0,
+      "description": "Maximum credit allowed for this customer"
     }
   },
   "required": [
