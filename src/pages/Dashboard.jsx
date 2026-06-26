@@ -11,6 +11,7 @@ import DashboardFilters from '@/components/dashboard/DashboardFilters';
 import PaymentMixCharts from '@/components/dashboard/PaymentMixCharts';
 import LowStockWidget from '@/components/dashboard/LowStockWidget';
 import AccountsPayableWidget from '@/components/dashboard/AccountsPayableWidget';
+import PriceChangesWidget from '@/components/dashboard/PriceChangesWidget';
 import SmartInsights from '@/components/dashboard/SmartInsights';
 import { Card } from '@/components/ui/card';
 import { DollarSign, TrendingUp, TrendingDown, Percent, ShoppingCart, AlertTriangle, Receipt, Flame, Wallet, Scale, ShoppingBag, BarChart3 } from 'lucide-react';
@@ -359,6 +360,7 @@ export default function Dashboard() {
 
       <LowStockWidget />
       <AccountsPayableWidget />
+      <PriceChangesWidget />
 
       {/* ── Upgraded Payment Mix + Charts ── */}
       <div className="mt-4">

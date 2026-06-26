@@ -27,12 +27,13 @@ import BarcodeGenerator from '@/components/products/BarcodeGenerator';
 import ProductVariantsManager from '@/components/products/ProductVariantsManager';
 import InventoryTransactionForm from '@/components/products/InventoryTransactionForm';
 import EnterpriseCategoryManager from '@/components/categories/CategoryManager';
+import PriceAnalyticsTab from '@/components/products/PriceAnalyticsTab';
 import {
   Package, Plus, Pencil, Trash2, Search, BarChart3, Tag, Ruler,
   Barcode, Layers, ArrowUpDown, TrendingUp, Upload, Download,
   AlertTriangle, CheckCircle, XCircle, RefreshCw, Filter, Eye,
   QrCode, FileText, FileSpreadsheet, ChevronRight, ChevronDown,
-  MoreVertical, Star
+  MoreVertical, Star, DollarSign
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
@@ -1273,6 +1274,9 @@ export default function ProductManagement() {
             <TabsTrigger value="analytics" className="text-xs px-3 flex items-center gap-1">
               <TrendingUp className="w-3 h-3" /> Analytics
             </TabsTrigger>
+            <TabsTrigger value="price-analytics" className="text-xs px-3 flex items-center gap-1">
+              <DollarSign className="w-3 h-3" /> Price Analytics
+            </TabsTrigger>
             <TabsTrigger value="import" className="text-xs px-3 flex items-center gap-1">
               <Upload className="w-3 h-3" /> Import/Export
             </TabsTrigger>
@@ -1312,6 +1316,10 @@ export default function ProductManagement() {
 
         <TabsContent value="analytics">
           <AnalyticsTab products={products} currency={currency} />
+        </TabsContent>
+
+        <TabsContent value="price-analytics">
+          <PriceAnalyticsTab currency={currency} />
         </TabsContent>
 
         <TabsContent value="import">

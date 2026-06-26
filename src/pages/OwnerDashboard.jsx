@@ -41,6 +41,7 @@ import {
 } from 'lucide-react';
 import { format, startOfMonth } from 'date-fns';
 import SalesForm from '@/components/sales/SalesForm';
+import PriceChangesWidget from '@/components/dashboard/PriceChangesWidget';
 import { useNotify } from '@/lib/useNotify';
 import { useAuth } from '@/lib/AuthContext';
 import { useNetworkSettlement } from '@/hooks/useNetworkSettlement';
@@ -540,6 +541,9 @@ export default function OwnerDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* ── Price Changes Widget ── */}
+      <PriceChangesWidget />
 
       {/* ── Add Sale Modal ── */}
       <Dialog open={showSaleModal} onOpenChange={setShowSaleModal}>

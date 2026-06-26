@@ -146,13 +146,16 @@ export async function processApprovedInvoice(invoice, createdBy) {
   for (const item of items) {
     if (!item.product_id) continue;
     await updateInventoryOnPurchase({
-      productId: item.product_id,
-      productName: item.product_name,
-      branch: invoice.branch,
-      quantity: item.quantity || 0,
-      unitCost: item.unit_cost || 0,
-      unit: item.unit,
+      productId:    item.product_id,
+      productName:  item.product_name,
+      branch:       invoice.branch,
+      quantity:     item.quantity || 0,
+      unitCost:     item.unit_cost || 0,
+      unit:         item.unit,
       createdBy,
+      supplierId:   invoice.supplier_id,
+      supplierName: invoice.supplier_name,
+      invoiceId:    invoice.id,
     });
   }
 
@@ -174,6 +177,44 @@ export async function processApprovedInvoice(invoice, createdBy) {
   return invoice;
 }
 
+// ── Price History Recording ───────────────────────────────────────────────
+/**
+ * Records a price change entry in product_price_history.
+ * Only inserts when the new price differs from the previous price.
+ * Never overwrites — always inserts a new immutable row.
+ */
+export async function recordPriceHistory({
+  productId,
+  productName,
+  previousPrice,
+  newPrice,
+  supplierId,
+  supplierName,
+  branch,
+  invoiceId,
+  createdBy,
+}) {
+  // Only record when price actually changes
+  if (previousPrice === newPrice) return;
+
+  const { error } = await supabase
+    .from('product_price_history')
+    .insert({
+      product_id:    productId,
+      product_name:  productName,
+      previous_price: previousPrice,
+      new_price:     newPrice,
+      supplier_id:   supplierId || null,
+      supplier_name: supplierName || null,
+      branch:        branch || null,
+      invoice_id:    invoiceId || null,
+      recorded_at:   new Date().toISOString(),
+      created_by:    createdBy,
+    });
+
+  if (error) console.error('[procurementEngine] price history insert error:', error.message);
+}
+
 // ── Inventory Update ───────────────────────────────────────────────────────
 export async function updateInventoryOnPurchase({
   productId,
@@ -183,6 +224,9 @@ export async function updateInventoryOnPurchase({
   unitCost,
   unit,
   createdBy,
+  supplierId,
+  supplierName,
+  invoiceId,
 }) {
   // Find existing inventory record
   const { data: existing } = await supabase
@@ -234,12 +278,34 @@ export async function updateInventoryOnPurchase({
     if (error) console.error('[procurementEngine] inventory create error:', error.message);
   }
 
-  // Also update product default_cost if this is a better price signal
+  // Also update product default_cost and record price history
   if (unitCost > 0) {
+    // Fetch current cost before overwriting
+    const { data: currentProduct } = await supabase
+      .from('products')
+      .select('default_cost, purchase_cost')
+      .eq('id', productId)
+      .single();
+
+    const previousPrice = currentProduct?.purchase_cost ?? currentProduct?.default_cost ?? 0;
+
     await supabase
       .from('products')
-      .update({ default_cost: unitCost, updated_date: new Date().toISOString() })
+      .update({ default_cost: unitCost, purchase_cost: unitCost, updated_date: new Date().toISOString() })
       .eq('id', productId);
+
+    // Record price history entry (only if price changed)
+    await recordPriceHistory({
+      productId,
+      productName,
+      previousPrice,
+      newPrice: unitCost,
+      supplierId,
+      supplierName,
+      branch,
+      invoiceId,
+      createdBy,
+    });
   }
 }
 
