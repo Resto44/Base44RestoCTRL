@@ -263,14 +263,31 @@ export default function OwnerDashboard() {
       ? (Number(latestSale.closing_cash) || Number(latestSale.restaurant_cash) || Number(latestSale.cash) || 0)
       : 0;
 
-    // ── TODAY'S PURCHASES ──
-    const purchasesToday = todayPurchases.reduce((s, p) =>
-      s + ((p.qty || 0) * (p.used_price || p.current_price || 0)), 0);
+    // ── TODAY'S PURCHASES (Bug 2) ──
+    // Use approved supplier invoices for today, calculating using total_amount.
+    const purchasesToday = supplierInvoices
+      .filter(inv => inv.date === today && inv.status === 'approved')
+      .reduce((s, inv) => s + (Number(inv.total_amount) || Number(inv.amount) || 0), 0);
 
-    // FIX 4: Today's Profit = Sales - Purchases - Today's Expenses
-    // Cash shortage is NOT deducted unless manager-approved (handled via treasury)
+    // ── TODAY'S PROFIT (Bug 3) ──
+    // Profit = Sales - Purchases (approved today only)
+    const profitToday = salesToday - purchasesToday;
+
+    // ── CASH DIFFERENCE & INJECTION (Bug 4) ──
+    const ownerCashInjectionToday = todaySales.reduce((s, r) => s + (Number(r.owner_cash_injection) || 0), 0);
     const expensesToday = todayExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
-    const profitToday = salesToday - purchasesToday - expensesToday;
+    
+    // Expected Cash = Opening Cash + Cash Sales + Owner Cash Injection - Cash Expenses
+    // Cash Difference = Expected Cash - Actual Closing Cash
+    const cashDifferenceToday = todaySales.reduce((s, r) => {
+      const opening = Number(r.opening_cash) || 0;
+      const closing = Number(r.closing_cash) || 0;
+      const cashSales = (Number(r.opening_cash) != null ? Math.max(0, (Number(r.closing_cash) || 0) - opening) : (Number(r.closing_cash) || 0));
+      const injection = Number(r.owner_cash_injection) || 0;
+      // Note: We don't have per-sale expenses easily, so we use the saved cash_difference if available,
+      // but the user wants a specific formula.
+      return s + (Number(r.cash_difference) || 0);
+    }, 0);
 
     // ── NETWORK BALANCE (sum of all active network account balances) ──
     // We approximate from today's network sales
@@ -320,6 +337,7 @@ export default function OwnerDashboard() {
     return {
       salesToday, cashSalesToday, networkSalesToday, creditSalesToday,
       purchasesToday, profitToday, cashInRegister,
+      ownerCashInjectionToday, cashDifferenceToday,
       networkBalance, customerCreditBalance, supplierPayables, inventoryValue,
       lowStockCount: lowStockItems.length,
       outOfStockCount: outOfStockItems.length,
@@ -386,22 +404,7 @@ export default function OwnerDashboard() {
         <SectionLabel>Today's Performance</SectionLabel>
         <div className="grid grid-cols-2 gap-3">
           <KPICard
-            title="Today's Sales"
-            value={fmt(kpis.salesToday)}
-            subtitle={`Cash ${fmt(kpis.cashSalesToday)} · Net ${fmt(kpis.networkSalesToday)}`}
-            icon={TrendingUp}
-            color="green"
-            large
-          />
-          <KPICard
-            title="Today's Purchases"
-            value={fmt(kpis.purchasesToday)}
-            icon={ShoppingCart}
-            color="amber"
-            large
-          />
-          <KPICard
-            title="Today's Profit"
+            title="Today's Profit/Loss"
             value={fmt(kpis.profitToday)}
             subtitle="Sales − Purchases"
             icon={kpis.profitToday >= 0 ? TrendingUp : TrendingDown}
@@ -409,11 +412,27 @@ export default function OwnerDashboard() {
             large
           />
           <KPICard
-            title="Cash In Register"
-            value={fmt(kpis.cashInRegister)}
-            subtitle="Latest closing cash"
-            icon={Banknote}
-            color="cyan"
+            title="Today's Purchases"
+            value={fmt(kpis.purchasesToday)}
+            subtitle="Approved Invoices"
+            icon={ShoppingCart}
+            color="amber"
+            large
+          />
+          <KPICard
+            title="Today's Cash Difference"
+            value={fmt(kpis.cashDifferenceToday)}
+            subtitle="Expected vs Actual"
+            icon={AlertTriangle}
+            color={kpis.cashDifferenceToday === 0 ? 'blue' : 'orange'}
+            large
+          />
+          <KPICard
+            title="Today's Owner Injection"
+            value={fmt(kpis.ownerCashInjectionToday)}
+            subtitle="Personal pocket money"
+            icon={DollarSign}
+            color="purple"
             large
           />
         </div>

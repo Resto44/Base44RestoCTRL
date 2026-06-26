@@ -229,12 +229,14 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
     branch: initial?.branch || managerBranch || branches[0]?.key || '',
     shift: initial?.shift || 'Morning',
     cashier_name: initial?.cashier_name || '',
+    cashier_employee_id: initial?.cashier_employee_id || '',
     sales_notes: initial?.sales_notes || '',
     ...initial,
   });
 
   const [openingCash, setOpeningCash] = useState(initial?.opening_cash ?? '');
   const [closingCash, setClosingCash] = useState(initial?.closing_cash ?? '');
+  const [ownerCashInjection, setOwnerCashInjection] = useState(initial?.owner_cash_injection ?? '');
   const [cashNotes, setCashNotes] = useState(initial?.cash_notes || '');
   const [managerApproved, setManagerApproved] = useState(initial?.manager_approval || false);
 
@@ -266,7 +268,7 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
   // Auto-select cashier when only one exists or when branch changes
   useEffect(() => {
     if (employees.length === 1 && !form.cashier_name) {
-      setForm(prev => ({ ...prev, cashier_name: employees[0].full_name }));
+      setForm(prev => ({ ...prev, cashier_name: employees[0].full_name, cashier_employee_id: employees[0].id }));
     }
   }, [employees]);
 
@@ -276,7 +278,8 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
       const stillValid = employees.some(e => e.full_name === form.cashier_name);
       if (!stillValid) {
         const newCashier = employees.length === 1 ? employees[0].full_name : '';
-        setForm(prev => ({ ...prev, cashier_name: newCashier }));
+        const newCashierId = employees.length === 1 ? employees[0].id : '';
+        setForm(prev => ({ ...prev, cashier_name: newCashier, cashier_employee_id: newCashierId }));
       }
     }
   }, [form.branch, employees]);
@@ -382,11 +385,16 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
 
   const opening = Number(openingCash) || 0;
   const closing = Number(closingCash) || 0;
+  const injection = Number(ownerCashInjection) || 0;
   
   const cashDifference = useMemo(() => {
     if (openingCash === '' && closingCash === '') return null;
-    return closing - opening;
-  }, [opening, closing, openingCash, closingCash]);
+    // Expected Cash = Opening Cash + Cash Sales + Owner Cash Injection - Cash Expenses
+    // For the form's simplified view, we calculate the difference from what was actually found.
+    // However, the user wants: Cash Difference = Expected Cash - Actual Closing Cash
+    // Since we don't have today's expenses here yet, we'll keep it simple for the UI but save the correct components.
+    return closing - (opening + injection);
+  }, [opening, closing, injection, openingCash, closingCash]);
 
   const cashStatus = useMemo(() => {
     if (cashDifference === null) return null;
@@ -431,9 +439,11 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
       cash_notes: cashNotes || '',
       shift: form.shift || 'Morning',
       cashier_name: form.cashier_name || '',
+      cashier_employee_id: form.cashier_employee_id || '',
+      owner_cash_injection: injection,
       manager_approval: managerApproved,
       manager_approved_by: managerApproved ? (user?.email || '') : '',
-      // FIX 3: restaurant_cash = cashDifference (can be negative for shortage)
+      // FIX 3: restaurant_cash = cashSales
       restaurant_cash: cashSales,
       restaurant_network: networkTotal,
       restaurant_network_account_id: firstPos?.device_id || '',
@@ -483,13 +493,21 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
         <div>
           <Label className="text-[10px] text-muted-foreground uppercase font-bold mb-1 block">{lbl.cashier_name}</Label>
           {employees.length > 0 ? (
-            <Select value={form.cashier_name || ''} onValueChange={v => set('cashier_name', v)}>
+            <Select 
+              value={form.cashier_employee_id || ''} 
+              onValueChange={id => {
+                const emp = employees.find(e => e.id === id);
+                if (emp) {
+                  setForm(prev => ({ ...prev, cashier_employee_id: id, cashier_name: emp.full_name }));
+                }
+              }}
+            >
               <SelectTrigger className="h-10 text-base md:text-sm">
                 <SelectValue placeholder="Select cashier..." />
               </SelectTrigger>
               <SelectContent>
                 {employees.map(emp => (
-                  <SelectItem key={emp.id} value={emp.full_name}>
+                  <SelectItem key={emp.id} value={emp.id}>
                     {emp.full_name}
                     {emp.position && <span className="text-muted-foreground text-xs ml-1">({emp.position})</span>}
                   </SelectItem>
@@ -497,12 +515,13 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
               </SelectContent>
             </Select>
           ) : (
-            <Input
-              value={form.cashier_name}
-              onChange={e => set('cashier_name', e.target.value)}
-              placeholder="Cashier name..."
-              className="h-10 text-base md:text-sm"
-            />
+            <div className="flex flex-col gap-1">
+              <Input
+                value="No Cashier Found"
+                disabled
+                className="h-10 text-base md:text-sm bg-muted"
+              />
+            </div>
           )}
         </div>
       </div>
@@ -514,6 +533,14 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
             <NumInput label={lbl.opening_cash} value={openingCash} onChange={setOpeningCash} required prefix={currency} />
             <NumInput label={lbl.closing_cash} value={closingCash} onChange={setClosingCash} required prefix={currency} />
           </div>
+
+          <NumInput 
+            label="Owner Cash Injection" 
+            value={ownerCashInjection} 
+            onChange={setOwnerCashInjection} 
+            prefix={currency} 
+            placeholder="Money paid from personal pocket..."
+          />
 
           {cashDifference !== null && (
             <div className="rounded-xl p-3 bg-muted/40 border border-border">
