@@ -43,12 +43,13 @@ function NumInput({ label, value, onChange, required, prefix, placeholder }) {
         {prefix && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">{prefix}</span>}
         <Input
           type="number"
+          inputMode="decimal"
           step="0.01"
           value={value}
           onChange={e => onChange(e.target.value)}
           required={required}
           placeholder={placeholder || '0.00'}
-          className={`h-10 ${prefix ? 'pl-8' : ''} text-sm font-medium`}
+          className={`h-10 ${prefix ? 'pl-8' : ''} text-base md:text-sm font-medium`}
         />
       </div>
     </div>
@@ -76,11 +77,6 @@ function CashStatusBadge({ status, lbl }) {
 function CustomerCreditEntry({ entry, idx, onRemove, onUpdate, customers, currency, lbl }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
-
-  const selectedCustomer = useMemo(() => 
-    customers.find(c => c.customer_name === entry.customer),
-    [customers, entry.customer]
-  );
 
   const filteredCustomers = useMemo(() => {
     if (!searchQuery.trim()) return customers.slice(0, 20);
@@ -117,7 +113,7 @@ function CustomerCreditEntry({ entry, idx, onRemove, onUpdate, customers, curren
           <Input
             value={entry.customer || searchQuery}
             placeholder={lbl.search_customer}
-            className="h-10 pl-8 text-sm"
+            className="h-10 pl-8 text-base md:text-sm"
             onChange={e => {
               setSearchQuery(e.target.value);
               if (entry.customer) {
@@ -152,14 +148,8 @@ function CustomerCreditEntry({ entry, idx, onRemove, onUpdate, customers, curren
             ))}
           </div>
         )}
-        {showDropdown && filteredCustomers.length === 0 && searchQuery && (
-          <div className="absolute z-50 w-full mt-1 bg-background border border-border rounded-lg shadow-lg p-3">
-            <p className="text-xs text-muted-foreground text-center">No customers found</p>
-          </div>
-        )}
       </div>
 
-      {/* Customer Debt Info */}
       {entry.customer && (
         <div className="grid grid-cols-2 gap-2 mt-2">
           <div className="bg-background rounded-md p-2 border border-border">
@@ -186,7 +176,7 @@ function CustomerCreditEntry({ entry, idx, onRemove, onUpdate, customers, curren
           value={entry.notes} 
           onChange={e => onUpdate(entry.id, 'notes', e.target.value)} 
           placeholder="..." 
-          className="h-8 text-xs"
+          className="h-10 md:h-8 text-base md:text-xs"
         />
       </div>
     </div>
@@ -243,13 +233,34 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
     ...initial,
   });
 
-  // Cash Register fields
   const [openingCash, setOpeningCash] = useState(initial?.opening_cash ?? '');
   const [closingCash, setClosingCash] = useState(initial?.closing_cash ?? '');
   const [cashNotes, setCashNotes] = useState(initial?.cash_notes || '');
   const [managerApproved, setManagerApproved] = useState(initial?.manager_approval || false);
 
-  // POS / Network
+  // ── Auto-populate Opening Cash from yesterday ──────────────────────────────
+  useEffect(() => {
+    if (!initial?.id && !openingCash && ownerFilter?.created_by) {
+      const fetchLastClosing = async () => {
+        const { data, error } = await supabase
+          .from('daily_sales')
+          .select('closing_cash')
+          .eq('created_by', ownerFilter.created_by)
+          .eq('branch', form.branch)
+          .order('date', { ascending: false })
+          .order('created_date', { ascending: false })
+          .limit(1);
+        
+        if (!error && data?.[0]) {
+          setOpeningCash(data[0].closing_cash || 0);
+        } else {
+          setOpeningCash(0);
+        }
+      };
+      fetchLastClosing();
+    }
+  }, [ownerFilter?.created_by, form.branch, initial?.id]);
+
   const parsePosEntries = () => {
     if (initial?.pos_entries_json) {
       try { return JSON.parse(initial.pos_entries_json).map((e, i) => ({ ...e, id: Date.now() + i })); } catch { /* ignore */ }
@@ -260,7 +271,6 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
   const [proofUrl, setProofUrl] = useState(initial?.proof_url || '');
   const [ocrData, setOcrData] = useState(null);
 
-  // Customer Credit
   const parseCreditEntries = () => {
     if (initial?.credit_entries_json) {
       try { return JSON.parse(initial.credit_entries_json).map((e, i) => ({ ...e, id: Date.now() + i })); } catch { /* ignore */ }
@@ -271,7 +281,6 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
 
   const set = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
 
-  // ── Load customers from v_customer_summary ──────────────────────────────────
   const { data: customers = [] } = useQuery({
     queryKey: ['v_customer_summary_form', ownerFilter?.created_by],
     queryFn: async () => {
@@ -288,17 +297,14 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
     enabled: !!ownerFilter?.created_by,
   });
 
-  // POS helpers
   const addPos = () => setPosEntries(prev => [...prev, { id: Date.now(), device_id: '', amount: '', notes: '' }]);
   const removePos = (id) => setPosEntries(prev => prev.filter(e => e.id !== id));
   const updatePos = (id, field, value) => setPosEntries(prev => prev.map(e => e.id === id ? { ...e, [field]: value } : e));
 
-  // Credit helpers
   const addCredit = () => setCreditEntries(prev => [...prev, { id: Date.now(), customer: '', amount: '', notes: '' }]);
   const removeCredit = (id) => setCreditEntries(prev => prev.filter(e => e.id !== id));
   const updateCredit = (id, field, value) => setCreditEntries(prev => prev.map(e => e.id === id ? { ...e, [field]: value } : e));
 
-  // ── Computed values ──────────────────────────────────────────────────────────
   const opening = Number(openingCash) || 0;
   const closing = Number(closingCash) || 0;
   
@@ -314,7 +320,6 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
     return 'Overage';
   }, [cashDifference]);
 
-  // Cash Sales = Closing Cash - Opening Cash (if positive)
   const cashSales = useMemo(() => {
     if (cashDifference === null) return 0;
     return Math.max(0, cashDifference);
@@ -322,17 +327,11 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
 
   const networkTotal = posEntries.reduce((s, e) => s + (Number(e.amount) || 0), 0);
   const creditTotal = creditEntries.reduce((s, e) => s + (Number(e.amount) || 0), 0);
-  
-  // Grand total = Cash Sales + Network + Credit
   const grandTotal = cashSales + networkTotal + creditTotal;
-
-  // Manager approval required when shortage exceeds threshold
   const needsManagerApproval = cashStatus === 'Shortage' && Math.abs(cashDifference || 0) > MANAGER_APPROVAL_THRESHOLD;
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    
-    // VALIDATION: Credit sales MUST have a customer selected
     const invalidCredit = creditEntries.find(e => Number(e.amount) > 0 && !e.customer);
     if (invalidCredit) {
       toast.error(lbl.please_select_customer);
@@ -342,32 +341,25 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
     const firstPos = posEntries[0];
     const payload = {
       ...form,
-      // Cash register fields
       opening_cash: opening,
       closing_cash: closing,
       cash_difference: cashDifference ?? 0,
       cash_status: cashStatus || 'Balanced',
       cash_notes: cashNotes || '',
-      // Shift & cashier
       shift: form.shift || 'Morning',
       cashier_name: form.cashier_name || '',
       sales_notes: form.sales_notes || '',
-      // Manager approval
       manager_approval: managerApproved,
       manager_approved_by: managerApproved ? (user?.email || '') : '',
-      // Sales amounts
       restaurant_cash: cashSales,
       restaurant_network: networkTotal,
       restaurant_network_account_id: firstPos?.device_id || '',
       credit: creditTotal,
-      // Legacy backward-compat fields
       cash: cashSales,
       network: networkTotal,
-      // JSON entries
       pos_entries_json: JSON.stringify(posEntries.map(({ id, ...rest }) => rest)),
       credit_entries_json: JSON.stringify(creditEntries.map(({ id, ...rest }) => rest)),
       proof_url: proofUrl || '',
-      // Driver fields (zero for counter sales)
       driver_cash: 0,
       driver_network: 0,
       driver_name: '',
@@ -375,17 +367,15 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
       driver_network_account_id: '',
       drivers_json: '',
     };
-
     onSubmit(payload, proofUrl, ocrData);
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 pb-2">
-      {/* Date & Branch */}
+    <form onSubmit={handleSubmit} className="space-y-4 pb-2 max-w-full overflow-x-hidden">
       <div className="grid grid-cols-2 gap-3">
         <div>
           <Label className="text-[10px] text-muted-foreground uppercase font-bold mb-1 block">{lbl.date}</Label>
-          <Input type="date" value={form.date} onChange={e => set('date', e.target.value)} className="h-10 text-sm" />
+          <Input type="date" value={form.date} onChange={e => set('date', e.target.value)} className="h-10 text-base md:text-sm" />
         </div>
         <div>
           <Label className="text-[10px] text-muted-foreground uppercase font-bold mb-1 block">{lbl.branch}</Label>
@@ -393,12 +383,11 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
         </div>
       </div>
 
-      {/* Shift & Cashier */}
       <div className="grid grid-cols-2 gap-3">
         <div>
           <Label className="text-[10px] text-muted-foreground uppercase font-bold mb-1 block">{lbl.shift}</Label>
           <Select value={form.shift} onValueChange={v => set('shift', v)}>
-            <SelectTrigger className="h-10 text-sm">
+            <SelectTrigger className="h-10 text-base md:text-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -409,11 +398,10 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
         </div>
         <div>
           <Label className="text-[10px] text-muted-foreground uppercase font-bold mb-1 block">{lbl.cashier_name}</Label>
-          <Input value={form.cashier_name} onChange={e => set('cashier_name', e.target.value)} className="h-10 text-sm" />
+          <Input value={form.cashier_name} onChange={e => set('cashier_name', e.target.value)} className="h-10 text-base md:text-sm" />
         </div>
       </div>
 
-      {/* ── CASH REGISTER ── */}
       <div className="rounded-xl border border-border overflow-hidden bg-background shadow-sm">
         <SectionHeader icon={Store} title={lbl.cash_register} />
         <div className="p-3 space-y-3">
@@ -422,14 +410,13 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
             <NumInput label={lbl.closing_cash} value={closingCash} onChange={setClosingCash} required prefix={currency} />
           </div>
 
-          {/* Cash Difference */}
           {cashDifference !== null && (
             <div className="rounded-xl p-3 bg-muted/40 border border-border">
               <div className="flex items-center justify-between mb-1">
                 <p className="text-[10px] text-muted-foreground uppercase font-bold">{lbl.cash_difference}</p>
                 <CashStatusBadge status={cashStatus} lbl={lbl} />
               </div>
-              <div className="text-2xl font-extrabold tracking-tight">
+              <div className="text-xl md:text-2xl font-extrabold tracking-tight">
                 <span className={cashDifference < 0 ? 'text-red-600' : cashDifference > 0 ? 'text-amber-600' : 'text-emerald-600'}>
                   {cashDifference >= 0 ? '+' : ''}{currency}{Math.abs(cashDifference).toLocaleString()}
                 </span>
@@ -437,7 +424,6 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
             </div>
           )}
 
-          {/* Manager Approval */}
           {needsManagerApproval && (
             <div className={`rounded-xl p-3 border ${managerApproved ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}>
               <div className="flex items-center gap-2 mb-2">
@@ -449,7 +435,7 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
               {!managerApproved ? (
                 <div className="space-y-2">
                   <p className="text-[10px] text-red-600 leading-tight">{lbl.approval_needed}</p>
-                  <Button type="button" size="sm" className="w-full h-8 text-xs bg-red-600 hover:bg-red-700" onClick={() => setManagerApproved(true)}>
+                  <Button type="button" size="sm" className="w-full h-10 md:h-8 text-sm md:text-xs bg-red-600 hover:bg-red-700" onClick={() => setManagerApproved(true)}>
                     Approve Shortage
                   </Button>
                 </div>
@@ -465,13 +451,12 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
               value={cashNotes} 
               onChange={e => setCashNotes(e.target.value)} 
               placeholder="..." 
-              className="min-h-[60px] text-xs resize-none"
+              className="min-h-[60px] text-base md:text-xs resize-none"
             />
           </div>
         </div>
       </div>
 
-      {/* ── NETWORK SALES ── */}
       <div className="rounded-xl border border-border overflow-hidden bg-background shadow-sm">
         <SectionHeader 
           icon={CreditCard} 
@@ -489,13 +474,12 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
               </Button>
             </div>
           ))}
-          <Button type="button" variant="outline" size="sm" className="w-full h-9 text-xs border-dashed" onClick={addPos}>
+          <Button type="button" variant="outline" size="sm" className="w-full h-10 text-sm border-dashed" onClick={addPos}>
             <Plus className="w-3 h-3 mr-1" /> {lbl.add_pos}
           </Button>
         </div>
       </div>
 
-      {/* ── CUSTOMER CREDIT SALES ── */}
       <div className="rounded-xl border border-border overflow-hidden bg-background shadow-sm">
         <SectionHeader 
           icon={User} 
@@ -515,13 +499,12 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
               lbl={lbl}
             />
           ))}
-          <Button type="button" variant="outline" size="sm" className="w-full h-9 text-xs border-dashed" onClick={addCredit}>
+          <Button type="button" variant="outline" size="sm" className="w-full h-10 text-sm border-dashed" onClick={addCredit}>
             <Plus className="w-3 h-3 mr-1" /> {lbl.add_credit}
           </Button>
         </div>
       </div>
 
-      {/* ── SALES TOTAL ── */}
       <div className="rounded-xl bg-primary/5 border border-primary/20 p-4 shadow-sm">
         <div className="flex items-center gap-2 mb-3">
           <Info className="w-4 h-4 text-primary" />
@@ -543,14 +526,13 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
           <Separator className="my-2 bg-primary/20" />
           <div className="flex justify-between items-end">
             <span className="text-sm font-bold text-primary uppercase">{lbl.total}</span>
-            <span className="text-3xl font-black text-primary tracking-tighter">
+            <span className="text-2xl md:text-3xl font-black text-primary tracking-tighter">
               {currency}{grandTotal.toLocaleString()}
             </span>
           </div>
         </div>
       </div>
 
-      {/* Actions */}
       <div className="grid grid-cols-2 gap-3 pt-2">
         <Button type="button" variant="outline" className="h-12 text-sm font-bold" onClick={onCancel}>
           {lbl.cancel}
