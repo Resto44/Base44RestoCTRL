@@ -95,6 +95,51 @@ export default function Sales() {
     qc.invalidateQueries({ queryKey: ['wallet_transactions'] });
   };
 
+  // FIX 5: Auto-create treasury transaction for approved cash shortage or overage
+  const autoShortageOveageTx = async (saleData, saleId) => {
+    const cashStatus = saleData.cash_status;
+    const cashDiff = Number(saleData.cash_difference) || 0;
+    // Only create treasury record if manager approved the shortage,
+    // OR if there is an overage (always record)
+    const isApprovedShortage = cashStatus === 'Shortage' && saleData.manager_approval;
+    const isOverage = cashStatus === 'Overage' && cashDiff > 0;
+    if (!isApprovedShortage && !isOverage) return;
+
+    const type = isApprovedShortage ? 'branch_expense' : 'cash_sales_branch';
+    const direction = isApprovedShortage ? 'out' : 'in';
+    const amount = Math.abs(cashDiff);
+    const label = isApprovedShortage ? 'Cash Shortage' : 'Cash Overage';
+
+    try {
+      // Remove any existing shortage/overage tx for this sale
+      const existing = await base44.entities.WalletTransaction.filter({
+        reference_id: saleId,
+        auto_generated: true,
+      });
+      const prev = existing.filter(tx =>
+        tx.description && (tx.description.includes('Cash Shortage') || tx.description.includes('Cash Overage'))
+      );
+      await Promise.all(prev.map(tx => base44.entities.WalletTransaction.delete(tx.id)));
+
+      await base44.entities.WalletTransaction.create({
+        date: saleData.date,
+        type,
+        wallet: 'branch_cash',
+        direction,
+        amount,
+        payment_method: 'cash',
+        branch: saleData.branch,
+        description: `${label} — ${saleData.branch} — ${saleData.date} — Cashier: ${saleData.cashier_name || ''} — Approved by: ${saleData.manager_approved_by || ''}`,
+        reference_id: saleId,
+        auto_generated: true,
+        recorded_by: saleData.manager_approved_by || '',
+      });
+      qc.invalidateQueries({ queryKey: ['wallet_transactions'] });
+    } catch (e) {
+      console.warn('[autoShortageOveageTx] failed:', e.message);
+    }
+  };
+
   // Auto-save customer credit entries to DebtRecord + DebtPayment
   // Debt Management is the single source of truth for customer credit
   const autoSaveCreditDebts = async (saleData, saleId) => {
@@ -221,6 +266,8 @@ export default function Sales() {
     mutationFn: async ({ data, proofUrl, ocr }) => {
       const sale = await base44.entities.DailySales.create(data);
       await autoWalletTx(data, sale.id);
+      // FIX 5: Create treasury transaction for approved shortage/overage
+      await autoShortageOveageTx(data, sale.id);
       try { await autoSettle(data, sale.id, proofUrl || null, ocr || null, null); } catch (e) { console.warn('autoSettle skipped:', e.message); }
       // Save customer credit entries to Debt Management (single source of truth)
       await autoSaveCreditDebts(data, sale.id);
@@ -246,6 +293,8 @@ export default function Sales() {
     mutationFn: async ({ id, data, prev, proofUrl, ocr }) => {
       const sale = await base44.entities.DailySales.update(id, data);
       await autoWalletTx(data, id, prev);
+      // FIX 5: Update treasury transaction for approved shortage/overage
+      await autoShortageOveageTx(data, id);
       try { await autoSettle(data, id, proofUrl || null, ocr || null, prev); } catch (e) { console.warn('autoSettle skipped:', e.message); }
       // Save customer credit entries to Debt Management (single source of truth)
       await autoSaveCreditDebts(data, id);

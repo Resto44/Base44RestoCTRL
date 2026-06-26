@@ -186,7 +186,7 @@ function CustomerCreditEntry({ entry, idx, onRemove, onUpdate, customers, curren
 export default function SalesForm({ initial, onSubmit, onCancel }) {
   const { t, currency } = useLanguage();
   const { user } = useAuth();
-  const { ownerFilter, branches, managerBranch } = useTenant();
+  const { ownerFilter, branches, managerBranch, activeRestaurant } = useTenant();
   
   const lbl = {
     date: t('date') || 'Date',
@@ -228,7 +228,7 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
     date: initial?.date || format(new Date(), 'yyyy-MM-dd'),
     branch: initial?.branch || managerBranch || branches[0]?.key || '',
     shift: initial?.shift || 'Morning',
-    cashier_name: initial?.cashier_name || user?.name || '',
+    cashier_name: initial?.cashier_name || '',
     sales_notes: initial?.sales_notes || '',
     ...initial,
   });
@@ -237,6 +237,49 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
   const [closingCash, setClosingCash] = useState(initial?.closing_cash ?? '');
   const [cashNotes, setCashNotes] = useState(initial?.cash_notes || '');
   const [managerApproved, setManagerApproved] = useState(initial?.manager_approval || false);
+
+  // ── FIX 1: Load cashiers (Cashier / Manager / Owner) filtered by branch ──────
+  const { data: employees = [] } = useQuery({
+    queryKey: ['employees_cashiers', ownerFilter?.created_by, form.branch],
+    queryFn: async () => {
+      if (!ownerFilter?.created_by) return [];
+      const all = await base44.entities.Employee.filter(
+        { created_by: ownerFilter.created_by, is_active: true },
+        'full_name',
+        200
+      );
+      // Filter by branch if set
+      const branchFiltered = form.branch
+        ? all.filter(e => !e.branch || e.branch === form.branch || e.branch === 'all')
+        : all;
+      // Only cashiers, managers, and owners
+      const CASHIER_ROLES = ['cashier', 'manager', 'owner', 'supervisor', 'admin'];
+      return branchFiltered.filter(e => {
+        const pos = (e.position || '').toLowerCase();
+        return CASHIER_ROLES.some(r => pos.includes(r));
+      });
+    },
+    staleTime: 60000,
+    enabled: !!ownerFilter?.created_by,
+  });
+
+  // Auto-select cashier when only one exists or when branch changes
+  useEffect(() => {
+    if (employees.length === 1 && !form.cashier_name) {
+      setForm(prev => ({ ...prev, cashier_name: employees[0].full_name }));
+    }
+  }, [employees]);
+
+  // When branch changes, reset cashier if the current one is not in the new list
+  useEffect(() => {
+    if (employees.length > 0 && form.cashier_name) {
+      const stillValid = employees.some(e => e.full_name === form.cashier_name);
+      if (!stillValid) {
+        const newCashier = employees.length === 1 ? employees[0].full_name : '';
+        setForm(prev => ({ ...prev, cashier_name: newCashier }));
+      }
+    }
+  }, [form.branch, employees]);
 
   // ── Auto-populate Opening Cash from yesterday ──────────────────────────────
   useEffect(() => {
@@ -261,15 +304,47 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
     }
   }, [ownerFilter?.created_by, form.branch, initial?.id]);
 
+  // ── FIX 2: Load POS devices for the selected branch ───────────────────────
+  const { data: posDevices = [] } = useQuery({
+    queryKey: ['pos_devices_form', activeRestaurant?.id, ownerFilter?.created_by, form.branch],
+    queryFn: async () => {
+      const createdBy = ownerFilter?.created_by;
+      if (!createdBy) return [];
+      const all = await base44.entities.NetworkAccount.filter(
+        { created_by: createdBy },
+        '-created_date',
+        200
+      );
+      if (!form.branch) return all.filter(a => a.status === 'active' || a.is_active);
+      return all.filter(a =>
+        (a.status === 'active' || a.is_active) &&
+        (!a.branch || a.branch === form.branch || a.branch_id === form.branch)
+      );
+    },
+    staleTime: 30000,
+    enabled: !!(ownerFilter?.created_by),
+  });
+
   const parsePosEntries = () => {
     if (initial?.pos_entries_json) {
       try { return JSON.parse(initial.pos_entries_json).map((e, i) => ({ ...e, id: Date.now() + i })); } catch { /* ignore */ }
     }
-    return [{ id: Date.now(), device_id: '', amount: '', notes: '' }];
+    // FIX 2: Always start with one row (Manual Network Entry if no devices)
+    return [{ id: Date.now(), device_id: '', device_name: '', amount: '', notes: '' }];
   };
   const [posEntries, setPosEntries] = useState(parsePosEntries);
   const [proofUrl, setProofUrl] = useState(initial?.proof_url || '');
   const [ocrData, setOcrData] = useState(null);
+
+  // FIX 2: When POS devices load, populate device names in existing entries
+  useEffect(() => {
+    if (posDevices.length > 0 && posEntries.length === 1 && !posEntries[0].device_id && !posEntries[0].amount) {
+      // Auto-populate first entry with first device if only one device
+      if (posDevices.length === 1) {
+        setPosEntries([{ id: posEntries[0].id, device_id: posDevices[0].id, device_name: posDevices[0].account_name || posDevices[0].device_name || '', amount: '', notes: '' }]);
+      }
+    }
+  }, [posDevices]);
 
   const parseCreditEntries = () => {
     if (initial?.credit_entries_json) {
@@ -297,7 +372,7 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
     enabled: !!ownerFilter?.created_by,
   });
 
-  const addPos = () => setPosEntries(prev => [...prev, { id: Date.now(), device_id: '', amount: '', notes: '' }]);
+  const addPos = () => setPosEntries(prev => [...prev, { id: Date.now(), device_id: '', device_name: '', amount: '', notes: '' }]);
   const removePos = (id) => setPosEntries(prev => prev.filter(e => e.id !== id));
   const updatePos = (id, field, value) => setPosEntries(prev => prev.map(e => e.id === id ? { ...e, [field]: value } : e));
 
@@ -320,13 +395,21 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
     return 'Overage';
   }, [cashDifference]);
 
+  // FIX 3: Cash Sales = closing - opening (the actual difference, positive or negative)
+  // Cash shortage does NOT reduce sales — it is a separate operational indicator.
+  // Sales = Cash Difference + Network + Credit (shortage is informational only)
   const cashSales = useMemo(() => {
     if (cashDifference === null) return 0;
-    return Math.max(0, cashDifference);
+    // Use the full difference (positive = overage/sales, negative = shortage)
+    // For sales reporting, we use the absolute cash difference as cash sales
+    // A shortage means less cash was collected than expected — it does NOT change
+    // the network or credit totals. The cash component IS the difference.
+    return cashDifference ?? 0;
   }, [cashDifference]);
 
   const networkTotal = posEntries.reduce((s, e) => s + (Number(e.amount) || 0), 0);
   const creditTotal = creditEntries.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  // FIX 3: Grand total = cash difference + network + credit (shortage is informational)
   const grandTotal = cashSales + networkTotal + creditTotal;
   const needsManagerApproval = cashStatus === 'Shortage' && Math.abs(cashDifference || 0) > MANAGER_APPROVAL_THRESHOLD;
 
@@ -348,9 +431,9 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
       cash_notes: cashNotes || '',
       shift: form.shift || 'Morning',
       cashier_name: form.cashier_name || '',
-      sales_notes: form.sales_notes || '',
       manager_approval: managerApproved,
       manager_approved_by: managerApproved ? (user?.email || '') : '',
+      // FIX 3: restaurant_cash = cashDifference (can be negative for shortage)
       restaurant_cash: cashSales,
       restaurant_network: networkTotal,
       restaurant_network_account_id: firstPos?.device_id || '',
@@ -396,9 +479,31 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
             </SelectContent>
           </Select>
         </div>
+        {/* FIX 1: Cashier dropdown — auto-loaded from employees */}
         <div>
           <Label className="text-[10px] text-muted-foreground uppercase font-bold mb-1 block">{lbl.cashier_name}</Label>
-          <Input value={form.cashier_name} onChange={e => set('cashier_name', e.target.value)} className="h-10 text-base md:text-sm" />
+          {employees.length > 0 ? (
+            <Select value={form.cashier_name || ''} onValueChange={v => set('cashier_name', v)}>
+              <SelectTrigger className="h-10 text-base md:text-sm">
+                <SelectValue placeholder="Select cashier..." />
+              </SelectTrigger>
+              <SelectContent>
+                {employees.map(emp => (
+                  <SelectItem key={emp.id} value={emp.full_name}>
+                    {emp.full_name}
+                    {emp.position && <span className="text-muted-foreground text-xs ml-1">({emp.position})</span>}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <Input
+              value={form.cashier_name}
+              onChange={e => set('cashier_name', e.target.value)}
+              placeholder="Cashier name..."
+              className="h-10 text-base md:text-sm"
+            />
+          )}
         </div>
       </div>
 
@@ -421,6 +526,12 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
                   {cashDifference >= 0 ? '+' : ''}{currency}{Math.abs(cashDifference).toLocaleString()}
                 </span>
               </div>
+              {/* FIX 3: Clarify that shortage is informational, not a sales deduction */}
+              {cashStatus === 'Shortage' && (
+                <p className="text-[10px] text-red-500 mt-1">
+                  Cash shortage is recorded for audit. It does not reduce sales revenue.
+                </p>
+              )}
             </div>
           )}
 
@@ -457,6 +568,7 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
         </div>
       </div>
 
+      {/* FIX 2: Network Sales — NEVER hidden, always shows at least one row */}
       <div className="rounded-xl border border-border overflow-hidden bg-background shadow-sm">
         <SectionHeader 
           icon={CreditCard} 
@@ -464,16 +576,75 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
           badge={<Badge variant="outline" className="text-[10px] font-bold text-primary">{currency}{networkTotal.toLocaleString()}</Badge>}
         />
         <div className="p-3 space-y-3">
-          {posEntries.map((entry, idx) => (
-            <div key={entry.id} className="flex items-end gap-2 bg-muted/30 p-2 rounded-lg border border-border/50">
-              <div className="flex-1">
-                <NumInput label={`${lbl.amount} #${idx+1}`} value={entry.amount} onChange={v => updatePos(entry.id, 'amount', v)} prefix={currency} />
+          {posEntries.map((entry, idx) => {
+            // Find matching device name for display
+            const device = posDevices.find(d => d.id === entry.device_id);
+            const deviceLabel = device
+              ? (device.account_name || device.device_name || device.network_provider || 'POS Device')
+              : (entry.device_name || 'Manual Network Entry');
+            return (
+              <div key={entry.id} className="bg-muted/30 p-2 rounded-lg border border-border/50 space-y-2">
+                {/* Device selector (if POS devices exist) or label */}
+                {posDevices.length > 0 ? (
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground uppercase font-bold mb-1 block">
+                      {lbl.device} #{idx + 1}
+                    </Label>
+                    <Select
+                      value={entry.device_id || '__manual__'}
+                      onValueChange={v => {
+                        if (v === '__manual__') {
+                          updatePos(entry.id, 'device_id', '');
+                          updatePos(entry.id, 'device_name', 'Manual Network Entry');
+                        } else {
+                          const d = posDevices.find(pd => pd.id === v);
+                          updatePos(entry.id, 'device_id', v);
+                          updatePos(entry.id, 'device_name', d?.account_name || d?.device_name || '');
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-10 text-base md:text-sm">
+                        <SelectValue placeholder="Select POS device..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__manual__">Manual Network Entry</SelectItem>
+                        {posDevices.map(d => (
+                          <SelectItem key={d.id} value={d.id}>
+                            {d.account_name || d.device_name || d.network_provider}
+                            {d.account_number && <span className="text-muted-foreground text-xs ml-1">#{d.account_number}</span>}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : (
+                  <p className="text-xs font-semibold text-muted-foreground">
+                    {deviceLabel}
+                  </p>
+                )}
+                <div className="flex items-end gap-2">
+                  <div className="flex-1">
+                    <NumInput
+                      label={`${lbl.amount} #${idx + 1}`}
+                      value={entry.amount}
+                      onChange={v => updatePos(entry.id, 'amount', v)}
+                      prefix={currency}
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-10 w-10 text-destructive"
+                    onClick={() => removePos(entry.id)}
+                    disabled={posEntries.length === 1}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
-              <Button type="button" variant="ghost" size="icon" className="h-10 w-10 text-destructive" onClick={() => removePos(entry.id)} disabled={posEntries.length === 1}>
-                <Trash2 className="w-4 h-4" />
-              </Button>
-            </div>
-          ))}
+            );
+          })}
           <Button type="button" variant="outline" size="sm" className="w-full h-10 text-sm border-dashed" onClick={addPos}>
             <Plus className="w-3 h-3 mr-1" /> {lbl.add_pos}
           </Button>
@@ -513,7 +684,10 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
         <div className="space-y-2">
           <div className="flex justify-between text-xs text-muted-foreground">
             <span>{lbl.cash_sales}</span>
-            <span className="font-bold text-foreground">{currency}{cashSales.toLocaleString()}</span>
+            <span className={`font-bold ${cashSales < 0 ? 'text-red-600' : 'text-foreground'}`}>
+              {cashSales < 0 ? '-' : ''}{currency}{Math.abs(cashSales).toLocaleString()}
+              {cashStatus === 'Shortage' && <span className="text-red-500 text-[10px] ml-1">(shortage)</span>}
+            </span>
           </div>
           <div className="flex justify-between text-xs text-muted-foreground">
             <span>{lbl.network_sales}</span>

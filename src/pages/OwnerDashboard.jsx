@@ -185,6 +185,14 @@ export default function OwnerDashboard() {
     select: (data) => data.filter(e => e.date >= monthStart),
   });
 
+  // FIX 4: Today's expenses for accurate profit calculation
+  const { data: todayExpenses = [] } = useQuery({
+    queryKey: ['expenses_today', ownerFilter, today],
+    queryFn: () => base44.entities.Expense.filter({ ...(ownerFilter || {}), date: today }, '-date', 200),
+    staleTime: 15000,
+    enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
+  });
+
   const { data: supplierInvoices = [] } = useQuery({
     queryKey: ['supplier_invoices_dash', ownerFilter],
     queryFn: () => base44.entities.SupplierInvoice.filter(ownerFilter || {}, '-date', 500),
@@ -259,8 +267,10 @@ export default function OwnerDashboard() {
     const purchasesToday = todayPurchases.reduce((s, p) =>
       s + ((p.qty || 0) * (p.used_price || p.current_price || 0)), 0);
 
-    // ── TODAY'S PROFIT (no monthly expenses) ──
-    const profitToday = salesToday - purchasesToday;
+    // FIX 4: Today's Profit = Sales - Purchases - Today's Expenses
+    // Cash shortage is NOT deducted unless manager-approved (handled via treasury)
+    const expensesToday = todayExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    const profitToday = salesToday - purchasesToday - expensesToday;
 
     // ── NETWORK BALANCE (sum of all active network account balances) ──
     // We approximate from today's network sales
@@ -319,7 +329,7 @@ export default function OwnerDashboard() {
       monthlySales, monthlyNetProfit,
     };
   }, [
-    todaySales, todayPurchases, monthSales, monthPurchases, monthExpenses,
+    todaySales, todayPurchases, todayExpenses, monthSales, monthPurchases, monthExpenses,
     supplierInvoices, customerDebts, inventory, todayInvoices,
   ]);
 
