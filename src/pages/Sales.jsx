@@ -436,7 +436,7 @@ export default function Sales() {
       if (filters.branch !== 'all' && s.branch !== filters.branch) return false;
       if (filters.from && s.date < filters.from) return false;
       if (filters.to && s.date > filters.to) return false;
-      const total = (s.restaurant_cash || s.cash || 0) + (s.restaurant_network || s.network || 0);
+      const total = (Number(s.restaurant_cash) || Number(s.cash) || 0) + (Number(s.restaurant_network) || Number(s.network) || 0) + (Number(s.credit) || 0);
       if (filters.minTotal && total < Number(filters.minTotal)) return false;
       if (filters.maxTotal && total > Number(filters.maxTotal)) return false;
       return true;

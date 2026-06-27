@@ -23,7 +23,7 @@ export default function SalesListItem({ sale, onEdit, onDelete }) {
   const rCash = Number(sale.restaurant_cash ?? sale.cash ?? 0);
   const rNet  = Number(sale.restaurant_network ?? sale.network ?? 0);
   const credit = Number(sale.credit) || 0;
-  const total = rCash + rNet;
+  const total = rCash + rNet + credit;
   const branchLabel = branches.find(b => b.key === sale.branch)?.label || sale.branch;
   const hasNetwork = rNet > 0;
 
@@ -57,6 +57,7 @@ export default function SalesListItem({ sale, onEdit, onDelete }) {
         <Store className="w-3.5 h-3.5 text-primary shrink-0" />
         <span className="text-[10px] text-muted-foreground flex-1">{t('cash')}: <span className="font-semibold text-foreground">{currency}{rCash.toLocaleString()}</span></span>
         <span className="text-[10px] text-muted-foreground">Net: <span className="font-semibold text-foreground">{currency}{rNet.toLocaleString()}</span></span>
+        {credit > 0 && <span className="text-[10px] text-muted-foreground">Cred: <span className="font-semibold text-foreground">{currency}{credit.toLocaleString()}</span></span>}
 
         <span className="text-xs font-bold text-primary ms-2">{currency}{total.toLocaleString()}</span>
       </div>

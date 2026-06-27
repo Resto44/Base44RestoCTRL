@@ -1,21 +1,21 @@
 /**
  * SalesForm — Daily Sales entry form.
  *
- * Accounting rules enforced here:
- *  1. Total Sales = Cash Sales + Network/POS Sales + Customer Credit Sales
- *     Sales are NEVER affected by cash shortage, overage, or owner payments.
- *  2. Cash Reconciliation is a SEPARATE block:
- *       Opening Cash
- *       Cash Sales  (entered directly — the actual cash revenue)
- *       Expected Cash = Opening Cash + Cash Sales
- *       Actual Cash Count (physical count)
- *       Cash Difference = Actual − Expected
- *       → Shortage if Actual < Expected  (does NOT reduce Sales)
- *       → Overage  if Actual > Expected  (does NOT increase Sales)
- *       Owner Capital Contribution = amount owner paid to cover shortage
- *  3. Operating Result = Total Sales − Approved Purchases (shown read-only)
- *  4. If Purchases > Sales → Operating Loss + Owner Capital Contribution stored
- *     separately (never classified as sales revenue).
+ * Finalized Accounting Rules:
+ *  1. Sales Total = Cash Sales + POS Sales + Customer Credit.
+ *  2. Never change Sales Total because of cash shortage, overage or owner payments.
+ *  3. Expected Cash = Opening Cash + Cash Sales.
+ *  4. Cash Difference = Actual Cash - Expected Cash.
+ *  5. If Difference < 0 → Cash Shortage.
+ *  6. If Difference > 0 → Cash Overage.
+ *  7. Owner payment = Owner Capital Contribution, never Sales.
+ *  8. Operating Result = Total Sales - Approved Purchases.
+ *  9. Opening Cash = Previous Shift Closing Cash (automatic).
+ *  10. Closing Cash = Actual Cash + Owner Capital Contribution.
+ *  11. Next shift Opening Cash = Previous Closing Cash.
+ *  12. Remaining Difference = Closing Cash - Expected Cash.
+ *      Shift cannot close until Remaining Difference = 0 or Manager Approval.
+ *  13. Sales, Cash Reconciliation, Purchases and Operating Result are independent.
  */
 import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -216,8 +216,7 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
   });
   const set = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
 
-  // ── Section A: Sales Revenue inputs (independent of reconciliation) ──────────
-  // Cash Sales = the actual cash revenue collected (entered directly by cashier)
+  // ── Section A: Sales Revenue inputs ──────────────────────────────────────────
   const [cashSalesInput, setCashSalesInput] = useState(
     initial?.restaurant_cash !== undefined ? String(initial.restaurant_cash)
       : initial?.cash !== undefined ? String(initial.cash) : ''
@@ -230,7 +229,7 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
   const [cashNotes, setCashNotes] = useState(initial?.cash_notes || '');
   const [managerApproved, setManagerApproved] = useState(initial?.manager_approval || false);
 
-  // ── Employees (cashier dropdown) ─────────────────────────────────────────────
+  // ── Employees ────────────────────────────────────────────────────────────────
   const { data: employees = [] } = useQuery({
     queryKey: ['employees_cashiers', ownerFilter?.created_by, form.branch],
     queryFn: async () => {
@@ -257,25 +256,12 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
     }
   }, [employees]);
 
+  // Rule 9: Auto-populate Opening Cash from previous shift's Closing Cash
   useEffect(() => {
-    if (employees.length > 0 && form.cashier_name) {
-      const stillValid = employees.some(e => e.full_name === form.cashier_name);
-      if (!stillValid) {
-        setForm(prev => ({
-          ...prev,
-          cashier_name: employees.length === 1 ? employees[0].full_name : '',
-          cashier_employee_id: employees.length === 1 ? employees[0].id : '',
-        }));
-      }
-    }
-  }, [form.branch, employees]);
-
-  // Auto-populate Opening Cash from previous record
-  useEffect(() => {
-    if (!initial?.id && openingCash === '' && ownerFilter?.created_by) {
+    if (!initial?.id && openingCash === '' && ownerFilter?.created_by && form.branch) {
       supabase
         .from('daily_sales')
-        .select('closing_cash, actual_cash_count')
+        .select('closing_cash, date, shift')
         .eq('created_by', ownerFilter.created_by)
         .eq('branch', form.branch)
         .order('date', { ascending: false })
@@ -283,8 +269,7 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
         .limit(1)
         .then(({ data }) => {
           if (data?.[0]) {
-            // Opening = previous actual cash count (or closing_cash as fallback)
-            setOpeningCash(data[0].actual_cash_count ?? data[0].closing_cash ?? 0);
+            setOpeningCash(data[0].closing_cash ?? 0);
           } else {
             setOpeningCash(0);
           }
@@ -316,19 +301,6 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
     return [{ id: Date.now(), device_id: '', device_name: '', amount: '', notes: '' }];
   };
   const [posEntries, setPosEntries] = useState(parsePosEntries);
-  const [proofUrl, setProofUrl] = useState(initial?.proof_url || '');
-  const [ocrData, setOcrData] = useState(null);
-
-  useEffect(() => {
-    if (posDevices.length === 1 && posEntries.length === 1 && !posEntries[0].device_id && !posEntries[0].amount) {
-      setPosEntries([{
-        id: posEntries[0].id,
-        device_id: posDevices[0].id,
-        device_name: posDevices[0].account_name || posDevices[0].device_name || '',
-        amount: '', notes: '',
-      }]);
-    }
-  }, [posDevices]);
 
   const parseCreditEntries = () => {
     if (initial?.credit_entries_json) {
@@ -362,7 +334,7 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
     enabled: !!ownerFilter?.created_by,
   });
 
-  // ── Approved Purchases for the selected date ─────────────────────────────────
+  // ── Approved Purchases ───────────────────────────────────────────────────────
   const { data: approvedPurchasesForDate = [], isLoading: purchasesLoading } = useQuery({
     queryKey: ['approved_purchases_for_date', ownerFilter?.created_by, form.date],
     queryFn: async () => {
@@ -384,22 +356,21 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
   const hasApprovedPurchases = approvedPurchasesForDate.length > 0;
   const approvedPurchasesTotal = approvedPurchasesForDate.reduce((s, p) => s + (Number(p.total_amount) || 0), 0);
 
-  // ── Section A: Sales Total (NEVER affected by reconciliation) ────────────────
-  const cashSales   = Math.max(0, Number(cashSalesInput) || 0);
+  // ── Section A: Sales Total ──────────────────────────────────────────────────
+  const cashSales    = Math.max(0, Number(cashSalesInput) || 0);
   const networkTotal = posEntries.reduce((s, e) => s + (Number(e.amount) || 0), 0);
   const creditTotal  = creditEntries.reduce((s, e) => s + (Number(e.amount) || 0), 0);
-  // Total Sales = Cash Sales + Network + Credit  ← the only correct formula
-  const totalSales  = cashSales + networkTotal + creditTotal;
+  const totalSales   = cashSales + networkTotal + creditTotal;
 
-  // ── Section B: Cash Reconciliation (separate from sales) ────────────────────
+  // ── Section B: Cash Reconciliation ──────────────────────────────────────────
   const opening         = Number(openingCash) || 0;
   const actualCount     = actualCashCount !== '' ? Number(actualCashCount) : null;
   const ownerContrib    = Number(ownerContributionInput) || 0;
 
-  // Expected Cash = Opening Cash + Cash Sales
+  // Rule 3: Expected Cash = Opening Cash + Cash Sales
   const expectedCash = opening + cashSales;
 
-  // Cash Difference = Actual − Expected  (null when actual not yet entered)
+  // Rule 4: Cash Difference = Actual Cash - Expected Cash
   const cashDifference = actualCount !== null ? actualCount - expectedCash : null;
 
   const cashReconcStatus = useMemo(() => {
@@ -408,31 +379,33 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
     return cashDifference < 0 ? 'Shortage' : 'Overage';
   }, [cashDifference]);
 
-  // Cash Shortage = max(0, -(cashDifference))  when actual < expected
+  // Rule 10: Closing Cash = Actual Cash + Owner Capital Contribution
+  const closingCash = actualCount !== null ? (actualCount + ownerContrib) : opening;
+
+  // Rule 12: Remaining Difference = Closing Cash - Expected Cash
+  const remainingDifference = actualCount !== null ? (closingCash - expectedCash) : null;
+
   const cashShortageAmount = cashDifference !== null ? Math.max(0, -cashDifference) : 0;
-  // Cash Overage  = max(0, cashDifference)     when actual > expected
   const cashOverageAmount  = cashDifference !== null ? Math.max(0, cashDifference) : 0;
 
-  // After owner contribution, effective cash difference = 0 (balanced)
-  const effectiveCashDiff = cashDifference !== null
-    ? cashDifference + ownerContrib   // owner tops up the shortage
-    : null;
-
-  const needsManagerApproval = cashReconcStatus === 'Shortage' && cashShortageAmount > 50;
+  const needsManagerApproval = remainingDifference !== 0 && remainingDifference !== null;
 
   // ── Section C: Operating Result ──────────────────────────────────────────────
-  // Operating Result = Total Sales − Approved Purchases
   const operatingResult = totalSales - approvedPurchasesTotal;
-  // If Purchases > Sales → operating loss; owner capital contribution from purchases side
   const purchasesOwnerContrib = Math.max(0, approvedPurchasesTotal - totalSales);
 
   // ── Submit ───────────────────────────────────────────────────────────────────
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    // Block save if no approved purchase for this date
     if (!hasApprovedPurchases) {
       toast.error("Please record today's purchases before closing daily sales.");
+      return;
+    }
+
+    // Rule 12: Shift cannot close until Remaining Difference = 0 or Manager Approval is given.
+    if (remainingDifference !== 0 && remainingDifference !== null && !managerApproved) {
+      toast.error("Cash difference must be balanced (Remaining Difference = 0) or manager approval must be provided.");
       return;
     }
 
@@ -442,29 +415,24 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
       return;
     }
 
-    const firstPos = posEntries[0];
-
     const payload = {
       ...form,
-      // ── Section A: Sales (source of truth — never modified by reconciliation) ──
       restaurant_cash: cashSales,
       cash: cashSales,
       restaurant_network: networkTotal,
       network: networkTotal,
-      restaurant_network_account_id: firstPos?.device_id || '',
+      restaurant_network_account_id: posEntries[0]?.device_id || '',
       credit: creditTotal,
       total_sales: totalSales,
       pos_entries_json: JSON.stringify(posEntries.map(({ id, ...rest }) => rest)),
       credit_entries_json: JSON.stringify(creditEntries.map(({ id, ...rest }) => rest)),
-      proof_url: proofUrl || '',
-
-      // ── Section B: Cash Reconciliation (separate — does not affect sales) ─────
+      
       opening_cash: opening,
-      // closing_cash kept for backward compat — set to actual count
-      closing_cash: actualCount ?? opening,
+      closing_cash: closingCash,
       actual_cash_count: actualCount ?? opening,
       expected_cash: expectedCash,
       cash_difference: cashDifference ?? 0,
+      remaining_difference: remainingDifference ?? 0,
       cash_shortage_amount: cashShortageAmount,
       cash_overage_amount: cashOverageAmount,
       cash_status: cashReconcStatus || 'Balanced',
@@ -473,29 +441,18 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
       manager_approval: managerApproved,
       manager_approved_by: managerApproved ? (user?.email || '') : '',
 
-      // ── Section C: Operating Result ───────────────────────────────────────────
       approved_purchases_total: approvedPurchasesTotal,
       daily_operating_result: operatingResult,
-      // Owner capital contribution from purchases shortfall (NOT sales revenue)
       owner_capital_contribution: purchasesOwnerContrib,
-
-      // Driver fields (unchanged)
-      driver_cash: 0,
-      driver_network: 0,
-      driver_name: '',
-      driver_employee_id: '',
-      driver_network_account_id: '',
-      drivers_json: '',
+      
+      restaurant_id: activeRestaurant?.id || null,
     };
 
-    onSubmit(payload, proofUrl, ocrData);
+    onSubmit(payload);
   };
 
-  // ── JSX ───────────────────────────────────────────────────────────────────────
   return (
     <form onSubmit={handleSubmit} className="space-y-4 pb-2 max-w-full overflow-x-hidden">
-
-      {/* Date & Branch */}
       <div className="grid grid-cols-2 gap-3">
         <div>
           <Label className="text-[10px] text-muted-foreground uppercase font-bold mb-1 block">Date</Label>
@@ -507,7 +464,6 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
         </div>
       </div>
 
-      {/* Shift & Cashier */}
       <div className="grid grid-cols-2 gap-3">
         <div>
           <Label className="text-[10px] text-muted-foreground uppercase font-bold mb-1 block">Shift</Label>
@@ -521,370 +477,151 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
         </div>
         <div>
           <Label className="text-[10px] text-muted-foreground uppercase font-bold mb-1 block">Cashier</Label>
-          {employees.length > 0 ? (
-            <Select
-              value={form.cashier_employee_id || ''}
-              onValueChange={id => {
-                const emp = employees.find(e => e.id === id);
-                if (emp) setForm(prev => ({ ...prev, cashier_employee_id: id, cashier_name: emp.full_name }));
-              }}
-            >
-              <SelectTrigger className="h-10 text-base md:text-sm">
-                <SelectValue placeholder="Select cashier..." />
-              </SelectTrigger>
-              <SelectContent>
-                {employees.map(emp => (
-                  <SelectItem key={emp.id} value={emp.id}>
-                    {emp.full_name}
-                    {emp.position && <span className="text-muted-foreground text-xs ml-1">({emp.position})</span>}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : (
-            <Input value="No Cashier Found" disabled className="h-10 text-base md:text-sm bg-muted" />
-          )}
+          <Select
+            value={form.cashier_employee_id || ''}
+            onValueChange={id => {
+              const emp = employees.find(e => e.id === id);
+              if (emp) setForm(prev => ({ ...prev, cashier_employee_id: id, cashier_name: emp.full_name }));
+            }}
+          >
+            <SelectTrigger className="h-10 text-base md:text-sm">
+              <SelectValue placeholder="Select cashier..." />
+            </SelectTrigger>
+            <SelectContent>
+              {employees.map(emp => (
+                <SelectItem key={emp.id} value={emp.id}>{emp.full_name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
-      {/* ═══════════════════════════════════════════════════════════════════════
-          SECTION A — SALES REVENUE
-          Sales Total = Cash Sales + Network/POS + Customer Credit
-          This section is COMPLETELY INDEPENDENT of cash reconciliation.
-          ═══════════════════════════════════════════════════════════════════════ */}
+      {/* SECTION A — SALES REVENUE */}
       <div className="rounded-xl border-2 border-blue-200 overflow-hidden bg-background shadow-sm">
-        <SectionHeader
-          icon={DollarSign}
-          title="Sales Revenue"
-          badge={<Badge className="text-[10px] font-bold bg-blue-600 text-white">{currency}{totalSales.toLocaleString()}</Badge>}
-        />
+        <SectionHeader icon={DollarSign} title="Sales Revenue" badge={<Badge className="bg-blue-600">{currency}{totalSales.toLocaleString()}</Badge>} />
         <div className="p-3 space-y-3">
-          <p className="text-[10px] text-muted-foreground italic">
-            Enter actual revenue collected. Cash Sales = money received from customers in cash.
-            This value is independent of the cash register count.
-          </p>
-
-          {/* Cash Sales — direct revenue entry */}
-          <NumInput
-            label="Cash Sales"
-            value={cashSalesInput}
-            onChange={setCashSalesInput}
-            prefix={currency}
-            helpText="Actual cash revenue from customers (not the register difference)"
-          />
-
-          {/* Network / POS Sales */}
+          <NumInput label="Cash Sales" value={cashSalesInput} onChange={setCashSalesInput} prefix={currency} helpText="Actual cash revenue collected" />
+          
           <div className="rounded-xl border border-border overflow-hidden">
-            <SectionHeader
-              icon={CreditCard}
-              title="Network / POS Sales"
-              badge={<Badge variant="outline" className="text-[10px] font-bold text-primary">{currency}{networkTotal.toLocaleString()}</Badge>}
-            />
+            <SectionHeader icon={CreditCard} title="Network / POS Sales" badge={<Badge variant="outline">{currency}{networkTotal.toLocaleString()}</Badge>} />
             <div className="p-3 space-y-3">
-              {posEntries.map((entry, idx) => {
-                const device = posDevices.find(d => d.id === entry.device_id);
-                const deviceLabel = device
-                  ? (device.account_name || device.device_name || device.network_provider || 'POS Device')
-                  : (entry.device_name || 'Manual Network Entry');
-                return (
-                  <div key={entry.id} className="bg-muted/30 p-2 rounded-lg border border-border/50 space-y-2">
-                    {posDevices.length > 0 ? (
-                      <div>
-                        <Label className="text-[10px] text-muted-foreground uppercase font-bold mb-1 block">Device #{idx + 1}</Label>
-                        <Select
-                          value={entry.device_id || '__manual__'}
-                          onValueChange={v => {
-                            if (v === '__manual__') {
-                              updatePos(entry.id, 'device_id', '');
-                              updatePos(entry.id, 'device_name', 'Manual Network Entry');
-                            } else {
-                              const d = posDevices.find(pd => pd.id === v);
-                              updatePos(entry.id, 'device_id', v);
-                              updatePos(entry.id, 'device_name', d?.account_name || d?.device_name || '');
-                            }
-                          }}
-                        >
-                          <SelectTrigger className="h-10 text-base md:text-sm">
-                            <SelectValue placeholder="Select POS device..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__manual__">Manual Network Entry</SelectItem>
-                            {posDevices.map(d => (
-                              <SelectItem key={d.id} value={d.id}>
-                                {d.account_name || d.device_name || d.network_provider}
-                                {d.account_number && <span className="text-muted-foreground text-xs ml-1">#{d.account_number}</span>}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    ) : (
-                      <p className="text-xs font-semibold text-muted-foreground">{deviceLabel}</p>
-                    )}
-                    <div className="flex items-end gap-2">
-                      <div className="flex-1">
-                        <NumInput
-                          label={`Amount #${idx + 1}`}
-                          value={entry.amount}
-                          onChange={v => updatePos(entry.id, 'amount', v)}
-                          prefix={currency}
-                        />
-                      </div>
-                      <Button
-                        type="button" variant="ghost" size="icon"
-                        className="h-10 w-10 text-destructive"
-                        onClick={() => removePos(entry.id)}
-                        disabled={posEntries.length === 1}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+              {posEntries.map((entry, idx) => (
+                <div key={entry.id} className="bg-muted/30 p-2 rounded-lg border border-border/50 space-y-2">
+                  <Select
+                    value={entry.device_id || '__manual__'}
+                    onValueChange={v => {
+                      if (v === '__manual__') {
+                        updatePos(entry.id, 'device_id', '');
+                        updatePos(entry.id, 'device_name', 'Manual Network Entry');
+                      } else {
+                        const d = posDevices.find(pd => pd.id === v);
+                        updatePos(entry.id, 'device_id', v);
+                        updatePos(entry.id, 'device_name', d?.account_name || d?.device_name || '');
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="h-10"><SelectValue placeholder="Select POS device..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__manual__">Manual Entry</SelectItem>
+                      {posDevices.map(d => <SelectItem key={d.id} value={d.id}>{d.account_name || d.device_name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <div className="flex items-end gap-2">
+                    <div className="flex-1">
+                      <NumInput label="Amount" value={entry.amount} onChange={v => updatePos(entry.id, 'amount', v)} prefix={currency} />
                     </div>
+                    <Button type="button" variant="ghost" size="icon" className="h-10 text-destructive" onClick={() => removePos(entry.id)} disabled={posEntries.length === 1}><Trash2 className="w-4 h-4" /></Button>
                   </div>
-                );
-              })}
-              <Button type="button" variant="outline" size="sm" className="w-full h-10 text-sm border-dashed" onClick={addPos}>
-                <Plus className="w-3 h-3 mr-1" /> Add POS Device
-              </Button>
+                </div>
+              ))}
+              <Button type="button" variant="outline" size="sm" className="w-full h-10 border-dashed" onClick={addPos}><Plus className="w-3 h-3 mr-1" /> Add POS</Button>
             </div>
           </div>
 
-          {/* Customer Credit Sales */}
           <div className="rounded-xl border border-border overflow-hidden">
-            <SectionHeader
-              icon={User}
-              title="Customer Credit Sales"
-              badge={<Badge variant="outline" className="text-[10px] font-bold text-primary">{currency}{creditTotal.toLocaleString()}</Badge>}
-            />
+            <SectionHeader icon={User} title="Customer Credit Sales" badge={<Badge variant="outline">{currency}{creditTotal.toLocaleString()}</Badge>} />
             <div className="p-3 space-y-3">
               {creditEntries.map((entry, idx) => (
-                <CustomerCreditEntry
-                  key={entry.id}
-                  entry={entry}
-                  idx={idx}
-                  onRemove={removeCredit}
-                  onUpdate={updateCredit}
-                  customers={customers}
-                  currency={currency}
-                />
+                <CustomerCreditEntry key={entry.id} entry={entry} idx={idx} onRemove={removeCredit} onUpdate={updateCredit} customers={customers} currency={currency} />
               ))}
-              <Button type="button" variant="outline" size="sm" className="w-full h-10 text-sm border-dashed" onClick={addCredit}>
-                <Plus className="w-3 h-3 mr-1" /> Add Credit Entry
-              </Button>
-            </div>
-          </div>
-
-          {/* Sales Total Summary */}
-          <div className="rounded-xl bg-blue-50 border border-blue-200 p-3 space-y-1.5">
-            <p className="text-[10px] text-blue-700 font-bold uppercase tracking-wider flex items-center gap-1">
-              <Info className="w-3 h-3" /> Sales Total
-            </p>
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>Cash Sales</span>
-              <span className="font-bold text-foreground">{currency}{cashSales.toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>Network / POS Sales</span>
-              <span className="font-bold text-foreground">{currency}{networkTotal.toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>Customer Credit Sales</span>
-              <span className="font-bold text-foreground">{currency}{creditTotal.toLocaleString()}</span>
-            </div>
-            <Separator className="my-1 bg-blue-200" />
-            <div className="flex justify-between items-center">
-              <span className="text-sm font-bold text-blue-700 uppercase">Total Sales</span>
-              <span className="text-2xl font-black text-blue-700">{currency}{totalSales.toLocaleString()}</span>
+              <Button type="button" variant="outline" size="sm" className="w-full h-10 border-dashed" onClick={addCredit}><Plus className="w-3 h-3 mr-1" /> Add Credit</Button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* ═══════════════════════════════════════════════════════════════════════
-          SECTION B — CASH RECONCILIATION
-          Separate from sales. Shortage/Overage do NOT affect Sales Total.
-          Expected Cash = Opening Cash + Cash Sales
-          Actual Cash Count = physical count by cashier
-          ═══════════════════════════════════════════════════════════════════════ */}
+      {/* SECTION B — CASH RECONCILIATION */}
       <div className="rounded-xl border-2 border-amber-200 overflow-hidden bg-background shadow-sm">
         <SectionHeader icon={Scale} title="Cash Reconciliation" />
         <div className="p-3 space-y-3">
-          <p className="text-[10px] text-muted-foreground italic">
-            Compare expected cash (Opening + Cash Sales) with the physical count.
-            Any difference is a reconciliation item — it does NOT change Sales Total.
-          </p>
-
           <div className="grid grid-cols-2 gap-3">
-            <NumInput
-              label="Opening Cash"
-              value={openingCash}
-              onChange={setOpeningCash}
-              prefix={currency}
-              helpText="Cash in register at start of shift"
-            />
-            <NumInput
-              label="Expected Cash"
-              value={expectedCash}
-              readOnly
-              prefix={currency}
-              helpText="Opening + Cash Sales (auto)"
-            />
+            <NumInput label="Opening Cash" value={openingCash} onChange={setOpeningCash} prefix={currency} helpText="Auto-fetched from prev shift" />
+            <NumInput label="Expected Cash" value={expectedCash} readOnly prefix={currency} helpText="Opening + Cash Sales" />
           </div>
-
-          <NumInput
-            label="Actual Cash Count"
-            value={actualCashCount}
-            onChange={setActualCashCount}
-            prefix={currency}
-            helpText="Physical cash counted at end of shift"
-          />
-
-          {/* Reconciliation result */}
+          <NumInput label="Actual Cash Count" value={actualCashCount} onChange={setActualCashCount} prefix={currency} helpText="Physical count in register" />
+          
           {cashDifference !== null && (
-            <div className={`rounded-xl p-3 border ${
-              cashReconcStatus === 'Shortage' ? 'bg-red-50 border-red-200' :
-              cashReconcStatus === 'Overage'  ? 'bg-amber-50 border-amber-200' :
-              'bg-emerald-50 border-emerald-200'
-            }`}>
-              <div className="flex items-center justify-between mb-2">
+            <div className={`rounded-xl p-3 border ${cashReconcStatus === 'Shortage' ? 'bg-red-50 border-red-200' : cashReconcStatus === 'Overage' ? 'bg-amber-50 border-amber-200' : 'bg-emerald-50 border-emerald-200'}`}>
+              <div className="flex items-center justify-between mb-1">
                 <p className="text-[10px] font-bold uppercase text-muted-foreground">Cash Difference</p>
                 <StatusBadge status={cashReconcStatus} />
               </div>
-              <p className={`text-xl font-extrabold ${
-                cashDifference < 0 ? 'text-red-600' : cashDifference > 0 ? 'text-amber-600' : 'text-emerald-600'
-              }`}>
+              <p className={`text-xl font-black ${cashDifference < 0 ? 'text-red-600' : cashDifference > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
                 {cashDifference >= 0 ? '+' : ''}{currency}{Math.abs(cashDifference).toLocaleString()}
               </p>
-              {cashReconcStatus === 'Shortage' && (
-                <p className="text-[10px] text-red-600 mt-1 font-medium">
-                  Cash Shortage: {currency}{cashShortageAmount.toLocaleString()} — Sales Total is unchanged.
-                </p>
-              )}
-              {cashReconcStatus === 'Overage' && (
-                <p className="text-[10px] text-amber-600 mt-1 font-medium">
-                  Cash Overage: {currency}{cashOverageAmount.toLocaleString()} — Sales Total is unchanged.
-                </p>
-              )}
             </div>
           )}
 
-          {/* Owner Capital Contribution to cover cash shortage */}
           {cashReconcStatus === 'Shortage' && (
-            <NumInput
-              label="Owner Capital Contribution (Cash)"
-              value={ownerContributionInput}
-              onChange={setOwnerContributionInput}
-              prefix={currency}
-              helpText="Amount owner paid from personal money to cover the shortage. NOT sales revenue."
-              placeholder="0.00"
-            />
+            <NumInput label="Owner Capital Contribution" value={ownerContributionInput} onChange={setOwnerContributionInput} prefix={currency} helpText="Owner paid to cover shortage" />
           )}
 
-          {/* Effective cash position after owner contribution */}
-          {cashReconcStatus === 'Shortage' && ownerContrib > 0 && (
-            <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 flex items-center justify-between">
-              <span className="text-xs text-emerald-700 font-medium">Cash Position After Contribution</span>
-              <span className={`text-sm font-bold ${effectiveCashDiff >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
-                {effectiveCashDiff >= 0 ? '+' : ''}{currency}{Math.abs(effectiveCashDiff || 0).toLocaleString()}
-              </span>
-            </div>
-          )}
-
-          {/* Manager Approval for large shortages */}
-          {needsManagerApproval && (
-            <div className={`rounded-xl p-3 border ${managerApproved ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}>
-              <div className="flex items-center gap-2 mb-2">
-                {managerApproved
-                  ? <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                  : <AlertCircle className="w-4 h-4 text-red-600" />}
-                <span className={`text-xs font-bold ${managerApproved ? 'text-emerald-700' : 'text-red-700'}`}>
-                  {managerApproved ? 'Approved by Manager' : 'Manager Approval Required'}
+          {actualCount !== null && (
+            <div className={`rounded-xl p-3 border ${remainingDifference === 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}>
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-bold text-muted-foreground uppercase">Remaining Difference</span>
+                <span className={`text-lg font-black ${remainingDifference === 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                  {remainingDifference >= 0 ? '+' : ''}{currency}{Math.abs(remainingDifference).toLocaleString()}
                 </span>
               </div>
-              {!managerApproved ? (
-                <div className="space-y-2">
-                  <p className="text-[10px] text-red-600 leading-tight">Shortage exceeds limit. Approval required.</p>
-                  <Button
-                    type="button" size="sm"
-                    className="w-full h-10 md:h-8 text-sm md:text-xs bg-red-600 hover:bg-red-700"
-                    onClick={() => setManagerApproved(true)}
-                  >
-                    Approve Shortage
+              {remainingDifference !== 0 && (
+                <div className="mt-2 flex items-center gap-2">
+                  <Button type="button" size="sm" variant={managerApproved ? 'default' : 'destructive'} className="w-full h-8 text-xs" onClick={() => setManagerApproved(!managerApproved)}>
+                    {managerApproved ? 'Approved by Manager' : 'Require Manager Approval'}
                   </Button>
                 </div>
-              ) : (
-                <p className="text-[10px] text-emerald-600">Verified by {user?.email}</p>
               )}
             </div>
           )}
 
-          <div>
-            <Label className="text-[10px] text-muted-foreground uppercase font-bold mb-1 block">Reconciliation Notes</Label>
-            <Textarea
-              value={cashNotes}
-              onChange={e => setCashNotes(e.target.value)}
-              placeholder="..."
-              className="min-h-[60px] text-base md:text-xs resize-none"
-            />
+          <div className="bg-muted/30 rounded-lg p-2 flex justify-between items-center">
+            <span className="text-[10px] font-bold uppercase text-muted-foreground">Closing Cash (for next shift)</span>
+            <span className="text-sm font-bold text-foreground">{currency}{closingCash.toLocaleString()}</span>
           </div>
         </div>
       </div>
 
-      {/* ═══════════════════════════════════════════════════════════════════════
-          SECTION C — OPERATING RESULT (read-only, shown when purchases exist)
-          Operating Result = Total Sales − Approved Purchases
-          ═══════════════════════════════════════════════════════════════════════ */}
-      {!purchasesLoading && !hasApprovedPurchases && (
-        <div className="rounded-xl bg-red-50 border border-red-200 p-3 flex items-start gap-2">
-          <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 shrink-0" />
-          <p className="text-xs text-red-700 font-medium leading-snug">
-            Please record today&apos;s purchases before closing daily sales.
-          </p>
-        </div>
-      )}
-
+      {/* SECTION C — OPERATING RESULT */}
       {hasApprovedPurchases && (
         <div className="rounded-xl border-2 border-emerald-200 overflow-hidden bg-background shadow-sm">
           <SectionHeader icon={Info} title="Operating Result" />
           <div className="p-3 space-y-1.5">
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>Total Sales</span>
-              <span className="font-bold text-blue-700">{currency}{totalSales.toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>Approved Purchases</span>
-              <span className="font-bold text-orange-600">{currency}{approvedPurchasesTotal.toLocaleString()}</span>
-            </div>
-            <Separator className="my-1 bg-emerald-200" />
+            <div className="flex justify-between text-xs"><span>Total Sales</span><span className="font-bold text-blue-700">{currency}{totalSales.toLocaleString()}</span></div>
+            <div className="flex justify-between text-xs"><span>Approved Purchases</span><span className="font-bold text-orange-600">{currency}{approvedPurchasesTotal.toLocaleString()}</span></div>
+            <Separator className="my-1" />
             <div className="flex justify-between items-center">
               <span className="text-sm font-bold uppercase text-muted-foreground">Operating Result</span>
               <span className={`text-xl font-black ${operatingResult >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
                 {operatingResult >= 0 ? '+' : ''}{currency}{operatingResult.toLocaleString()}
               </span>
             </div>
-            {purchasesOwnerContrib > 0 && (
-              <div className="mt-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
-                <p className="text-[10px] text-amber-700 font-bold uppercase">Owner Capital Contribution (Purchases Gap)</p>
-                <p className="text-sm font-bold text-amber-700">{currency}{purchasesOwnerContrib.toLocaleString()}</p>
-                <p className="text-[9px] text-amber-600 mt-0.5">Owner funds to cover purchase shortfall. NOT classified as sales revenue.</p>
-              </div>
-            )}
           </div>
         </div>
       )}
 
-      {/* Action Buttons */}
       <div className="grid grid-cols-2 gap-3 pt-2">
-        <Button type="button" variant="outline" className="h-12 text-sm font-bold" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button
-          type="submit"
-          className="h-12 text-sm font-bold bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20"
-          disabled={(needsManagerApproval && !managerApproved) || purchasesLoading}
-          title={!hasApprovedPurchases ? "Please record today's purchases before closing daily sales." : undefined}
-        >
-          Save
-        </Button>
+        <Button type="button" variant="outline" className="h-12 font-bold" onClick={onCancel}>Cancel</Button>
+        <Button type="submit" className="h-12 font-bold bg-primary" disabled={purchasesLoading || (remainingDifference !== 0 && remainingDifference !== null && !managerApproved)}>Save</Button>
       </div>
     </form>
   );
