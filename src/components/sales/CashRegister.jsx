@@ -1,15 +1,11 @@
 /**
- * CashRegister — READ ONLY.
- * Automatically reads opening_cash, closing_cash, cash_difference, cash_status,
- * shift, cashier_name, sales_notes, manager_approval from the latest DailySales record.
+ * CashRegister — READ ONLY cash reconciliation panel.
  *
- * NO manual entry. Source of truth = Add Sale records.
- *
- * Features:
- * - Shows all shifts for the selected date (Morning + Evening)
- * - Displays Shift, Cashier Name, Sales Notes
- * - Shows Manager Approval badge when shortage was approved
- * - Shows combined daily total at the bottom
+ * Displays reconciliation data saved by SalesForm.
+ * Cash Sales are read from `restaurant_cash` (the actual revenue field).
+ * Expected Cash = Opening Cash + Cash Sales.
+ * Shortage/Overage = Actual Count − Expected.
+ * These figures do NOT affect Sales Total.
  */
 import React, { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -19,16 +15,18 @@ import { useTenant } from '@/lib/TenantContext';
 import { format } from 'date-fns';
 import {
   Banknote, CheckCircle2, TrendingDown, TrendingUp, Lock,
-  Clock, User, ShieldCheck, AlertCircle, SunMedium, Moon
+  Clock, User, ShieldCheck, AlertCircle, SunMedium, Moon, Scale
 } from 'lucide-react';
 
 const LABELS = {
   en: {
-    title: 'Cash Register',
+    title: 'Cash Reconciliation',
     opening_cash: 'Opening Cash',
-    closing_cash: 'Closing Cash',
+    cash_sales: 'Cash Sales (Revenue)',
+    expected_cash: 'Expected Cash',
+    actual_cash: 'Actual Cash Count',
     cash_difference: 'Cash Difference',
-    cash_status: 'Cash Status',
+    cash_status: 'Status',
     balanced: 'Balanced',
     shortage: 'Shortage',
     overage: 'Overage',
@@ -42,14 +40,17 @@ const LABELS = {
     daily_total: 'Daily Cash Total',
     morning: 'Morning',
     evening: 'Evening',
-    cash_sales: 'Cash Sales',
+    owner_contrib: 'Owner Contribution',
+    note_no_sales_impact: 'Reconciliation items do not affect Sales Total.',
   },
   ar: {
-    title: 'سجل النقد',
+    title: 'تسوية النقد',
     opening_cash: 'النقد الافتتاحي',
-    closing_cash: 'النقد الختامي',
+    cash_sales: 'المبيعات النقدية (إيراد)',
+    expected_cash: 'النقد المتوقع',
+    actual_cash: 'العد الفعلي',
     cash_difference: 'فرق النقد',
-    cash_status: 'حالة النقد',
+    cash_status: 'الحالة',
     balanced: 'متوازن',
     shortage: 'عجز',
     overage: 'زيادة',
@@ -63,14 +64,17 @@ const LABELS = {
     daily_total: 'إجمالي النقد اليومي',
     morning: 'صباحية',
     evening: 'مسائية',
-    cash_sales: 'المبيعات النقدية',
+    owner_contrib: 'مساهمة المالك',
+    note_no_sales_impact: 'بنود التسوية لا تؤثر على إجمالي المبيعات.',
   },
   fa: {
-    title: 'صندوق نقد',
+    title: 'تطبیق نقد',
     opening_cash: 'نقد ابتدایی',
-    closing_cash: 'نقد پایانی',
+    cash_sales: 'فروش نقدی (درآمد)',
+    expected_cash: 'نقد مورد انتظار',
+    actual_cash: 'شمارش واقعی',
     cash_difference: 'اختلاف نقد',
-    cash_status: 'وضعیت نقد',
+    cash_status: 'وضعیت',
     balanced: 'متعادل',
     shortage: 'کسری',
     overage: 'مازاد',
@@ -84,7 +88,8 @@ const LABELS = {
     daily_total: 'جمع نقد روزانه',
     morning: 'صبح',
     evening: 'عصر',
-    cash_sales: 'فروش نقدی',
+    owner_contrib: 'سرمایه مالک',
+    note_no_sales_impact: 'اقلام تطبیق بر جمع فروش تأثیر نمی‌گذارند.',
   },
 };
 
@@ -93,7 +98,7 @@ function CashStatusBadge({ status, lbl }) {
   const config = {
     Balanced: { color: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: CheckCircle2 },
     Shortage: { color: 'bg-red-100 text-red-700 border-red-200', icon: TrendingDown },
-    Overage: { color: 'bg-amber-100 text-amber-700 border-amber-200', icon: TrendingUp },
+    Overage:  { color: 'bg-amber-100 text-amber-700 border-amber-200', icon: TrendingUp },
   };
   const c = config[status] || config.Balanced;
   const Icon = c.icon;
@@ -116,13 +121,30 @@ function InfoRow({ icon: Icon, label, value }) {
   );
 }
 
+function ReconcRow({ label, value, currency, valueColor }) {
+  return (
+    <div className="flex items-center justify-between py-1">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className={`text-xs font-bold ${valueColor || 'text-foreground'}`}>{currency}{Number(value || 0).toLocaleString()}</span>
+    </div>
+  );
+}
+
 function ShiftCard({ sale, currency, lbl }) {
-  const opening = Number(sale.opening_cash || 0);
-  const closing = Number(sale.closing_cash || 0);
-  const diff = closing - opening;
-  const cashSales = Math.max(0, diff);
-  const status = sale.cash_status || (diff === 0 ? 'Balanced' : diff < 0 ? 'Shortage' : 'Overage');
-  const diffColor = diff > 0 ? 'text-amber-600' : diff < 0 ? 'text-red-600' : 'text-emerald-600';
+  // Cash Sales = actual revenue (restaurant_cash field, NOT closing-opening diff)
+  const cashSalesRevenue = Number(sale.restaurant_cash || sale.cash || 0);
+  const opening          = Number(sale.opening_cash || 0);
+  // Expected Cash = Opening + Cash Sales Revenue
+  const expectedCash     = Number(sale.expected_cash) || (opening + cashSalesRevenue);
+  // Actual Cash Count (physical count)
+  const actualCash       = Number(sale.actual_cash_count || sale.closing_cash || 0);
+  // Cash Difference = Actual − Expected
+  const cashDiff         = actualCash - expectedCash;
+  const cashShortage     = Number(sale.cash_shortage_amount) || Math.max(0, -cashDiff);
+  const cashOverage      = Number(sale.cash_overage_amount)  || Math.max(0, cashDiff);
+  const ownerContrib     = Number(sale.owner_cash_injection || 0);
+
+  const status = sale.cash_status || (cashDiff === 0 ? 'Balanced' : cashDiff < 0 ? 'Shortage' : 'Overage');
   const isEvening = sale.shift === 'Evening';
   const ShiftIcon = isEvening ? Moon : SunMedium;
 
@@ -140,37 +162,52 @@ function ShiftCard({ sale, currency, lbl }) {
       </div>
 
       <div className="p-3 space-y-2">
-        {/* Opening / Closing */}
-        <div className="grid grid-cols-2 gap-2">
-          <div className="rounded-lg bg-muted/50 p-2 text-center">
-            <p className="text-[10px] text-muted-foreground">{lbl.opening_cash}</p>
-            <p className="text-sm font-bold text-blue-600">{currency}{opening.toLocaleString()}</p>
-          </div>
-          <div className="rounded-lg bg-muted/50 p-2 text-center">
-            <p className="text-[10px] text-muted-foreground">{lbl.closing_cash}</p>
-            <p className="text-sm font-bold text-foreground">{currency}{closing.toLocaleString()}</p>
-          </div>
+        {/* Reconciliation grid */}
+        <div className="rounded-lg bg-muted/30 border border-border p-2 space-y-0.5">
+          <ReconcRow label={lbl.opening_cash}  value={opening}         currency={currency} />
+          <ReconcRow label={lbl.cash_sales}    value={cashSalesRevenue} currency={currency} valueColor="text-blue-600" />
+          <ReconcRow label={lbl.expected_cash} value={expectedCash}    currency={currency} valueColor="text-muted-foreground" />
+          <ReconcRow label={lbl.actual_cash}   value={actualCash}      currency={currency} />
         </div>
 
         {/* Cash Difference */}
         <div className="rounded-lg bg-muted/30 border border-border px-3 py-2 flex items-center justify-between">
           <span className="text-xs text-muted-foreground">{lbl.cash_difference}</span>
-          <span className={`text-sm font-extrabold ${diffColor}`}>
-            {diff >= 0 ? '+' : ''}{currency}{Math.abs(diff).toLocaleString()}
+          <span className={`text-sm font-extrabold ${cashDiff > 0 ? 'text-amber-600' : cashDiff < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+            {cashDiff >= 0 ? '+' : ''}{currency}{Math.abs(cashDiff).toLocaleString()}
           </span>
         </div>
 
-        {/* Cash Sales */}
-        <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 px-3 py-2 flex items-center justify-between">
-          <span className="text-xs text-muted-foreground">{lbl.cash_sales}</span>
-          <span className="text-sm font-bold text-emerald-600">{currency}{cashSales.toLocaleString()}</span>
-        </div>
+        {/* Shortage / Overage */}
+        {cashShortage > 0 && (
+          <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 flex items-center justify-between">
+            <span className="text-xs text-red-700">{lbl.shortage}</span>
+            <span className="text-sm font-bold text-red-600">{currency}{cashShortage.toLocaleString()}</span>
+          </div>
+        )}
+        {cashOverage > 0 && (
+          <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 flex items-center justify-between">
+            <span className="text-xs text-amber-700">{lbl.overage}</span>
+            <span className="text-sm font-bold text-amber-600">{currency}{cashOverage.toLocaleString()}</span>
+          </div>
+        )}
+        {ownerContrib > 0 && (
+          <div className="rounded-lg bg-purple-50 border border-purple-200 px-3 py-2 flex items-center justify-between">
+            <span className="text-xs text-purple-700">{lbl.owner_contrib}</span>
+            <span className="text-sm font-bold text-purple-600">{currency}{ownerContrib.toLocaleString()}</span>
+          </div>
+        )}
+
+        {/* Note: reconciliation does not affect sales */}
+        {status !== 'Balanced' && (
+          <p className="text-[9px] text-muted-foreground italic">{lbl.note_no_sales_impact}</p>
+        )}
 
         {/* Shift info */}
         <div className="space-y-0.5">
-          <InfoRow icon={User} label={lbl.cashier} value={sale.cashier_name} />
-          {sale.cash_notes && <InfoRow icon={Banknote} label={lbl.cash_status} value={sale.cash_notes} />}
-          {sale.sales_notes && <InfoRow icon={Clock} label={lbl.notes} value={sale.sales_notes} />}
+          <InfoRow icon={User}  label={lbl.cashier} value={sale.cashier_name} />
+          {sale.cash_notes  && <InfoRow icon={Banknote} label={lbl.cash_status} value={sale.cash_notes} />}
+          {sale.sales_notes && <InfoRow icon={Clock}    label={lbl.notes}       value={sale.sales_notes} />}
         </div>
 
         {/* Manager Approval */}
@@ -203,7 +240,6 @@ export default function CashRegister({ date, branch }) {
     staleTime: 15000,
   });
 
-  // Filter by branch, then sort by created_date
   const filteredSales = useMemo(() => {
     const filtered = (!branch || branch === 'all')
       ? sales
@@ -211,30 +247,27 @@ export default function CashRegister({ date, branch }) {
     return filtered.sort((a, b) => new Date(a.created_date || 0) - new Date(b.created_date || 0));
   }, [sales, branch]);
 
-  // Daily totals
+  // Daily totals — cash sales revenue (NOT closing-opening diff)
   const dailyTotals = useMemo(() => {
     return filteredSales.reduce((acc, sale) => {
-      const opening = Number(sale.opening_cash || 0);
-      const closing = Number(sale.closing_cash || 0);
-      const cashSales = Math.max(0, closing - opening);
+      const cashSalesRevenue = Number(sale.restaurant_cash || sale.cash || 0);
       return {
-        totalCashSales: acc.totalCashSales + cashSales,
-        latestClosing: closing,
+        totalCashSales: acc.totalCashSales + cashSalesRevenue,
+        latestActual: Number(sale.actual_cash_count || sale.closing_cash || 0),
       };
-    }, { totalCashSales: 0, latestClosing: 0 });
+    }, { totalCashSales: 0, latestActual: 0 });
   }, [filteredSales]);
 
   return (
     <div className="rounded-xl border border-border overflow-hidden">
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2.5 bg-secondary/60">
-        <Banknote className="w-4 h-4 text-primary" />
+        <Scale className="w-4 h-4 text-primary" />
         <span className="text-sm font-semibold">{lbl.title}</span>
         <Lock className="w-3 h-3 text-muted-foreground ms-auto" />
       </div>
 
       <div className="p-3 space-y-3">
-        {/* Read-only note */}
         <p className="text-[10px] text-muted-foreground text-center italic">{lbl.read_only_note}</p>
 
         {isLoading ? (
@@ -243,12 +276,11 @@ export default function CashRegister({ date, branch }) {
           <p className="text-xs text-muted-foreground text-center py-4">{lbl.no_data}</p>
         ) : (
           <>
-            {/* One card per shift record */}
             {filteredSales.map(sale => (
               <ShiftCard key={sale.id} sale={sale} currency={currency} lbl={lbl} />
             ))}
 
-            {/* Daily Total */}
+            {/* Daily Total — cash sales revenue */}
             {filteredSales.length > 1 && (
               <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 flex items-center justify-between">
                 <span className="text-sm font-semibold text-muted-foreground">{lbl.daily_total}</span>

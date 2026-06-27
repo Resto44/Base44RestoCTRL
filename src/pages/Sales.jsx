@@ -95,56 +95,83 @@ export default function Sales() {
     qc.invalidateQueries({ queryKey: ['wallet_transactions'] });
   };
 
-  // Rule 6: Auto-create Owner Capital Contribution treasury entry when purchases > sales
+  // Rule 6: Auto-create Owner Capital Contribution treasury entries.
+  // Two separate cases:
+  //   (a) Cash Reconciliation shortage — owner injects cash to balance register
+  //   (b) Purchases > Sales — owner covers operating loss from personal funds
+  // Neither case modifies Sales Total, Network, or Credit.
   const autoOwnerCapitalTx = async (saleData, saleId) => {
-    const contribution = Number(saleData.owner_capital_contribution) || 0;
-    if (contribution <= 0) return;
+    // Case (a): owner cash injection to cover register shortage
+    const cashContrib = Number(saleData.owner_cash_injection) || 0;
+    // Case (b): owner capital to cover purchases > sales operating loss
+    const purchasesContrib = Number(saleData.owner_capital_contribution) || 0;
+
+    if (cashContrib <= 0 && purchasesContrib <= 0) return;
 
     try {
-      // Remove any existing owner-capital tx for this sale to avoid duplicates
+      // Remove any existing owner-capital txs for this sale to avoid duplicates
       const existing = await base44.entities.WalletTransaction.filter({
         reference_id: saleId,
         auto_generated: true,
       });
-      const prev = existing.filter(tx =>
-        tx.type === 'owner_capital_contribution'
-      );
+      const prev = existing.filter(tx => tx.type === 'owner_capital_contribution');
       await Promise.all(prev.map(tx => base44.entities.WalletTransaction.delete(tx.id)));
 
-      await base44.entities.WalletTransaction.create({
-        date: saleData.date,
-        type: 'owner_capital_contribution',
-        wallet: 'owner_cash',
-        direction: 'in',
-        amount: contribution,
-        payment_method: 'cash',
-        branch: saleData.branch,
-        description: `Owner Capital Contribution — Daily Cash Shortage — ${saleData.branch} — ${saleData.date}`,
-        reference_id: saleId,
-        auto_generated: true,
-        approval_status: 'approved',
-        recorded_by: user?.email || '',
-      });
+      const creates = [];
+
+      if (cashContrib > 0) {
+        creates.push(base44.entities.WalletTransaction.create({
+          date: saleData.date,
+          type: 'owner_capital_contribution',
+          wallet: 'owner_cash',
+          direction: 'in',
+          amount: cashContrib,
+          payment_method: 'cash',
+          branch: saleData.branch,
+          description: `Owner Capital Contribution — Cash Register Shortage — ${saleData.branch} — ${saleData.date}`,
+          reference_id: saleId,
+          auto_generated: true,
+          approval_status: 'approved',
+          recorded_by: user?.email || '',
+          notes: 'Cash reconciliation: owner covered register shortage. Not classified as sales revenue.',
+        }));
+      }
+
+      if (purchasesContrib > 0) {
+        creates.push(base44.entities.WalletTransaction.create({
+          date: saleData.date,
+          type: 'owner_capital_contribution',
+          wallet: 'owner_cash',
+          direction: 'in',
+          amount: purchasesContrib,
+          payment_method: 'cash',
+          branch: saleData.branch,
+          description: `Owner Capital Contribution — Purchases Exceed Sales — ${saleData.branch} — ${saleData.date}`,
+          reference_id: saleId,
+          auto_generated: true,
+          approval_status: 'approved',
+          recorded_by: user?.email || '',
+          notes: `Operating loss covered by owner. Sales=${saleData.total_sales || 0}, Purchases=${saleData.approved_purchases_total || 0}. Not classified as sales revenue.`,
+        }));
+      }
+
+      await Promise.all(creates);
       qc.invalidateQueries({ queryKey: ['wallet_transactions'] });
     } catch (e) {
       console.warn('[autoOwnerCapitalTx] failed:', e.message);
     }
   };
 
-  // FIX 5: Auto-create treasury transaction for approved cash shortage or overage
+  // Cash Reconciliation treasury entries.
+  // These are AUDIT records only — they do NOT modify Sales Total, Network, or Credit.
   const autoShortageOveageTx = async (saleData, saleId) => {
     const cashStatus = saleData.cash_status;
-    const cashDiff = Number(saleData.cash_difference) || 0;
-    // Only create treasury record if manager approved the shortage,
-    // OR if there is an overage (always record)
-    const isApprovedShortage = cashStatus === 'Shortage' && saleData.manager_approval;
-    const isOverage = cashStatus === 'Overage' && cashDiff > 0;
-    if (!isApprovedShortage && !isOverage) return;
+    const shortageAmt = Number(saleData.cash_shortage_amount) || 0;
+    const overageAmt  = Number(saleData.cash_overage_amount)  || 0;
 
-    const type = isApprovedShortage ? 'branch_expense' : 'cash_sales_branch';
-    const direction = isApprovedShortage ? 'out' : 'in';
-    const amount = Math.abs(cashDiff);
-    const label = isApprovedShortage ? 'Cash Shortage' : 'Cash Overage';
+    const isApprovedShortage = cashStatus === 'Shortage' && saleData.manager_approval && shortageAmt > 0;
+    const isOverage           = cashStatus === 'Overage'  && overageAmt > 0;
+    if (!isApprovedShortage && !isOverage) return;
 
     try {
       // Remove any existing shortage/overage tx for this sale
@@ -157,19 +184,42 @@ export default function Sales() {
       );
       await Promise.all(prev.map(tx => base44.entities.WalletTransaction.delete(tx.id)));
 
-      await base44.entities.WalletTransaction.create({
-        date: saleData.date,
-        type,
-        wallet: 'branch_cash',
-        direction,
-        amount,
-        payment_method: 'cash',
-        branch: saleData.branch,
-        description: `${label} — ${saleData.branch} — ${saleData.date} — Cashier: ${saleData.cashier_name || ''} — Approved by: ${saleData.manager_approved_by || ''}`,
-        reference_id: saleId,
-        auto_generated: true,
-        recorded_by: saleData.manager_approved_by || '',
-      });
+      if (isApprovedShortage) {
+        // Shortage: audit record — does NOT reduce sales
+        await base44.entities.WalletTransaction.create({
+          date: saleData.date,
+          type: 'cash_reconciliation_shortage',
+          wallet: 'branch_cash',
+          direction: 'out',
+          amount: shortageAmt,
+          payment_method: 'cash',
+          branch: saleData.branch,
+          description: `Cash Shortage (Reconciliation) — ${saleData.branch} — ${saleData.date} — Cashier: ${saleData.cashier_name || ''} — Approved by: ${saleData.manager_approved_by || ''}`,
+          reference_id: saleId,
+          auto_generated: true,
+          recorded_by: saleData.manager_approved_by || '',
+          notes: 'Reconciliation audit entry. Sales Total is unchanged.',
+        });
+      }
+
+      if (isOverage) {
+        // Overage: audit record — does NOT increase sales
+        await base44.entities.WalletTransaction.create({
+          date: saleData.date,
+          type: 'cash_reconciliation_overage',
+          wallet: 'branch_cash',
+          direction: 'in',
+          amount: overageAmt,
+          payment_method: 'cash',
+          branch: saleData.branch,
+          description: `Cash Overage (Reconciliation) — ${saleData.branch} — ${saleData.date} — Cashier: ${saleData.cashier_name || ''}`,
+          reference_id: saleId,
+          auto_generated: true,
+          recorded_by: saleData.manager_approved_by || '',
+          notes: 'Reconciliation audit entry. Sales Total is unchanged.',
+        });
+      }
+
       qc.invalidateQueries({ queryKey: ['wallet_transactions'] });
     } catch (e) {
       console.warn('[autoShortageOveageTx] failed:', e.message);

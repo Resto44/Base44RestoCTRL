@@ -1,8 +1,14 @@
 /**
- * FinancialKPIs — ERP Dashboard KPI cards.
- * Rules 4 & 5: Separate KPIs for Sales Today, Purchases Today,
- * Operating Result, Owner Capital Contribution, Cash Shortage.
- * Sales figures are NEVER modified by shortage logic.
+ * FinancialKPIs — ERP Dashboard.
+ *
+ * Four independent cards (Requirement 8):
+ *   A. Sales Summary        — Cash + Network + Credit (NEVER affected by reconciliation)
+ *   B. Cash Reconciliation  — Opening / Expected / Actual / Shortage / Overage / Owner Contribution
+ *   C. Purchases            — Only APPROVED supplier invoices for today
+ *   D. Operating Result     — Total Sales − Approved Purchases
+ *
+ * Plus secondary KPIs: Cash Available, Customer Receivables, Supplier Payables, Inventory Value.
+ * Plus Smart Alerts.
  */
 import React, { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -13,33 +19,74 @@ import { useTenant } from '@/lib/TenantContext';
 import { format } from 'date-fns';
 import {
   TrendingUp, DollarSign, Banknote, Users, Truck, Package,
-  AlertTriangle, ShoppingCart, TrendingDown, PiggyBank
+  AlertTriangle, ShoppingCart, TrendingDown, PiggyBank,
+  Scale, CheckCircle2, Info
 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
 
 const LABELS = {
   en: {
-    sales_today: 'Sales Today',
-    purchases_today: 'Purchases Today',
+    // Card A
+    card_a_title: 'Sales Summary',
+    cash_sales: 'Cash Sales',
+    network_sales: 'Network / POS Sales',
+    credit_sales: 'Customer Credit Sales',
+    total_sales: 'Total Sales',
+    vs_yesterday: 'vs yesterday',
+    // Card B
+    card_b_title: 'Cash Reconciliation',
+    opening_cash: 'Opening Cash',
+    expected_cash: 'Expected Cash',
+    actual_cash: 'Actual Cash Count',
+    cash_difference: 'Cash Difference',
+    cash_shortage: 'Cash Shortage',
+    cash_overage: 'Cash Overage',
+    owner_contrib_cash: 'Owner Contribution (Cash)',
+    balanced: 'Balanced',
+    shortage: 'Shortage',
+    overage: 'Overage',
+    // Card C
+    card_c_title: 'Purchases (Approved)',
+    approved_invoices: 'Approved Invoices',
+    // Card D
+    card_d_title: 'Operating Result',
     operating_result: 'Operating Result',
-    owner_capital: 'Owner Capital Contribution',
-    cash_shortage: 'Cash Shortage Today',
+    owner_capital_purchases: 'Owner Capital (Purchases Gap)',
+    // Secondary KPIs
     cash_available: 'Cash Available',
     customer_receivables: 'Customer Receivables',
     supplier_payables: 'Supplier Payables',
     inventory_value: 'Inventory Value',
+    // Alerts
     alerts: 'Smart Alerts',
-    overdue_customers: 'Overdue customer debts',
-    overdue_suppliers: 'Overdue supplier balances',
-    low_inventory: 'Low inventory items',
-    vs_yesterday: 'vs yesterday',
+    overdue_customers: 'overdue customer debts',
+    overdue_suppliers: 'overdue supplier balances',
+    low_inventory: 'low inventory items',
   },
   ar: {
-    sales_today: 'مبيعات اليوم',
-    purchases_today: 'مشتريات اليوم',
+    card_a_title: 'ملخص المبيعات',
+    cash_sales: 'المبيعات النقدية',
+    network_sales: 'مبيعات الشبكة / POS',
+    credit_sales: 'مبيعات الآجل',
+    total_sales: 'إجمالي المبيعات',
+    vs_yesterday: 'مقارنة بالأمس',
+    card_b_title: 'تسوية النقد',
+    opening_cash: 'النقد الافتتاحي',
+    expected_cash: 'النقد المتوقع',
+    actual_cash: 'العد الفعلي',
+    cash_difference: 'فرق النقد',
+    cash_shortage: 'عجز نقدي',
+    cash_overage: 'زيادة نقدية',
+    owner_contrib_cash: 'مساهمة المالك (نقد)',
+    balanced: 'متوازن',
+    shortage: 'عجز',
+    overage: 'زيادة',
+    card_c_title: 'المشتريات (معتمدة)',
+    approved_invoices: 'فواتير معتمدة',
+    card_d_title: 'النتيجة التشغيلية',
     operating_result: 'النتيجة التشغيلية',
-    owner_capital: 'مساهمة رأس مال المالك',
-    cash_shortage: 'العجز النقدي اليوم',
+    owner_capital_purchases: 'رأس مال المالك (فجوة المشتريات)',
     cash_available: 'النقد المتاح',
     customer_receivables: 'المستحقات من العملاء',
     supplier_payables: 'المستحق للموردين',
@@ -48,14 +95,30 @@ const LABELS = {
     overdue_customers: 'ديون عملاء متأخرة',
     overdue_suppliers: 'أرصدة موردين متأخرة',
     low_inventory: 'مخزون منخفض',
-    vs_yesterday: 'مقارنة بالأمس',
   },
   fa: {
-    sales_today: 'فروش امروز',
-    purchases_today: 'خریدهای امروز',
+    card_a_title: 'خلاصه فروش',
+    cash_sales: 'فروش نقدی',
+    network_sales: 'فروش شبکه / POS',
+    credit_sales: 'فروش اعتباری مشتری',
+    total_sales: 'جمع فروش',
+    vs_yesterday: 'در مقایسه با دیروز',
+    card_b_title: 'تطبیق نقد',
+    opening_cash: 'نقد ابتدایی',
+    expected_cash: 'نقد مورد انتظار',
+    actual_cash: 'شمارش واقعی',
+    cash_difference: 'اختلاف نقد',
+    cash_shortage: 'کسری نقد',
+    cash_overage: 'مازاد نقد',
+    owner_contrib_cash: 'سرمایه مالک (نقد)',
+    balanced: 'متعادل',
+    shortage: 'کسری',
+    overage: 'مازاد',
+    card_c_title: 'خریدها (تأیید شده)',
+    approved_invoices: 'فاکتورهای تأیید شده',
+    card_d_title: 'نتیجه عملیاتی',
     operating_result: 'نتیجه عملیاتی',
-    owner_capital: 'سرمایه‌گذاری مالک',
-    cash_shortage: 'کمبود نقد امروز',
+    owner_capital_purchases: 'سرمایه مالک (شکاف خرید)',
     cash_available: 'نقد موجود',
     customer_receivables: 'مطالبات مشتریان',
     supplier_payables: 'قابل پرداخت تامین‌کننده',
@@ -64,11 +127,50 @@ const LABELS = {
     overdue_customers: 'بدهی‌های معوق مشتریان',
     overdue_suppliers: 'موجودی‌های معوق تامین‌کننده',
     low_inventory: 'موجودی کم',
-    vs_yesterday: 'در مقایسه با دیروز',
   },
 };
 
-function KPICard({ label, value, sublabel, icon: Icon, color = 'text-primary', bgColor = 'bg-primary/10', trend }) {
+// ── Sub-components ─────────────────────────────────────────────────────────────
+function SectionCard({ icon: Icon, title, badge, borderColor = 'border-border', headerBg = 'bg-muted/50', children }) {
+  return (
+    <div className={`rounded-xl border-2 ${borderColor} overflow-hidden bg-card shadow-sm`}>
+      <div className={`flex items-center justify-between px-3 py-2.5 ${headerBg}`}>
+        <div className="flex items-center gap-2">
+          <Icon className="w-4 h-4 text-primary" />
+          <span className="text-sm font-bold">{title}</span>
+        </div>
+        {badge}
+      </div>
+      <div className="px-3 py-2.5 space-y-1.5">{children}</div>
+    </div>
+  );
+}
+
+function Row({ label, value, highlight, indent, valueColor }) {
+  return (
+    <div className={`flex justify-between items-center py-1 ${indent ? 'pl-3' : ''} ${highlight ? 'border-t border-border mt-1 pt-2' : ''}`}>
+      <span className={`text-xs ${indent ? 'text-muted-foreground' : 'font-semibold text-foreground'}`}>{label}</span>
+      <span className={`text-sm font-bold ${valueColor || (highlight ? 'text-primary' : 'text-foreground')}`}>{value}</span>
+    </div>
+  );
+}
+
+function StatusPill({ status, lbl }) {
+  if (!status) return null;
+  const cfg = {
+    Balanced: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+    Shortage:  'bg-red-100 text-red-700 border-red-200',
+    Overage:   'bg-amber-100 text-amber-700 border-amber-200',
+  };
+  const label = status === 'Balanced' ? lbl.balanced : status === 'Shortage' ? lbl.shortage : lbl.overage;
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${cfg[status] || cfg.Balanced}`}>
+      {label}
+    </span>
+  );
+}
+
+function KPICard({ label, value, icon: Icon, color = 'text-primary', bgColor = 'bg-primary/10', trend, sublabel }) {
   return (
     <Card className="p-4 flex items-start gap-3 bg-card border-border/50 shadow-sm">
       <div className={`p-2.5 rounded-xl ${bgColor} ${color}`}>
@@ -91,8 +193,8 @@ function KPICard({ label, value, sublabel, icon: Icon, color = 'text-primary', b
 function AlertItem({ icon: Icon, text, severity = 'warning' }) {
   const colors = {
     warning: 'text-amber-700 bg-amber-50 border-amber-200',
-    error: 'text-red-700 bg-red-50 border-red-200',
-    info: 'text-blue-700 bg-blue-50 border-blue-200',
+    error:   'text-red-700 bg-red-50 border-red-200',
+    info:    'text-blue-700 bg-blue-50 border-blue-200',
   };
   return (
     <div className={`flex items-center gap-2 rounded-lg px-3 py-2 border ${colors[severity]}`}>
@@ -102,19 +204,20 @@ function AlertItem({ icon: Icon, text, severity = 'warning' }) {
   );
 }
 
+// ── Main Component ─────────────────────────────────────────────────────────────
 export default function FinancialKPIs({ branch }) {
   const { language, currency } = useLanguage();
   const lbl = LABELS[language] || LABELS.en;
   const { ownerFilter } = useTenant();
-  const todayStr = format(new Date(), 'yyyy-MM-dd');
-  const yesterdayStr = format(new Date(Date.now() - 86400000), 'yyyy-MM-dd');
+  const todayStr      = format(new Date(), 'yyyy-MM-dd');
+  const yesterdayStr  = format(new Date(Date.now() - 86400000), 'yyyy-MM-dd');
 
   const filterBranch = (items) => {
     if (!branch || branch === 'all') return items;
     return items.filter(i => i.branch === branch);
   };
 
-  // ── Today's sales ─────────────────────────────────────────────────────────
+  // Today's sales records
   const { data: todaySales = [] } = useQuery({
     queryKey: ['sales_daily', ownerFilter, todayStr],
     queryFn: () => base44.entities.DailySales.filter({ ...(ownerFilter || {}), date: todayStr }, '-date', 100),
@@ -122,6 +225,7 @@ export default function FinancialKPIs({ branch }) {
     staleTime: 15000,
   });
 
+  // Yesterday's sales (for trend)
   const { data: yesterdaySales = [] } = useQuery({
     queryKey: ['sales_daily', ownerFilter, yesterdayStr],
     queryFn: () => base44.entities.DailySales.filter({ ...(ownerFilter || {}), date: yesterdayStr }, '-date', 100),
@@ -129,7 +233,7 @@ export default function FinancialKPIs({ branch }) {
     staleTime: 60000,
   });
 
-  // ── Rule 4: Today's APPROVED supplier invoices (the authoritative purchase source) ──
+  // Today's APPROVED supplier invoices (authoritative purchase source)
   const { data: todayApprovedPurchases = [] } = useQuery({
     queryKey: ['approved_purchases_kpi', ownerFilter, todayStr],
     queryFn: async () => {
@@ -148,7 +252,7 @@ export default function FinancialKPIs({ branch }) {
     staleTime: 15000,
   });
 
-  // ── Supplier invoices (for payables) ─────────────────────────────────────
+  // All supplier invoices (for payables balance)
   const { data: allInvoices = [] } = useQuery({
     queryKey: ['supplier_invoices', ownerFilter],
     queryFn: () => base44.entities.SupplierInvoice.filter(ownerFilter || {}, '-date', 500),
@@ -170,41 +274,54 @@ export default function FinancialKPIs({ branch }) {
     staleTime: 60000,
   });
 
-  const kpis = useMemo(() => {
-    const daySales = filterBranch(todaySales);
+  const metrics = useMemo(() => {
+    const daySales  = filterBranch(todaySales);
     const prevSales = filterBranch(yesterdaySales);
 
-    // ── Rule 5: Sales = Cash + Network + Credit. NEVER reduced by shortage ──
-    const salesToday = daySales.reduce((s, r) =>
+    // ── Card A: Sales Summary ─────────────────────────────────────────────────
+    // Total Sales = Cash + Network + Credit.  NEVER affected by reconciliation.
+    const cashSalesToday    = daySales.reduce((s, r) => s + (Number(r.restaurant_cash) || Number(r.cash) || 0), 0);
+    const networkSalesToday = daySales.reduce((s, r) => s + (Number(r.restaurant_network) || Number(r.network) || 0), 0);
+    const creditSalesToday  = daySales.reduce((s, r) => s + (Number(r.credit) || 0), 0);
+    const totalSalesToday   = cashSalesToday + networkSalesToday + creditSalesToday;
+
+    const totalSalesYesterday = prevSales.reduce((s, r) =>
       s + (Number(r.restaurant_cash) || Number(r.cash) || 0)
         + (Number(r.restaurant_network) || Number(r.network) || 0)
         + (Number(r.credit) || 0), 0);
+    const salesTrend = totalSalesYesterday > 0
+      ? ((totalSalesToday - totalSalesYesterday) / totalSalesYesterday) * 100
+      : 0;
 
-    const salesYesterday = prevSales.reduce((s, r) =>
-      s + (Number(r.restaurant_cash) || Number(r.cash) || 0)
-        + (Number(r.restaurant_network) || Number(r.network) || 0)
-        + (Number(r.credit) || 0), 0);
+    // ── Card B: Cash Reconciliation ───────────────────────────────────────────
+    // Read reconciliation fields saved by SalesForm (separate from sales revenue)
+    const openingCash    = daySales.reduce((s, r) => s + (Number(r.opening_cash) || 0), 0);
+    const expectedCash   = daySales.reduce((s, r) => s + (Number(r.expected_cash) || 0), 0);
+    const actualCash     = daySales.reduce((s, r) => s + (Number(r.actual_cash_count) || Number(r.closing_cash) || 0), 0);
+    const cashShortage   = daySales.reduce((s, r) => s + (Number(r.cash_shortage_amount) || 0), 0);
+    const cashOverage    = daySales.reduce((s, r) => s + (Number(r.cash_overage_amount) || 0), 0);
+    const ownerCashContrib = daySales.reduce((s, r) => s + (Number(r.owner_cash_injection) || 0), 0);
 
-    const salesTrend = salesYesterday > 0 ? ((salesToday - salesYesterday) / salesYesterday) * 100 : 0;
+    // Overall reconciliation status for today
+    const cashDiff = actualCash - expectedCash;
+    const reconcStatus = daySales.length === 0 ? null
+      : cashDiff === 0 ? 'Balanced'
+      : cashDiff < 0   ? 'Shortage'
+      : 'Overage';
 
-    // ── Rule 4: Purchases = only APPROVED supplier invoices for today ────────
+    // ── Card C: Purchases (Approved) ──────────────────────────────────────────
     const purchasesToday = filterBranch(todayApprovedPurchases).reduce(
       (s, p) => s + (Number(p.total_amount) || 0), 0
     );
+    const approvedInvoiceCount = filterBranch(todayApprovedPurchases).length;
 
-    // ── Rule 2: Daily Operating Result = Sales − Approved Purchases ──────────
-    const operatingResult = salesToday - purchasesToday;
+    // ── Card D: Operating Result ──────────────────────────────────────────────
+    // Operating Result = Total Sales − Approved Purchases
+    const operatingResult = totalSalesToday - purchasesToday;
+    // Owner capital contribution from purchases gap (NOT sales revenue)
+    const ownerCapitalPurchases = Math.max(0, purchasesToday - totalSalesToday);
 
-    // ── Rule 3: Owner Capital Contribution = max(0, purchases - sales) ───────
-    // This is an accounting adjustment ONLY — it does NOT change sales figures.
-    const ownerCapitalContribution = Math.max(0, purchasesToday - salesToday);
-
-    // ── Rule 3 / Rule 4: Cash Shortage = same as owner capital contribution ──
-    const cashShortageToday = ownerCapitalContribution;
-
-    const cashAvailable = daySales.reduce((s, r) =>
-      s + (Number(r.restaurant_cash) || Number(r.cash) || 0), 0);
-
+    // ── Secondary KPIs ────────────────────────────────────────────────────────
     const customerReceivables = customerDebts
       .filter(d => d.status !== 'paid' && d.status !== 'written_off')
       .reduce((s, d) => s + (Number(d.remaining_amount) || 0), 0);
@@ -216,130 +333,209 @@ export default function FinancialKPIs({ branch }) {
     const inventoryValue = inventory.reduce((s, item) =>
       s + ((item.quantity || 0) * (item.unit_cost || item.avg_cost || 0)), 0);
 
-    // Smart alerts
+    // ── Smart Alerts ──────────────────────────────────────────────────────────
     const alerts = [];
-    const overdueCustomers = customerDebts.filter(d => {
-      if (d.status === 'paid' || d.status === 'written_off') return false;
-      if (!d.due_date) return false;
-      return d.due_date < todayStr;
-    });
-    if (overdueCustomers.length > 0) {
+    const overdueCustomers = customerDebts.filter(d =>
+      d.status !== 'paid' && d.status !== 'written_off' && d.due_date && d.due_date < todayStr
+    );
+    if (overdueCustomers.length > 0)
       alerts.push({ icon: Users, text: `${overdueCustomers.length} ${lbl.overdue_customers}`, severity: 'error' });
-    }
 
-    const overdueSuppliers = allInvoices.filter(inv => {
-      if (inv.status === 'paid') return false;
-      if (!inv.due_date) return false;
-      return inv.due_date < todayStr;
-    });
-    if (overdueSuppliers.length > 0) {
+    const overdueSuppliers = allInvoices.filter(inv =>
+      inv.status !== 'paid' && inv.due_date && inv.due_date < todayStr
+    );
+    if (overdueSuppliers.length > 0)
       alerts.push({ icon: Truck, text: `${overdueSuppliers.length} ${lbl.overdue_suppliers}`, severity: 'error' });
-    }
 
     const lowInventory = inventory.filter(item => {
       const qty = item.quantity || 0;
       const min = item.min_quantity || item.reorder_point || 0;
       return min > 0 && qty <= min;
     });
-    if (lowInventory.length > 0) {
+    if (lowInventory.length > 0)
       alerts.push({ icon: Package, text: `${lowInventory.length} ${lbl.low_inventory}`, severity: 'warning' });
-    }
 
     return {
-      salesToday, salesTrend, purchasesToday, operatingResult,
-      ownerCapitalContribution, cashShortageToday,
-      cashAvailable, customerReceivables, supplierPayables, inventoryValue, alerts,
+      // Card A
+      cashSalesToday, networkSalesToday, creditSalesToday, totalSalesToday, salesTrend,
+      // Card B
+      openingCash, expectedCash, actualCash, cashShortage, cashOverage,
+      ownerCashContrib, reconcStatus, cashDiff,
+      // Card C
+      purchasesToday, approvedInvoiceCount,
+      // Card D
+      operatingResult, ownerCapitalPurchases,
+      // Secondary
+      customerReceivables, supplierPayables, inventoryValue,
+      alerts,
     };
-  }, [todaySales, yesterdaySales, todayApprovedPurchases, customerDebts, allInvoices, inventory, branch, todayStr]);
+  }, [todaySales, yesterdaySales, todayApprovedPurchases, customerDebts, allInvoices, inventory, branch, todayStr, lbl]);
 
   const fmt = (v) => `${currency}${Number(v || 0).toLocaleString()}`;
 
   return (
     <div className="space-y-4">
-      {/* Rule 4: Separate KPI Grid */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        {/* KPI 1: Sales Today — Rule 5: never modified by shortage */}
-        <KPICard
-          label={lbl.sales_today}
-          value={fmt(kpis.salesToday)}
-          icon={TrendingUp}
-          color="text-blue-600"
-          bgColor="bg-blue-100"
-          trend={kpis.salesTrend}
-          sublabel={lbl.vs_yesterday}
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+          CARD A — SALES SUMMARY
+          Total Sales = Cash + Network + Credit.
+          NEVER affected by cash shortage, overage, or owner payments.
+          ═══════════════════════════════════════════════════════════════════════ */}
+      <SectionCard
+        icon={TrendingUp}
+        title={lbl.card_a_title}
+        borderColor="border-blue-200"
+        headerBg="bg-blue-50"
+        badge={
+          <div className="text-right">
+            <p className="text-lg font-black text-blue-700">{fmt(metrics.totalSalesToday)}</p>
+            {metrics.salesTrend !== 0 && (
+              <p className={`text-[10px] font-bold ${metrics.salesTrend >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                {metrics.salesTrend >= 0 ? '+' : ''}{metrics.salesTrend.toFixed(1)}% {lbl.vs_yesterday}
+              </p>
+            )}
+          </div>
+        }
+      >
+        <Row label={lbl.cash_sales}    value={fmt(metrics.cashSalesToday)}    indent />
+        <Row label={lbl.network_sales} value={fmt(metrics.networkSalesToday)} indent />
+        <Row label={lbl.credit_sales}  value={fmt(metrics.creditSalesToday)}  indent />
+        <Separator className="my-1" />
+        <Row label={lbl.total_sales} value={fmt(metrics.totalSalesToday)} highlight valueColor="text-blue-700" />
+      </SectionCard>
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+          CARD B — CASH RECONCILIATION
+          Completely separate from Sales Total.
+          Shortage/Overage do NOT change Sales, Network, or Credit.
+          ═══════════════════════════════════════════════════════════════════════ */}
+      <SectionCard
+        icon={Scale}
+        title={lbl.card_b_title}
+        borderColor="border-amber-200"
+        headerBg="bg-amber-50"
+        badge={metrics.reconcStatus && <StatusPill status={metrics.reconcStatus} lbl={lbl} />}
+      >
+        <Row label={lbl.opening_cash}  value={fmt(metrics.openingCash)}  indent />
+        <Row label={lbl.expected_cash} value={fmt(metrics.expectedCash)} indent />
+        <Row label={lbl.actual_cash}   value={fmt(metrics.actualCash)}   indent />
+        <Separator className="my-1" />
+        <Row
+          label={lbl.cash_difference}
+          value={`${metrics.cashDiff >= 0 ? '+' : ''}${fmt(metrics.cashDiff)}`}
+          highlight
+          valueColor={metrics.cashDiff < 0 ? 'text-red-600' : metrics.cashDiff > 0 ? 'text-amber-600' : 'text-emerald-600'}
         />
-        {/* KPI 2: Purchases Today — only approved invoices */}
-        <KPICard
-          label={lbl.purchases_today}
-          value={fmt(kpis.purchasesToday)}
-          icon={ShoppingCart}
-          color="text-orange-600"
-          bgColor="bg-orange-100"
+        {metrics.cashShortage > 0 && (
+          <Row label={lbl.cash_shortage} value={fmt(metrics.cashShortage)} valueColor="text-red-600" indent />
+        )}
+        {metrics.cashOverage > 0 && (
+          <Row label={lbl.cash_overage} value={fmt(metrics.cashOverage)} valueColor="text-amber-600" indent />
+        )}
+        {metrics.ownerCashContrib > 0 && (
+          <Row label={lbl.owner_contrib_cash} value={fmt(metrics.ownerCashContrib)} valueColor="text-purple-600" indent />
+        )}
+        {metrics.reconcStatus && (
+          <p className="text-[9px] text-muted-foreground italic pt-1">
+            Reconciliation items do not affect Sales Total.
+          </p>
+        )}
+      </SectionCard>
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+          CARD C — PURCHASES (APPROVED ONLY)
+          ═══════════════════════════════════════════════════════════════════════ */}
+      <SectionCard
+        icon={ShoppingCart}
+        title={lbl.card_c_title}
+        borderColor="border-orange-200"
+        headerBg="bg-orange-50"
+        badge={
+          <p className="text-lg font-black text-orange-700">{fmt(metrics.purchasesToday)}</p>
+        }
+      >
+        <Row
+          label={lbl.approved_invoices}
+          value={`${metrics.approvedInvoiceCount} invoice${metrics.approvedInvoiceCount !== 1 ? 's' : ''}`}
+          indent
         />
-        {/* KPI 3: Operating Result = Sales − Purchases */}
-        <KPICard
+        <Row label={lbl.card_c_title} value={fmt(metrics.purchasesToday)} highlight valueColor="text-orange-700" />
+      </SectionCard>
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+          CARD D — OPERATING RESULT
+          Operating Result = Total Sales − Approved Purchases
+          If Purchases > Sales → Operating Loss + Owner Capital Contribution
+          Owner Capital is NEVER classified as sales revenue.
+          ═══════════════════════════════════════════════════════════════════════ */}
+      <SectionCard
+        icon={DollarSign}
+        title={lbl.card_d_title}
+        borderColor={metrics.operatingResult >= 0 ? 'border-emerald-200' : 'border-red-200'}
+        headerBg={metrics.operatingResult >= 0 ? 'bg-emerald-50' : 'bg-red-50'}
+        badge={
+          <p className={`text-lg font-black ${metrics.operatingResult >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+            {metrics.operatingResult >= 0 ? '+' : ''}{fmt(metrics.operatingResult)}
+          </p>
+        }
+      >
+        <Row label={lbl.total_sales}    value={fmt(metrics.totalSalesToday)}  indent />
+        <Row label={lbl.card_c_title}   value={`− ${fmt(metrics.purchasesToday)}`} indent valueColor="text-orange-600" />
+        <Separator className="my-1" />
+        <Row
           label={lbl.operating_result}
-          value={fmt(kpis.operatingResult)}
-          icon={DollarSign}
-          color={kpis.operatingResult >= 0 ? 'text-emerald-600' : 'text-red-600'}
-          bgColor={kpis.operatingResult >= 0 ? 'bg-emerald-100' : 'bg-red-100'}
+          value={`${metrics.operatingResult >= 0 ? '+' : ''}${fmt(metrics.operatingResult)}`}
+          highlight
+          valueColor={metrics.operatingResult >= 0 ? 'text-emerald-700' : 'text-red-600'}
         />
-        {/* KPI 4: Owner Capital Contribution */}
-        <KPICard
-          label={lbl.owner_capital}
-          value={fmt(kpis.ownerCapitalContribution)}
-          icon={PiggyBank}
-          color="text-amber-600"
-          bgColor="bg-amber-100"
-        />
-        {/* KPI 5: Cash Shortage Today */}
-        <KPICard
-          label={lbl.cash_shortage}
-          value={fmt(kpis.cashShortageToday)}
-          icon={TrendingDown}
-          color={kpis.cashShortageToday > 0 ? 'text-red-600' : 'text-emerald-600'}
-          bgColor={kpis.cashShortageToday > 0 ? 'bg-red-100' : 'bg-emerald-100'}
-        />
-        <KPICard
-          label={lbl.cash_available}
-          value={fmt(kpis.cashAvailable)}
-          icon={Banknote}
-          color="text-green-600"
-          bgColor="bg-green-100"
-        />
+        {metrics.ownerCapitalPurchases > 0 && (
+          <>
+            <div className="mt-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
+              <p className="text-[10px] text-amber-700 font-bold uppercase">{lbl.owner_capital_purchases}</p>
+              <p className="text-sm font-bold text-amber-700">{fmt(metrics.ownerCapitalPurchases)}</p>
+              <p className="text-[9px] text-amber-600 mt-0.5">
+                Owner funds to cover purchase shortfall. Not classified as sales revenue.
+              </p>
+            </div>
+          </>
+        )}
+      </SectionCard>
+
+      {/* ── Secondary KPIs ──────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-3 gap-3">
         <KPICard
           label={lbl.customer_receivables}
-          value={fmt(kpis.customerReceivables)}
+          value={fmt(metrics.customerReceivables)}
           icon={Users}
           color="text-amber-600"
           bgColor="bg-amber-100"
         />
         <KPICard
           label={lbl.supplier_payables}
-          value={fmt(kpis.supplierPayables)}
+          value={fmt(metrics.supplierPayables)}
           icon={Truck}
           color="text-orange-600"
           bgColor="bg-orange-100"
         />
         <KPICard
           label={lbl.inventory_value}
-          value={fmt(kpis.inventoryValue)}
+          value={fmt(metrics.inventoryValue)}
           icon={Package}
           color="text-purple-600"
           bgColor="bg-purple-100"
         />
       </div>
 
-      {/* Smart Alerts */}
-      {kpis.alerts.length > 0 && (
+      {/* ── Smart Alerts ────────────────────────────────────────────────────── */}
+      {metrics.alerts.length > 0 && (
         <div className="rounded-xl border border-amber-200 overflow-hidden">
           <div className="flex items-center gap-2 px-3 py-2.5 bg-amber-50">
             <AlertTriangle className="w-4 h-4 text-amber-600" />
             <span className="text-sm font-semibold text-amber-800">{lbl.alerts}</span>
-            <span className="ms-auto text-xs font-bold text-amber-700">{kpis.alerts.length}</span>
+            <span className="ms-auto text-xs font-bold text-amber-700">{metrics.alerts.length}</span>
           </div>
           <div className="p-3 space-y-2">
-            {kpis.alerts.map((alert, i) => (
+            {metrics.alerts.map((alert, i) => (
               <AlertItem key={i} icon={alert.icon} text={alert.text} severity={alert.severity} />
             ))}
           </div>
