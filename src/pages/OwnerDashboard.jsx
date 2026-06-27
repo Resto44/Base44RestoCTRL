@@ -45,6 +45,7 @@ import PriceChangesWidget from '@/components/dashboard/PriceChangesWidget';
 import { useNotify } from '@/lib/useNotify';
 import { useAuth } from '@/lib/AuthContext';
 import { useNetworkSettlement } from '@/hooks/useNetworkSettlement';
+import { toast } from 'sonner';
 import {
   generateSalesInvoiceNumber,
   createSalesInvoice,
@@ -356,23 +357,36 @@ export default function OwnerDashboard() {
   // ── Create Sale Mutation ──────────────────────────────────────────────────────
   const createMut = useMutation({
     mutationFn: async ({ data, proofUrl, ocr }) => {
-      if (activeRestaurant?.id) data.restaurant_id = activeRestaurant.id;
-      const sale = await base44.entities.DailySales.create(data);
-      try { await autoSettle(data, sale.id, proofUrl || null, ocr || null, null); } catch (e) { console.warn('autoSettle skipped:', e.message); }
-      // Auto-generate invoice
       try {
-        const restaurantId = activeRestaurant?.id;
-        const invNum = await generateSalesInvoiceNumber(restaurantId, data.date);
-        await base44.entities.DailySales.update(sale.id, { invoice_number: invNum });
-        const invoice = await createSalesInvoice({ invoiceNumber: invNum, saleId: sale.id, saleData: data, restaurantId, createdBy: user?.email || '' });
-        try { await generateAndUploadPDF(invoice, 'RestoCTRL', currency); } catch { /* non-fatal */ }
-        qc.invalidateQueries({ queryKey: ['sales_invoices_today'] });
-      } catch (e) { console.warn('Invoice gen skipped:', e.message); }
-      const total = (data.restaurant_cash || 0) + (data.restaurant_network || 0) + (data.credit || 0);
-      await notif.sale({ branch: data.branch, amount: total, action: 'create' });
-      return sale;
+        if (activeRestaurant?.id) data.restaurant_id = activeRestaurant.id;
+        
+        // Root Cause Fix: restaurant_network_account_id is a UUID in DB. 
+        // SalesForm sends "" if manual entry. Postgres rejects "" as UUID.
+        if (data.restaurant_network_account_id === "") {
+          data.restaurant_network_account_id = null;
+        }
+
+        const sale = await base44.entities.DailySales.create(data);
+        try { await autoSettle(data, sale.id, proofUrl || null, ocr || null, null); } catch (e) { console.warn('autoSettle skipped:', e.message); }
+        // Auto-generate invoice
+        try {
+          const restaurantId = activeRestaurant?.id;
+          const invNum = await generateSalesInvoiceNumber(restaurantId, data.date);
+          await base44.entities.DailySales.update(sale.id, { invoice_number: invNum });
+          const invoice = await createSalesInvoice({ invoiceNumber: invNum, saleId: sale.id, saleData: data, restaurantId, createdBy: user?.email || '' });
+          try { await generateAndUploadPDF(invoice, 'RestoCTRL', currency); } catch { /* non-fatal */ }
+          qc.invalidateQueries({ queryKey: ['sales_invoices_today'] });
+        } catch (e) { console.warn('Invoice gen skipped:', e.message); }
+        const total = (data.restaurant_cash || 0) + (data.restaurant_network || 0) + (data.credit || 0);
+        await notif.sale({ branch: data.branch, amount: total, action: 'create' });
+        return sale;
+      } catch (err) {
+        toast.error(err.message || 'Failed to save sale');
+        throw err;
+      }
     },
     onSuccess: () => {
+      toast.success('Sale recorded successfully');
       qc.invalidateQueries({ queryKey: ['sales_today'] });
       qc.invalidateQueries({ queryKey: ['sales_month'] });
       qc.invalidateQueries({ queryKey: ['sales'] });
@@ -433,6 +447,14 @@ export default function OwnerDashboard() {
             subtitle="Personal pocket money"
             icon={DollarSign}
             color="purple"
+            large
+          />
+          <KPICard
+            title="Operating Result"
+            value={fmt(kpis.profitToday)}
+            subtitle="Sales − Purchases"
+            icon={kpis.profitToday >= 0 ? TrendingUp : TrendingDown}
+            color={kpis.profitToday >= 0 ? 'green' : 'red'}
             large
           />
         </div>
