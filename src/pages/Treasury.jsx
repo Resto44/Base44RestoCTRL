@@ -52,6 +52,7 @@ const TX_TYPES = [
   { value: 'owner_external_debt',       label: 'External Debt (Owner)',           wallet: 'owner_network', direction: 'out' },
   { value: 'owner_personal_withdrawal', label: 'Personal Withdrawal',             wallet: 'owner_cash',    direction: 'out' },
   { value: 'owner_investment',          label: 'Owner Investment In',             wallet: 'owner_cash',    direction: 'in' },
+  { value: 'owner_capital_contribution', label: 'Owner Capital Contribution',      wallet: 'owner_cash',    direction: 'in',  auto: true },
   // Branch
   { value: 'salary_advance',            label: 'Salary Advance (Branch)',         wallet: 'branch_cash',   direction: 'out' },
   { value: 'branch_purchase_payment',   label: 'Branch Purchase Payment',        wallet: 'branch_cash',   direction: 'out' },

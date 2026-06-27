@@ -1,21 +1,29 @@
 /**
  * FinancialKPIs — ERP Dashboard KPI cards.
- * Shows: Sales Today, Profit Today, Cash Available, Customer Receivables,
- * Supplier Payables, Inventory Value.
+ * Rules 4 & 5: Separate KPIs for Sales Today, Purchases Today,
+ * Operating Result, Owner Capital Contribution, Cash Shortage.
+ * Sales figures are NEVER modified by shortage logic.
  */
 import React, { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
+import { supabase } from '@/api/supabaseClient';
 import { useLanguage } from '@/lib/LanguageContext';
 import { useTenant } from '@/lib/TenantContext';
 import { format } from 'date-fns';
-import { TrendingUp, DollarSign, Banknote, Users, Truck, Package, AlertTriangle, Clock, Wifi } from 'lucide-react';
+import {
+  TrendingUp, DollarSign, Banknote, Users, Truck, Package,
+  AlertTriangle, ShoppingCart, TrendingDown, PiggyBank
+} from 'lucide-react';
 import { Card } from '@/components/ui/card';
 
 const LABELS = {
   en: {
     sales_today: 'Sales Today',
-    profit_today: 'Profit Today',
+    purchases_today: 'Purchases Today',
+    operating_result: 'Operating Result',
+    owner_capital: 'Owner Capital Contribution',
+    cash_shortage: 'Cash Shortage Today',
     cash_available: 'Cash Available',
     customer_receivables: 'Customer Receivables',
     supplier_payables: 'Supplier Payables',
@@ -24,14 +32,14 @@ const LABELS = {
     overdue_customers: 'Overdue customer debts',
     overdue_suppliers: 'Overdue supplier balances',
     low_inventory: 'Low inventory items',
-    cash_shortage: 'Cash shortage',
-    pos_mismatch: 'POS mismatch',
-    no_alerts: 'No alerts',
     vs_yesterday: 'vs yesterday',
   },
   ar: {
     sales_today: 'مبيعات اليوم',
-    profit_today: 'أرباح اليوم',
+    purchases_today: 'مشتريات اليوم',
+    operating_result: 'النتيجة التشغيلية',
+    owner_capital: 'مساهمة رأس مال المالك',
+    cash_shortage: 'العجز النقدي اليوم',
     cash_available: 'النقد المتاح',
     customer_receivables: 'المستحقات من العملاء',
     supplier_payables: 'المستحق للموردين',
@@ -40,14 +48,14 @@ const LABELS = {
     overdue_customers: 'ديون عملاء متأخرة',
     overdue_suppliers: 'أرصدة موردين متأخرة',
     low_inventory: 'مخزون منخفض',
-    cash_shortage: 'عجز نقدي',
-    pos_mismatch: 'عدم تطابق POS',
-    no_alerts: 'لا توجد تنبيهات',
     vs_yesterday: 'مقارنة بالأمس',
   },
   fa: {
     sales_today: 'فروش امروز',
-    profit_today: 'سود امروز',
+    purchases_today: 'خریدهای امروز',
+    operating_result: 'نتیجه عملیاتی',
+    owner_capital: 'سرمایه‌گذاری مالک',
+    cash_shortage: 'کمبود نقد امروز',
     cash_available: 'نقد موجود',
     customer_receivables: 'مطالبات مشتریان',
     supplier_payables: 'قابل پرداخت تامین‌کننده',
@@ -56,9 +64,6 @@ const LABELS = {
     overdue_customers: 'بدهی‌های معوق مشتریان',
     overdue_suppliers: 'موجودی‌های معوق تامین‌کننده',
     low_inventory: 'موجودی کم',
-    cash_shortage: 'کمبود نقد',
-    pos_mismatch: 'عدم تطابق POS',
-    no_alerts: 'هشداری وجود ندارد',
     vs_yesterday: 'در مقایسه با دیروز',
   },
 };
@@ -109,6 +114,7 @@ export default function FinancialKPIs({ branch }) {
     return items.filter(i => i.branch === branch);
   };
 
+  // ── Today's sales ─────────────────────────────────────────────────────────
   const { data: todaySales = [] } = useQuery({
     queryKey: ['sales_daily', ownerFilter, todayStr],
     queryFn: () => base44.entities.DailySales.filter({ ...(ownerFilter || {}), date: todayStr }, '-date', 100),
@@ -123,6 +129,26 @@ export default function FinancialKPIs({ branch }) {
     staleTime: 60000,
   });
 
+  // ── Rule 4: Today's APPROVED supplier invoices (the authoritative purchase source) ──
+  const { data: todayApprovedPurchases = [] } = useQuery({
+    queryKey: ['approved_purchases_kpi', ownerFilter, todayStr],
+    queryFn: async () => {
+      if (!ownerFilter?.created_by) return [];
+      const { data, error } = await supabase
+        .from('supplier_invoices')
+        .select('id, total_amount, approval_status, branch, date')
+        .eq('created_by', ownerFilter.created_by)
+        .eq('date', todayStr)
+        .in('approval_status', ['approved', 'auto_approved'])
+        .limit(200);
+      if (error) return [];
+      return data || [];
+    },
+    enabled: !!ownerFilter?.created_by,
+    staleTime: 15000,
+  });
+
+  // ── Supplier invoices (for payables) ─────────────────────────────────────
   const { data: allInvoices = [] } = useQuery({
     queryKey: ['supplier_invoices', ownerFilter],
     queryFn: () => base44.entities.SupplierInvoice.filter(ownerFilter || {}, '-date', 500),
@@ -144,17 +170,11 @@ export default function FinancialKPIs({ branch }) {
     staleTime: 60000,
   });
 
-  const { data: purchases = [] } = useQuery({
-    queryKey: ['purchases_daily', ownerFilter, todayStr],
-    queryFn: () => base44.entities.Purchase.filter({ ...(ownerFilter || {}), date: todayStr }, '-date', 100),
-    enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
-    staleTime: 15000,
-  });
-
   const kpis = useMemo(() => {
     const daySales = filterBranch(todaySales);
     const prevSales = filterBranch(yesterdaySales);
 
+    // ── Rule 5: Sales = Cash + Network + Credit. NEVER reduced by shortage ──
     const salesToday = daySales.reduce((s, r) =>
       s + (Number(r.restaurant_cash) || Number(r.cash) || 0)
         + (Number(r.restaurant_network) || Number(r.network) || 0)
@@ -167,10 +187,20 @@ export default function FinancialKPIs({ branch }) {
 
     const salesTrend = salesYesterday > 0 ? ((salesToday - salesYesterday) / salesYesterday) * 100 : 0;
 
-    const purchasesToday = filterBranch(purchases).reduce((s, p) =>
-      s + ((p.qty || 0) * (p.used_price || p.current_price || 0)), 0);
+    // ── Rule 4: Purchases = only APPROVED supplier invoices for today ────────
+    const purchasesToday = filterBranch(todayApprovedPurchases).reduce(
+      (s, p) => s + (Number(p.total_amount) || 0), 0
+    );
 
-    const profitToday = salesToday - purchasesToday;
+    // ── Rule 2: Daily Operating Result = Sales − Approved Purchases ──────────
+    const operatingResult = salesToday - purchasesToday;
+
+    // ── Rule 3: Owner Capital Contribution = max(0, purchases - sales) ───────
+    // This is an accounting adjustment ONLY — it does NOT change sales figures.
+    const ownerCapitalContribution = Math.max(0, purchasesToday - salesToday);
+
+    // ── Rule 3 / Rule 4: Cash Shortage = same as owner capital contribution ──
+    const cashShortageToday = ownerCapitalContribution;
 
     const cashAvailable = daySales.reduce((s, r) =>
       s + (Number(r.restaurant_cash) || Number(r.cash) || 0), 0);
@@ -215,15 +245,20 @@ export default function FinancialKPIs({ branch }) {
       alerts.push({ icon: Package, text: `${lowInventory.length} ${lbl.low_inventory}`, severity: 'warning' });
     }
 
-    return { salesToday, salesTrend, profitToday, cashAvailable, customerReceivables, supplierPayables, inventoryValue, alerts };
-  }, [todaySales, yesterdaySales, purchases, customerDebts, allInvoices, inventory, branch, todayStr]);
+    return {
+      salesToday, salesTrend, purchasesToday, operatingResult,
+      ownerCapitalContribution, cashShortageToday,
+      cashAvailable, customerReceivables, supplierPayables, inventoryValue, alerts,
+    };
+  }, [todaySales, yesterdaySales, todayApprovedPurchases, customerDebts, allInvoices, inventory, branch, todayStr]);
 
   const fmt = (v) => `${currency}${Number(v || 0).toLocaleString()}`;
 
   return (
     <div className="space-y-4">
-      {/* KPI Grid */}
+      {/* Rule 4: Separate KPI Grid */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {/* KPI 1: Sales Today — Rule 5: never modified by shortage */}
         <KPICard
           label={lbl.sales_today}
           value={fmt(kpis.salesToday)}
@@ -233,12 +268,37 @@ export default function FinancialKPIs({ branch }) {
           trend={kpis.salesTrend}
           sublabel={lbl.vs_yesterday}
         />
+        {/* KPI 2: Purchases Today — only approved invoices */}
         <KPICard
-          label={lbl.profit_today}
-          value={fmt(kpis.profitToday)}
+          label={lbl.purchases_today}
+          value={fmt(kpis.purchasesToday)}
+          icon={ShoppingCart}
+          color="text-orange-600"
+          bgColor="bg-orange-100"
+        />
+        {/* KPI 3: Operating Result = Sales − Purchases */}
+        <KPICard
+          label={lbl.operating_result}
+          value={fmt(kpis.operatingResult)}
           icon={DollarSign}
-          color={kpis.profitToday >= 0 ? 'text-emerald-600' : 'text-red-600'}
-          bgColor={kpis.profitToday >= 0 ? 'bg-emerald-100' : 'bg-red-100'}
+          color={kpis.operatingResult >= 0 ? 'text-emerald-600' : 'text-red-600'}
+          bgColor={kpis.operatingResult >= 0 ? 'bg-emerald-100' : 'bg-red-100'}
+        />
+        {/* KPI 4: Owner Capital Contribution */}
+        <KPICard
+          label={lbl.owner_capital}
+          value={fmt(kpis.ownerCapitalContribution)}
+          icon={PiggyBank}
+          color="text-amber-600"
+          bgColor="bg-amber-100"
+        />
+        {/* KPI 5: Cash Shortage Today */}
+        <KPICard
+          label={lbl.cash_shortage}
+          value={fmt(kpis.cashShortageToday)}
+          icon={TrendingDown}
+          color={kpis.cashShortageToday > 0 ? 'text-red-600' : 'text-emerald-600'}
+          bgColor={kpis.cashShortageToday > 0 ? 'bg-red-100' : 'bg-emerald-100'}
         />
         <KPICard
           label={lbl.cash_available}

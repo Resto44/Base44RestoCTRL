@@ -359,6 +359,32 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
 
   const set = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
 
+  // ── Rule 1: Check for approved purchases on the selected date ─────────────
+  const { data: approvedPurchasesForDate = [], isLoading: purchasesLoading } = useQuery({
+    queryKey: ['approved_purchases_for_date', ownerFilter?.created_by, form.date],
+    queryFn: async () => {
+      if (!ownerFilter?.created_by || !form.date) return [];
+      const { data, error } = await supabase
+        .from('supplier_invoices')
+        .select('id, total_amount, approval_status, status, date')
+        .eq('created_by', ownerFilter.created_by)
+        .eq('date', form.date)
+        .in('approval_status', ['approved', 'auto_approved'])
+        .limit(100);
+      if (error) return [];
+      return data || [];
+    },
+    staleTime: 15000,
+    enabled: !!ownerFilter?.created_by && !!form.date,
+  });
+
+  const hasApprovedPurchasesForDate = approvedPurchasesForDate.length > 0;
+
+  // ── Rule 2 & 3: Compute approved purchases total and owner capital contribution ─
+  const approvedPurchasesTotal = approvedPurchasesForDate.reduce(
+    (s, p) => s + (Number(p.total_amount) || 0), 0
+  );
+
   const { data: customers = [] } = useQuery({
     queryKey: ['v_customer_summary_form', ownerFilter?.created_by],
     queryFn: async () => {
@@ -421,8 +447,29 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
   const grandTotal = cashSales + networkTotal + creditTotal;
   const needsManagerApproval = cashStatus === 'Shortage' && Math.abs(cashDifference || 0) > MANAGER_APPROVAL_THRESHOLD;
 
+  // ── Rule 3: Owner Capital Contribution = max(0, purchases - sales) ─────────
+  const ownerCapitalContribution = useMemo(() => {
+    const totalSales = grandTotal;
+    if (approvedPurchasesTotal > totalSales) {
+      return approvedPurchasesTotal - totalSales;
+    }
+    return 0;
+  }, [grandTotal, approvedPurchasesTotal]);
+
+  // ── Rule 2: Daily Operating Result = Sales - Approved Purchases ───────────
+  const dailyOperatingResult = useMemo(() => {
+    return grandTotal - approvedPurchasesTotal;
+  }, [grandTotal, approvedPurchasesTotal]);
+
   const handleSubmit = (e) => {
     e.preventDefault();
+
+    // ── Rule 1: Block save if no approved purchase for this date ─────────────
+    if (!hasApprovedPurchasesForDate) {
+      toast.error('Please record today\'s purchases before closing daily sales.');
+      return;
+    }
+
     const invalidCredit = creditEntries.find(e => Number(e.amount) > 0 && !e.customer);
     if (invalidCredit) {
       toast.error(lbl.please_select_customer);
@@ -453,6 +500,11 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
       pos_entries_json: JSON.stringify(posEntries.map(({ id, ...rest }) => rest)),
       credit_entries_json: JSON.stringify(creditEntries.map(({ id, ...rest }) => rest)),
       proof_url: proofUrl || '',
+      // Rule 2 & 3: store computed values for dashboard and treasury
+      approved_purchases_total: approvedPurchasesTotal,
+      daily_operating_result: dailyOperatingResult,
+      owner_capital_contribution: ownerCapitalContribution,
+      cash_shortage_amount: ownerCapitalContribution, // shortage = owner contribution when purchases > sales
       driver_cash: 0,
       driver_network: 0,
       driver_name: '',
@@ -703,6 +755,38 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
         </div>
       </div>
 
+      {/* Rule 1: Warning banner when no approved purchases exist for this date */}
+      {!purchasesLoading && !hasApprovedPurchasesForDate && (
+        <div className="rounded-xl bg-red-50 border border-red-200 p-3 flex items-start gap-2">
+          <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 shrink-0" />
+          <p className="text-xs text-red-700 font-medium leading-snug">
+            Please record today&apos;s purchases before closing daily sales.
+          </p>
+        </div>
+      )}
+
+      {/* Rule 2 & 3: Operating result and owner capital summary */}
+      {hasApprovedPurchasesForDate && (
+        <div className="rounded-xl bg-muted/40 border border-border p-3 space-y-1.5">
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span>Approved Purchases</span>
+            <span className="font-bold text-orange-600">{currency}{approvedPurchasesTotal.toLocaleString()}</span>
+          </div>
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span>Operating Result</span>
+            <span className={`font-bold ${dailyOperatingResult >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+              {dailyOperatingResult >= 0 ? '+' : ''}{currency}{dailyOperatingResult.toLocaleString()}
+            </span>
+          </div>
+          {ownerCapitalContribution > 0 && (
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span className="text-amber-700 font-semibold">Owner Capital Contribution</span>
+              <span className="font-bold text-amber-700">{currency}{ownerCapitalContribution.toLocaleString()}</span>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="rounded-xl bg-primary/5 border border-primary/20 p-4 shadow-sm">
         <div className="flex items-center gap-2 mb-3">
           <Info className="w-4 h-4 text-primary" />
@@ -741,7 +825,8 @@ export default function SalesForm({ initial, onSubmit, onCancel }) {
         <Button 
           type="submit" 
           className="h-12 text-sm font-bold bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20"
-          disabled={needsManagerApproval && !managerApproved}
+          disabled={(needsManagerApproval && !managerApproved) || purchasesLoading}
+          title={!hasApprovedPurchasesForDate ? 'Please record today\'s purchases before closing daily sales.' : undefined}
         >
           {lbl.save}
         </Button>

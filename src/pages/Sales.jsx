@@ -95,6 +95,42 @@ export default function Sales() {
     qc.invalidateQueries({ queryKey: ['wallet_transactions'] });
   };
 
+  // Rule 6: Auto-create Owner Capital Contribution treasury entry when purchases > sales
+  const autoOwnerCapitalTx = async (saleData, saleId) => {
+    const contribution = Number(saleData.owner_capital_contribution) || 0;
+    if (contribution <= 0) return;
+
+    try {
+      // Remove any existing owner-capital tx for this sale to avoid duplicates
+      const existing = await base44.entities.WalletTransaction.filter({
+        reference_id: saleId,
+        auto_generated: true,
+      });
+      const prev = existing.filter(tx =>
+        tx.type === 'owner_capital_contribution'
+      );
+      await Promise.all(prev.map(tx => base44.entities.WalletTransaction.delete(tx.id)));
+
+      await base44.entities.WalletTransaction.create({
+        date: saleData.date,
+        type: 'owner_capital_contribution',
+        wallet: 'owner_cash',
+        direction: 'in',
+        amount: contribution,
+        payment_method: 'cash',
+        branch: saleData.branch,
+        description: `Owner Capital Contribution — Daily Cash Shortage — ${saleData.branch} — ${saleData.date}`,
+        reference_id: saleId,
+        auto_generated: true,
+        approval_status: 'approved',
+        recorded_by: user?.email || '',
+      });
+      qc.invalidateQueries({ queryKey: ['wallet_transactions'] });
+    } catch (e) {
+      console.warn('[autoOwnerCapitalTx] failed:', e.message);
+    }
+  };
+
   // FIX 5: Auto-create treasury transaction for approved cash shortage or overage
   const autoShortageOveageTx = async (saleData, saleId) => {
     const cashStatus = saleData.cash_status;
@@ -268,6 +304,8 @@ export default function Sales() {
       await autoWalletTx(data, sale.id);
       // FIX 5: Create treasury transaction for approved shortage/overage
       await autoShortageOveageTx(data, sale.id);
+      // Rule 6: Create Owner Capital Contribution treasury entry if purchases > sales
+      await autoOwnerCapitalTx(data, sale.id);
       try { await autoSettle(data, sale.id, proofUrl || null, ocr || null, null); } catch (e) { console.warn('autoSettle skipped:', e.message); }
       // Save customer credit entries to Debt Management (single source of truth)
       await autoSaveCreditDebts(data, sale.id);
@@ -295,6 +333,8 @@ export default function Sales() {
       await autoWalletTx(data, id, prev);
       // FIX 5: Update treasury transaction for approved shortage/overage
       await autoShortageOveageTx(data, id);
+      // Rule 6: Update Owner Capital Contribution treasury entry if purchases > sales
+      await autoOwnerCapitalTx(data, id);
       try { await autoSettle(data, id, proofUrl || null, ocr || null, prev); } catch (e) { console.warn('autoSettle skipped:', e.message); }
       // Save customer credit entries to Debt Management (single source of truth)
       await autoSaveCreditDebts(data, id);
