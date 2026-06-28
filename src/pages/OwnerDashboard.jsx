@@ -914,12 +914,15 @@ export default function OwnerDashboard() {
       </WidgetErrorBoundary>
 
       {/* ══════════════════════════════════════════════════════════════════════
-          QUICK ACTIONS
+          QUICK ACTIONS (Sticky)
       ══════════════════════════════════════════════════════════════════════ */}
-      <section>
-        <SectionHeader icon={Zap} title="Quick Actions" color="slate" />
+      <section className="sticky top-16 z-30 bg-background/95 backdrop-blur-md -mx-3 px-3 py-2 border-b border-border/40 shadow-sm">
+        <div className="flex items-center gap-1.5 mb-2 px-1">
+          <Zap className="w-3.5 h-3.5 text-slate-500" />
+          <h2 className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Quick Actions</h2>
+        </div>
         <Card className="border-primary/20 bg-primary/5">
-          <CardContent className="p-3">
+          <CardContent className="p-2">
             <div className="grid grid-cols-4 gap-2">
               <QuickActionBtn icon={Plus}           label="Add Sale"         color="green"  onClick={() => navigate('/sales')} />
               <QuickActionBtn icon={ShoppingCart}   label="Add Purchase"     color="blue"   onClick={() => navigate('/enterprise-purchases')} />
@@ -928,7 +931,7 @@ export default function OwnerDashboard() {
               <QuickActionBtn icon={Truck}          label="Supplier Payment" color="orange" onClick={() => navigate('/suppliers?tab=payments')} />
               <QuickActionBtn icon={FileText}       label="Create Invoice"   color="purple" onClick={() => navigate('/sales/invoices')} />
               <QuickActionBtn icon={PackagePlus}    label="Add Product"      color="indigo" onClick={() => navigate('/products')} />
-              <QuickActionBtn icon={ArrowLeftRight} label="Stock Transfer"   color="red"    onClick={() => navigate('/inventory')} />
+              <QuickActionBtn icon={Wallet}         label="Treasury"         color="red"    onClick={() => navigate('/treasury')} />
             </div>
           </CardContent>
         </Card>
