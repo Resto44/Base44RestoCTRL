@@ -180,7 +180,12 @@ function createEntity(tableName) {
       console.log(`[entity:${tableName}] current user email:`, email);
       const now = new Date().toISOString();
       // Strip server-generated / computed columns that cannot be inserted by the client.
-      const GENERATED_COLS = ['total'];
+      // Also strip daily_sales app-only fields that have no DB column.
+      const GENERATED_COLS = tableName === 'daily_sales'
+        ? ['total', 'actual_cash_count', 'expected_cash', 'remaining_difference',
+           'cash_shortage_amount', 'cash_overage_amount', 'total_sales',
+           'approved_purchases_total', 'daily_operating_result', 'owner_capital_contribution']
+        : ['total'];
       const safe = Object.fromEntries(
         Object.entries(record).filter(([k]) => !GENERATED_COLS.includes(k))
       );
@@ -244,7 +249,12 @@ function createEntity(tableName) {
       if (tableName === 'categories') changes = mapCategoryPayload(changes);
       // Strip server-generated / computed columns that cannot be set by the client.
       // daily_sales.total is a GENERATED ALWAYS column — sending it causes HTTP 400.
-      const GENERATED_COLS = ['total'];
+      // Also strip daily_sales app-only fields that have no DB column.
+      const GENERATED_COLS = tableName === 'daily_sales'
+        ? ['total', 'actual_cash_count', 'expected_cash', 'remaining_difference',
+           'cash_shortage_amount', 'cash_overage_amount', 'total_sales',
+           'approved_purchases_total', 'daily_operating_result', 'owner_capital_contribution']
+        : ['total'];
       const safe = Object.fromEntries(
         Object.entries(changes).filter(([k]) => !GENERATED_COLS.includes(k))
       );
