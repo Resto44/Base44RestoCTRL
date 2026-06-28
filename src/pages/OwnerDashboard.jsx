@@ -224,7 +224,7 @@ const BranchSelector = memo(({ branches, selectedBranch, onSelect }) => {
 
   const selectedLabel = useMemo(() => {
     if (selectedBranch === 'all') return 'All Branches';
-    const b = branches.find(br => (br.key || br.id) === selectedBranch);
+    const b =  (branches || []).find(br => (br.key || br.id) === selectedBranch);
     return b ? (b.name || b.key || selectedBranch) : selectedBranch;
   }, [selectedBranch, branches]);
 
@@ -265,10 +265,10 @@ const BranchSelector = memo(({ branches, selectedBranch, onSelect }) => {
           </button>
 
           {/* Divider */}
-          {branches.length > 0 && <div className="border-t border-border/60 mx-3" />}
+          { (branches || []).length > 0 && <div className="border-t border-border/60 mx-3" />}
 
           {/* Individual branches */}
-          {branches.map((br) => {
+          { (branches || []).map((br) => {
             const key = br.key || br.id;
             const name = br.name || br.key || key;
             const isSelected = selectedBranch === key;
@@ -288,7 +288,7 @@ const BranchSelector = memo(({ branches, selectedBranch, onSelect }) => {
             );
           })}
 
-          {branches.length === 0 && (
+          { (branches || []).length === 0 && (
             <div className="px-4 py-3 text-xs text-muted-foreground">No branches configured.</div>
           )}
         </div>
@@ -352,7 +352,7 @@ export default function OwnerDashboard() {
   // Branch display info for the badge
   const selectedBranchLabel = useMemo(() => {
     if (selectedBranch === 'all') return 'All Branches';
-    const b = branches.find(br => (br.key || br.id) === selectedBranch);
+    const b =  (branches || []).find(br => (br.key || br.id) === selectedBranch);
     return b ? (b.name || b.key || selectedBranch) : selectedBranch;
   }, [selectedBranch, branches]);
 
@@ -522,21 +522,21 @@ export default function OwnerDashboard() {
   // ── MEMOIZED CALCULATIONS ─────────────────────────────────────────────────────
 
   const sumSales = useCallback((arr) =>
-    arr.reduce((s, r) => s + getSaleCash(r) + getSaleNetwork(r) + (Number(r.credit) || 0), 0), []);
+     (arr || []).reduce((s, r) => s + getSaleCash(r) + getSaleNetwork(r) + (Number(r.credit) || 0), 0), []);
 
   const sumPurchaseCost = useCallback((arr) =>
-    arr.reduce((s, p) => s + ((p.qty || 0) * (p.used_price || p.current_price || 0)), 0), []);
+     (arr || []).reduce((s, p) => s + ((p.qty || 0) * (p.used_price || p.current_price || 0)), 0), []);
 
   // ── Section 1: Executive Summary ──────────────────────────────────────────────
   const execSummary = useMemo(() => {
-    const cashSalesToday = todaySales.reduce((s, r) => {
+    const cashSalesToday =  (todaySales || []).reduce((s, r) => {
       const closing = Number(r.closing_cash) || Number(r.restaurant_cash) || Number(r.cash) || 0;
       const opening = Number(r.opening_cash) || 0;
       return s + (r.opening_cash != null ? Math.max(0, closing - opening) : closing);
     }, 0);
-    const networkSalesToday = todaySales.reduce((s, r) =>
+    const networkSalesToday =  (todaySales || []).reduce((s, r) =>
       s + (Number(r.restaurant_network) || Number(r.network) || 0), 0);
-    const creditSalesToday = todaySales.reduce((s, r) => s + (Number(r.credit) || 0), 0);
+    const creditSalesToday =  (todaySales || []).reduce((s, r) => s + (Number(r.credit) || 0), 0);
     const salesToday = cashSalesToday + networkSalesToday + creditSalesToday;
 
     // Today's Purchases = approved supplier invoices for today
@@ -544,12 +544,12 @@ export default function OwnerDashboard() {
       .filter(inv => inv.date === today && inv.status === 'approved')
       .reduce((s, inv) => s + (Number(inv.total_amount) || Number(inv.amount) || 0), 0);
 
-    const expensesToday = todayExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    const expensesToday =  (todayExpenses || []).reduce((s, e) => s + (Number(e.amount) || 0), 0);
     const grossProfit = salesToday - purchasesToday;
     const netProfit   = salesToday - purchasesToday - expensesToday;
 
     const latestSale = todaySales.length > 0
-      ? todaySales.reduce((latest, s) =>
+      ?  (todaySales || []).reduce((latest, s) =>
           (!latest || (s.created_date || s.date) > (latest.created_date || latest.date)) ? s : latest, null)
       : null;
     const cashInRegister = latestSale
@@ -562,14 +562,14 @@ export default function OwnerDashboard() {
       .filter(d => d.status !== 'paid' && d.status !== 'written_off')
       .reduce((s, d) => s + (Number(d.remaining_amount) || 0), 0);
 
-    const inventoryValue = inventory.reduce((s, item) =>
+    const inventoryValue =  (inventory || []).reduce((s, item) =>
       s + ((item.quantity || 0) * (item.unit_cost || item.avg_cost || item.cost_price || 0)), 0);
 
     const supplierPayables = supplierInvoices
       .filter(inv => inv.status !== 'paid')
       .reduce((s, inv) => s + Math.max(0, (inv.amount || 0) - (inv.paid_amount || 0)), 0);
 
-    const ownerCapitalToday = todaySales.reduce((s, r) => s + (Number(r.owner_cash_injection) || 0), 0);
+    const ownerCapitalToday =  (todaySales || []).reduce((s, r) => s + (Number(r.owner_cash_injection) || 0), 0);
 
     const cashShortageToday = todaySales
       .filter(r => (Number(r.cash_difference) || 0) < 0)
@@ -597,10 +597,10 @@ export default function OwnerDashboard() {
 
   // ── Section 3: Cash Reconciliation ───────────────────────────────────────────
   const cashRecon = useMemo(() => {
-    const openingCash  = todaySales.reduce((s, r) => s + (Number(r.opening_cash) || 0), 0);
+    const openingCash  =  (todaySales || []).reduce((s, r) => s + (Number(r.opening_cash) || 0), 0);
     const cashSales    = execSummary.cashSalesToday;
     const ownerContrib = execSummary.ownerCapitalToday;
-    const expensesOut  = todayExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    const expensesOut  =  (todayExpenses || []).reduce((s, e) => s + (Number(e.amount) || 0), 0);
     const expectedCash = openingCash + cashSales + ownerContrib - expensesOut;
     const actualCash   = execSummary.cashInRegister;
     const cashDiff     = actualCash - expectedCash;
@@ -611,7 +611,7 @@ export default function OwnerDashboard() {
 
   // ── Section 4: Sales Analytics ────────────────────────────────────────────────
   const salesAnalytics = useMemo(() => {
-    const calcSales = (arr) => arr.reduce((s, r) =>
+    const calcSales = (arr) =>  (arr || []).reduce((s, r) =>
       s + getSaleCash(r) + getSaleNetwork(r) + (Number(r.credit) || 0), 0);
 
     const todayAmt     = execSummary.salesToday;
@@ -625,7 +625,7 @@ export default function OwnerDashboard() {
     const weekGrowth  = prevWeekAmt  > 0 ? ((weekAmt  - prevWeekAmt)  / prevWeekAmt)  * 100 : 0;
     const monthGrowth = prevMonthAmt > 0 ? ((monthAmt - prevMonthAmt) / prevMonthAmt) * 100 : 0;
 
-    const daysInMonth = monthSales.length > 0 ? new Set(monthSales.map(s => s.date)).size : 1;
+    const daysInMonth = monthSales.length > 0 ? new Set( (monthSales || []).map(s => s.date)).size : 1;
     const avgDailySales = daysInMonth > 0 ? monthAmt / daysInMonth : 0;
 
     const dailyTotals = {};
@@ -655,9 +655,9 @@ export default function OwnerDashboard() {
       .sort((a, b) => b[1] - a[1])
       .slice(0, 3);
 
-    const allAmounts = supplierInvoices.map(inv => Number(inv.amount) || 0);
+    const allAmounts =  (supplierInvoices || []).map(inv => Number(inv.amount) || 0);
     const largestPurchase = allAmounts.length > 0 ? Math.max(...allAmounts) : 0;
-    const avgPurchase     = allAmounts.length > 0 ? allAmounts.reduce((s, v) => s + v, 0) / allAmounts.length : 0;
+    const avgPurchase     = allAmounts.length > 0 ?  (allAmounts || []).reduce((s, v) => s + v, 0) / allAmounts.length : 0;
 
     return { todayAmt, weekAmt, monthAmt, supplierRanking, largestPurchase, avgPurchase };
   }, [execSummary, weekPurchases, monthPurchases, supplierInvoices, sumPurchaseCost]);
@@ -691,7 +691,7 @@ export default function OwnerDashboard() {
   // ── Section 7: Cash Flow ─────────────────────────────────────────────────────
   const cashFlow = useMemo(() => {
     const moneyIn      = execSummary.salesToday;
-    const expenses     = todayExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    const expenses     =  (todayExpenses || []).reduce((s, e) => s + (Number(e.amount) || 0), 0);
     const moneyOut     = execSummary.purchasesToday + expenses;
     const ownerCapital = execSummary.ownerCapitalToday;
     const netCashFlow  = moneyIn - moneyOut + ownerCapital;
@@ -728,8 +728,8 @@ export default function OwnerDashboard() {
 
   // ── Section 9: Alerts ─────────────────────────────────────────────────────────
   const alerts = useMemo(() => {
-    const salesDays    = new Set(monthSales.map(s => s.date));
-    const purchaseDays = new Set(monthPurchases.map(p => p.date));
+    const salesDays    = new Set( (monthSales || []).map(s => s.date));
+    const purchaseDays = new Set( (monthPurchases || []).map(p => p.date));
     const missingPurchaseDays = [...salesDays].filter(d => !purchaseDays.has(d)).length;
     const cashShortage        = todaySales.filter(r => (Number(r.cash_difference) || 0) < 0).length;
     const negativeProfit      = execSummary.netProfit < 0 ? 1 : 0;
@@ -928,7 +928,7 @@ export default function OwnerDashboard() {
               <CardContent className="p-3">
                 <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 mb-2">Low Stock Items</p>
                 <div className="space-y-1">
-                  {inventoryAnalytics.lowStock.slice(0, 5).map(item => (
+                  { (inventoryAnalytics.lowStock || []).slice(0, 5).map(item => (
                     <div key={item.id} className="flex items-center justify-between">
                       <span className="text-xs text-foreground truncate max-w-[160px]">{item.product_name}</span>
                       <Badge variant="outline" className="text-[10px] border-amber-300 text-amber-700">{item.quantity} left</Badge>
@@ -943,7 +943,7 @@ export default function OwnerDashboard() {
               <CardContent className="p-3">
                 <p className="text-xs font-semibold text-red-700 dark:text-red-400 mb-2">Out of Stock</p>
                 <div className="space-y-1">
-                  {inventoryAnalytics.outOfStock.slice(0, 5).map(item => (
+                  { (inventoryAnalytics.outOfStock || []).slice(0, 5).map(item => (
                     <div key={item.id} className="flex items-center justify-between">
                       <span className="text-xs text-foreground truncate max-w-[160px]">{item.product_name}</span>
                       <Badge variant="destructive" className="text-[10px]">0 units</Badge>
@@ -988,7 +988,7 @@ export default function OwnerDashboard() {
             </Card>
           ) : (
             <div className="space-y-2">
-              {priceIntelligence.map(item => (
+              { (priceIntelligence || []).map(item => (
                 <Card key={item.product_id} className="border border-border/60">
                   <CardContent className="p-3">
                     <div className="flex items-center justify-between mb-2">
