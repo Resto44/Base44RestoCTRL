@@ -6,12 +6,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
 import { BarChart3, ShoppingCart } from 'lucide-react';
-import SalesForm from '@/components/sales/SalesForm';
+// SalesForm removed to enforce single ERP workspace entry point
 import { useLanguage } from '@/lib/LanguageContext';
+import { useNavigate } from 'react-router-dom';
 
 export default function StaffUpload() {
   const { user } = useAuth();
   const { role } = useRole();
+  const navigate = useNavigate();
 
   // Owners and restaurant_admins must never see this staff page — redirect to dashboard
   useEffect(() => {
@@ -65,17 +67,8 @@ export default function StaffUpload() {
         {/* Active Form */}
         {activeTab === 'sales' && (
           <div className="mb-6">
-            <SalesForm
-              branch={userBranch}
-              onSubmit={(data) => {
-                createSaleMutation.mutate({
-                  ...data,
-                  branch: userBranch,
-                });
-              }}
-              isLoading={createSaleMutation.isPending}
-              onCancel={() => setActiveTab(null)}
-            />
+            {/* SalesForm removed. Redirecting to central sales workspace. */}
+            {useEffect(() => { navigate('/sales'); }, [])}
           </div>
         )}
 

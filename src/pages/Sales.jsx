@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { useLanguage } from '@/lib/LanguageContext';
 import PageHeader from '@/components/shared/PageHeader';
-import SalesForm from '@/components/sales/SalesForm';
+// SalesForm removed to enforce single ERP workspace entry point
 import ERPSalesWorkspace from '@/components/sales/ERPSalesWorkspace';
 import SalesListItem from '@/components/sales/SalesListItem';
 import EmptyState from '@/components/shared/EmptyState';

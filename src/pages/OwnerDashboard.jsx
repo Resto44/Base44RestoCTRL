@@ -41,7 +41,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
-import SalesForm from '@/components/sales/SalesForm';
+// SalesForm removed to enforce single ERP workspace entry point
 import PriceChangesWidget from '@/components/dashboard/PriceChangesWidget';
 import { toast } from 'sonner';
 import {
@@ -248,7 +248,7 @@ export default function OwnerDashboard() {
   const notif = useNotify();
   const qc = useQueryClient();
   const { autoSettle } = useNetworkSettlement({ orgId, user, currency });
-  const [showSaleModal, setShowSaleModal] = useState(false);
+
 
   const today       = format(new Date(), 'yyyy-MM-dd');
   const yesterday   = format(subDays(new Date(), 1), 'yyyy-MM-dd');
@@ -634,44 +634,7 @@ export default function OwnerDashboard() {
 
   const totalAlerts = useMemo(() => Object.values(alerts).reduce((s, v) => s + v, 0), [alerts]);
 
-  // ── CREATE SALE MUTATION ──────────────────────────────────────────────────────
-  const createMut = useMutation({
-    mutationFn: async ({ data, proofUrl, ocr }) => {
-      try {
-        if (activeRestaurant?.id) data.restaurant_id = activeRestaurant.id;
-        if (data.restaurant_network_account_id === '') data.restaurant_network_account_id = null;
-        const sale = await base44.entities.DailySales.create(data);
-        try { await autoSettle(data, sale.id, proofUrl || null, ocr || null, null); } catch (e) { console.warn('autoSettle skipped:', e.message); }
-        try {
-          const restaurantId = activeRestaurant?.id;
-          const invNum = await generateSalesInvoiceNumber(restaurantId, data.date);
-          await base44.entities.DailySales.update(sale.id, { invoice_number: invNum });
-          const invoice = await createSalesInvoice({ invoiceNumber: invNum, saleId: sale.id, saleData: data, restaurantId, createdBy: user?.email || '' });
-          try { await generateAndUploadPDF(invoice, 'RestoCTRL', currency); } catch { /* non-fatal */ }
-          qc.invalidateQueries({ queryKey: ['sales_invoices_today'] });
-        } catch (e) { console.warn('Invoice gen skipped:', e.message); }
-        const total = (data.restaurant_cash || 0) + (data.restaurant_network || 0) + (data.credit || 0);
-        await notif.sale({ branch: data.branch, amount: total, action: 'create' });
-        return sale;
-      } catch (err) {
-        toast.error(err.message || 'Failed to save sale');
-        throw err;
-      }
-    },
-    onSuccess: () => {
-      toast.success('Sale recorded successfully');
-      qc.invalidateQueries({ queryKey: ['sales_today'] });
-      qc.invalidateQueries({ queryKey: ['sales_month'] });
-      qc.invalidateQueries({ queryKey: ['sales'] });
-      qc.invalidateQueries({ queryKey: ['sales_daily'] });
-      qc.invalidateQueries({ queryKey: ['wallet_transactions'] });
-      setShowSaleModal(false);
-    },
-  });
 
-  const handleSaleSubmit = useCallback(async (data, proofUrl, ocr) => {
-    await createMut.mutateAsync({ data, proofUrl, ocr });
-  }, [createMut]);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // RENDER
@@ -958,7 +921,7 @@ export default function OwnerDashboard() {
         <Card className="border-primary/20 bg-primary/5">
           <CardContent className="p-3">
             <div className="grid grid-cols-4 gap-2">
-              <QuickActionBtn icon={Plus}           label="Add Sale"         color="green"  onClick={() => setShowSaleModal(true)} />
+              <QuickActionBtn icon={Plus}           label="Add Sale"         color="green"  onClick={() => navigate('/sales')} />
               <QuickActionBtn icon={ShoppingCart}   label="Add Purchase"     color="blue"   onClick={() => navigate('/enterprise-purchases')} />
               <QuickActionBtn icon={Receipt}        label="Add Expense"      color="amber"  onClick={() => navigate('/expenses')} />
               <QuickActionBtn icon={ArrowDownLeft}  label="Receive Debt"     color="cyan"   onClick={() => navigate('/debt-management')} />
@@ -976,15 +939,7 @@ export default function OwnerDashboard() {
         <PriceChangesWidget />
       </WidgetErrorBoundary>
 
-      {/* ── Add Sale Modal ── */}
-      <Dialog open={showSaleModal} onOpenChange={setShowSaleModal}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Add Sale</DialogTitle>
-          </DialogHeader>
-          <SalesForm onSubmit={handleSaleSubmit} onCancel={() => setShowSaleModal(false)} />
-        </DialogContent>
-      </Dialog>
+
     </div>
   );
 }
