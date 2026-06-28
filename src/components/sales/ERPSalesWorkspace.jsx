@@ -448,10 +448,12 @@ export default function ERPSalesWorkspace({ initial, onSubmit, onCancel }) {
       const branchFiltered = form.branch
         ? all.filter(e => !e.branch || e.branch === form.branch || e.branch === 'all')
         : all;
-      const CASHIER_ROLES = ['cashier', 'manager', 'owner', 'supervisor', 'admin'];
+      const CASHIER_ROLES_EN = ['cashier', 'manager', 'owner', 'supervisor', 'admin'];
+      const CASHIER_ROLES_AR = ['كاشير', 'مدير', 'مشرف', 'أدمن', 'ادمن'];
       return branchFiltered.filter(e => {
-        const pos = (e.position || '').toLowerCase();
-        return CASHIER_ROLES.some(r => pos.includes(r));
+        const pos = (e.position || '');
+        const posLower = pos.toLowerCase();
+        return CASHIER_ROLES_EN.some(r => posLower.includes(r)) || CASHIER_ROLES_AR.some(r => pos.includes(r));
       });
     },
     staleTime: 60000,
