@@ -439,11 +439,11 @@ export default function ERPSalesWorkspace({ initial, onSubmit, onCancel }) {
 
   // ── Employees ─────────────────────────────────────────────────────────────
   const { data: employees = [], isLoading: empLoading } = useQuery({
-    queryKey: ['employees_cashiers', ownerFilter?.created_by, form.branch],
+    queryKey: ['employees_cashiers', ownerFilter?.created_by, ownerFilter?.branch, form.branch],
     queryFn: async () => {
-      if (!ownerFilter?.created_by) return [];
+      if (!ownerFilter?.created_by && !ownerFilter?.branch) return [];
       const all = await base44.entities.Employee.filter(
-        { created_by: ownerFilter.created_by, is_active: true }, 'full_name', 200
+        { ...ownerFilter, is_active: true }, 'full_name', 200
       );
       const branchFiltered = form.branch
         ? all.filter(e => !e.branch || e.branch === form.branch || e.branch === 'all')
@@ -455,7 +455,7 @@ export default function ERPSalesWorkspace({ initial, onSubmit, onCancel }) {
       });
     },
     staleTime: 60000,
-    enabled: !!ownerFilter?.created_by,
+    enabled: !!ownerFilter?.created_by || !!ownerFilter?.branch,
   });
 
   // Auto-select single cashier
