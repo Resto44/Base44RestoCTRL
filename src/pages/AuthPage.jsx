@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/api/supabaseClient';
 import { base44 } from '@/api/base44Client';
 import { ROLES, ROLE_HOME } from '@/lib/RoleContext';
@@ -26,6 +27,7 @@ const getRoleHome = (role) => {
 };
 
 export default function AuthPage() {
+  const navigate = useNavigate();
   const initialParams = getUrlParams();
   const [mode, setMode] = useState(initialParams.get('mode') === 'signup' || initialParams.get('role') ? 'signup' : 'login'); // 'login' | 'signup' | 'reset'
   const [email, setEmail] = useState('');
@@ -46,7 +48,7 @@ export default function AuthPage() {
     const urlParams = getUrlParams();
     const next = urlParams.get('next');
     if (next) {
-      window.location.href = next;
+      navigate(next, { replace: true });
       return;
     }
 
@@ -55,9 +57,9 @@ export default function AuthPage() {
       const currentUser = requestedRole
         ? await base44.auth.updateMe({ role: requestedRole })
         : await base44.auth.me();
-      window.location.href = getRoleHome(currentUser?.role || fallbackRole);
+      navigate(getRoleHome(currentUser?.role || fallbackRole), { replace: true });
     } catch (_error) {
-      window.location.href = getRoleHome(fallbackRole);
+      navigate(getRoleHome(fallbackRole), { replace: true });
     }
   };
 
