@@ -1023,10 +1023,10 @@ export default function CustomerManagement() {
             {collectionForm.customer_name && (
               <div>
                 <Label className="text-xs">{t('credit_sales')} (link)</Label>
-                <Select value={collectionForm.debt_id} onValueChange={v => setCollectionForm(f => ({ ...f, debt_id: v }))}>
+                <Select value={collectionForm.debt_id || "__none__"} onValueChange={v => setCollectionForm(f => ({ ...f, debt_id: v === "__none__" ? "" : v }))}>
                   <SelectTrigger className="h-9 mt-1 text-xs"><SelectValue placeholder="Select open debt (optional)" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">— {t('filter_all')} —</SelectItem>
+                    <SelectItem value="__none__">— {t('filter_all')} —</SelectItem>
                     {debtRecords.filter(d => d.party_name === collectionForm.customer_name && ['open','partial','overdue'].includes(d.status)).map(d => (
                       <SelectItem key={d.id} value={d.id}>{d.invoice_number || d.date} — {fmt(d.remaining_amount, currency)} due</SelectItem>
                     ))}
