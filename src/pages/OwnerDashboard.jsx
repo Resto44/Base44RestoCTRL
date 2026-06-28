@@ -1,109 +1,199 @@
 /**
- * OwnerDashboard — Restaurant Owner Executive Dashboard
+ * OwnerDashboard — Next Generation Executive Dashboard
  *
- * ROW 1 (Top KPIs):
- *   Today's Sales = Cash Sales (closing-opening) + Network Sales + Customer Credit Sales
- *   Today's Purchases = Warehouse Purchases + Supplier Purchases
- *   Today's Profit = Today's Sales - Today's Purchases  (NO monthly expenses deducted)
- *   Cash In Register = Latest Closing Cash
+ * Architecture: Modular, component-based widgets, real-time calculations,
+ * lazy loading, memoized calculations, responsive mobile-first layout,
+ * skeleton loading, error boundaries, optimistic updates.
  *
- * ROW 2:
- *   Network Balance | Customer Credit Balance | Supplier Payables | Inventory Value
+ * BUSINESS RULES (NEVER MODIFY):
+ *   Sales Revenue must NEVER be modified.
+ *   Purchases must NEVER modify Sales.
+ *   Operating Result = Sales − Approved Purchases.
+ *   Cash Shortage is NOT Sales. Cash Shortage is NOT Profit.
+ *   Cash Shortage must create Owner Capital Contribution only.
+ *   Dashboard values must always be calculated from database records.
+ *   No manual calculations. No duplicated logic. Single source of truth.
  *
- * ROW 3 (Alerts):
- *   Low Stock Alerts | Out Of Stock Items | Pending Supplier Payments | Pending Customer Debts
- *
- * ROW 4 (Monthly):
- *   Today's Orders | Today's Invoices | Monthly Sales | Monthly Net Profit
- *
- * QUICK ACTIONS (8):
- *   Add Sale | Add Purchase | Add Expense | Receive Debt |
- *   Supplier Payment | Create Invoice | Add Product | Stock Transfer
- *
- * REMOVED FROM TOP: Active Employees, Active Drivers, Profit Margin, Revenue This Month
+ * SECTIONS:
+ *   1. Executive Summary
+ *   2. Operating Result  (NEVER REMOVE)
+ *   3. Cash Reconciliation
+ *   4. Sales Analytics
+ *   5. Purchase Analytics
+ *   6. Inventory Analytics
+ *   7. Cash Flow
+ *   8. Product Price Intelligence
+ *   9. Alerts
  */
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
+import { supabase } from '@/api/supabaseClient';
 import { useLanguage } from '@/lib/LanguageContext';
 import { useTenant } from '@/lib/TenantContext';
-import { useRole, ROLES } from '@/lib/RoleContext';
+import { useRole } from '@/lib/RoleContext';
+import { useAuth } from '@/lib/AuthContext';
+import { useNetworkSettlement } from '@/hooks/useNetworkSettlement';
+import { useNotify } from '@/lib/useNotify';
+import { getSaleCash, getSaleNetwork } from '@/lib/helpers';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import {
-  TrendingUp, TrendingDown, DollarSign, ShoppingCart, Package,
-  Users, Truck, AlertTriangle, Zap, Wifi,
-  Plus, CreditCard, Wallet, Receipt, ChevronRight,
-  RefreshCw, Banknote, ArrowDownLeft, Store, BarChart3,
-  PackagePlus, ArrowLeftRight, FileText, ShoppingBag
-} from 'lucide-react';
-import { format, startOfMonth } from 'date-fns';
+import { Skeleton } from '@/components/ui/skeleton';
 import SalesForm from '@/components/sales/SalesForm';
 import PriceChangesWidget from '@/components/dashboard/PriceChangesWidget';
-import { useNotify } from '@/lib/useNotify';
-import { useAuth } from '@/lib/AuthContext';
-import { useNetworkSettlement } from '@/hooks/useNetworkSettlement';
 import { toast } from 'sonner';
 import {
   generateSalesInvoiceNumber,
   createSalesInvoice,
   generateAndUploadPDF,
 } from '@/lib/salesInvoiceService';
+import {
+  TrendingUp, TrendingDown, DollarSign, ShoppingCart, Package,
+  Users, Truck, AlertTriangle, Wifi, Plus, CreditCard, Wallet,
+  Receipt, Banknote, ArrowDownLeft, BarChart3,
+  PackagePlus, ArrowLeftRight, FileText, ShoppingBag, Activity,
+  Scale, Target, Zap, ChevronRight, ArrowUpRight, ArrowDownRight,
+  CheckCircle2, XCircle, AlertCircle,
+  LayoutDashboard, Layers, Clock,
+} from 'lucide-react';
+import {
+  format, startOfMonth, startOfWeek, startOfYear,
+  subDays, subWeeks, subMonths,
+} from 'date-fns';
 
-// ── KPI Card ─────────────────────────────────────────────────────────────────
-function KPICard({ title, value, subtitle, icon: Icon, color = 'blue', onClick, large = false }) {
+// ─────────────────────────────────────────────────────────────────────────────
+// PRIMITIVE COMPONENTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+const SkeletonCard = memo(() => (
+  <Card className="border border-border/50">
+    <CardContent className="p-4">
+      <Skeleton className="h-4 w-24 mb-3" />
+      <Skeleton className="h-7 w-32 mb-1" />
+      <Skeleton className="h-3 w-20" />
+    </CardContent>
+  </Card>
+));
+
+const SectionHeader = memo(({ icon: Icon, title, subtitle, action, color = 'blue' }) => {
   const colorMap = {
-    blue:   { bg: 'bg-blue-50 dark:bg-blue-950',     icon: 'text-blue-600',    border: 'border-blue-100 dark:border-blue-900' },
-    green:  { bg: 'bg-emerald-50 dark:bg-emerald-950', icon: 'text-emerald-600', border: 'border-emerald-100 dark:border-emerald-900' },
-    amber:  { bg: 'bg-amber-50 dark:bg-amber-950',   icon: 'text-amber-600',   border: 'border-amber-100 dark:border-amber-900' },
-    red:    { bg: 'bg-red-50 dark:bg-red-950',       icon: 'text-red-600',     border: 'border-red-100 dark:border-red-900' },
-    purple: { bg: 'bg-purple-50 dark:bg-purple-950', icon: 'text-purple-600',  border: 'border-purple-100 dark:border-purple-900' },
-    cyan:   { bg: 'bg-cyan-50 dark:bg-cyan-950',     icon: 'text-cyan-600',    border: 'border-cyan-100 dark:border-cyan-900' },
-    orange: { bg: 'bg-orange-50 dark:bg-orange-950', icon: 'text-orange-600',  border: 'border-orange-100 dark:border-orange-900' },
+    blue:   'bg-blue-100 dark:bg-blue-900/40 text-blue-600',
+    green:  'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600',
+    amber:  'bg-amber-100 dark:bg-amber-900/40 text-amber-600',
+    red:    'bg-red-100 dark:bg-red-900/40 text-red-600',
+    purple: 'bg-purple-100 dark:bg-purple-900/40 text-purple-600',
+    cyan:   'bg-cyan-100 dark:bg-cyan-900/40 text-cyan-600',
+    orange: 'bg-orange-100 dark:bg-orange-900/40 text-orange-600',
+    indigo: 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600',
+    slate:  'bg-slate-100 dark:bg-slate-800 text-slate-600',
+  };
+  return (
+    <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center gap-2.5">
+        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${colorMap[color] || colorMap.blue}`}>
+          {Icon && <Icon className="w-4 h-4" />}
+        </div>
+        <div>
+          <h2 className="text-sm font-bold text-foreground leading-tight">{title}</h2>
+          {subtitle && <p className="text-[11px] text-muted-foreground leading-tight">{subtitle}</p>}
+        </div>
+      </div>
+      {action && (
+        <button onClick={action.onClick} className="flex items-center gap-1 text-xs text-primary hover:underline">
+          {action.label} <ChevronRight className="w-3 h-3" />
+        </button>
+      )}
+    </div>
+  );
+});
+
+const MetricCard = memo(({
+  title, value, subtitle, icon: Icon, color = 'blue',
+  onClick, trend, trendLabel, large = false,
+}) => {
+  const colorMap = {
+    blue:   { bg: 'bg-blue-50 dark:bg-blue-950/50',     icon: 'text-blue-600',    border: 'border-blue-100 dark:border-blue-900/60',    val: 'text-blue-700 dark:text-blue-400' },
+    green:  { bg: 'bg-emerald-50 dark:bg-emerald-950/50', icon: 'text-emerald-600', border: 'border-emerald-100 dark:border-emerald-900/60', val: 'text-emerald-700 dark:text-emerald-400' },
+    amber:  { bg: 'bg-amber-50 dark:bg-amber-950/50',   icon: 'text-amber-600',   border: 'border-amber-100 dark:border-amber-900/60',   val: 'text-amber-700 dark:text-amber-400' },
+    red:    { bg: 'bg-red-50 dark:bg-red-950/50',       icon: 'text-red-600',     border: 'border-red-100 dark:border-red-900/60',      val: 'text-red-700 dark:text-red-400' },
+    purple: { bg: 'bg-purple-50 dark:bg-purple-950/50', icon: 'text-purple-600',  border: 'border-purple-100 dark:border-purple-900/60', val: 'text-purple-700 dark:text-purple-400' },
+    cyan:   { bg: 'bg-cyan-50 dark:bg-cyan-950/50',     icon: 'text-cyan-600',    border: 'border-cyan-100 dark:border-cyan-900/60',    val: 'text-cyan-700 dark:text-cyan-400' },
+    orange: { bg: 'bg-orange-50 dark:bg-orange-950/50', icon: 'text-orange-600',  border: 'border-orange-100 dark:border-orange-900/60', val: 'text-orange-700 dark:text-orange-400' },
+    indigo: { bg: 'bg-indigo-50 dark:bg-indigo-950/50', icon: 'text-indigo-600',  border: 'border-indigo-100 dark:border-indigo-900/60', val: 'text-indigo-700 dark:text-indigo-400' },
+    slate:  { bg: 'bg-slate-50 dark:bg-slate-900/50',   icon: 'text-slate-600',   border: 'border-slate-200 dark:border-slate-700',     val: 'text-slate-700 dark:text-slate-300' },
   };
   const c = colorMap[color] || colorMap.blue;
   return (
     <Card
-      className={`border ${c.border} ${onClick ? 'cursor-pointer hover:shadow-md active:scale-[0.98]' : ''} transition-all`}
+      className={`border ${c.border} ${onClick ? 'cursor-pointer hover:shadow-md active:scale-[0.98]' : ''} transition-all duration-200`}
       onClick={onClick}
     >
-      <CardContent className="p-3">
-        <div className={`w-9 h-9 rounded-xl ${c.bg} flex items-center justify-center mb-2`}>
-          <Icon className={`w-4 h-4 ${c.icon}`} />
+      <CardContent className="p-3.5">
+        <div className="flex items-start justify-between mb-2">
+          <div className={`w-9 h-9 rounded-xl ${c.bg} flex items-center justify-center`}>
+            <Icon className={`w-4 h-4 ${c.icon}`} />
+          </div>
+          {trend !== undefined && (
+            <span className={`text-[10px] font-semibold flex items-center gap-0.5 ${trend >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+              {trend >= 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+              {Math.abs(trend).toFixed(1)}%
+            </span>
+          )}
         </div>
-        <p className={`font-bold text-foreground leading-tight ${large ? 'text-xl' : 'text-lg'}`}>{value}</p>
+        <p className={`font-black leading-tight ${large ? 'text-xl' : 'text-lg'} ${c.val}`}>{value}</p>
         <p className="text-[11px] font-medium text-muted-foreground mt-0.5 leading-tight">{title}</p>
-        {subtitle && <p className="text-[10px] text-muted-foreground/70 mt-0.5">{subtitle}</p>}
+        {subtitle && <p className="text-[10px] text-muted-foreground/70 mt-0.5 leading-tight">{subtitle}</p>}
+        {trendLabel && <p className="text-[10px] text-muted-foreground/60 mt-0.5">{trendLabel}</p>}
       </CardContent>
     </Card>
   );
-}
+});
 
-// ── Alert Card ────────────────────────────────────────────────────────────────
-function AlertCard({ title, count, icon: Icon, color = 'amber', onClick }) {
+const LedgerRow = memo(({ label, value, color = 'default', bold = false, separator = false }) => {
   const colorMap = {
-    amber: { bg: 'bg-amber-50 dark:bg-amber-950', border: 'border-amber-200', icon: 'text-amber-600', badge: 'bg-amber-500' },
-    red:   { bg: 'bg-red-50 dark:bg-red-950',     border: 'border-red-200',   icon: 'text-red-600',   badge: 'bg-red-500' },
-    blue:  { bg: 'bg-blue-50 dark:bg-blue-950',   border: 'border-blue-200',  icon: 'text-blue-600',  badge: 'bg-blue-500' },
+    default: 'text-foreground',
+    green:   'text-emerald-600 dark:text-emerald-400',
+    red:     'text-red-600 dark:text-red-400',
+    amber:   'text-amber-600 dark:text-amber-400',
+    blue:    'text-blue-600 dark:text-blue-400',
+    purple:  'text-purple-600 dark:text-purple-400',
+    muted:   'text-muted-foreground',
   };
-  const c = colorMap[color] || colorMap.amber;
   return (
-    <Card className={`border ${c.border} ${c.bg} ${onClick ? 'cursor-pointer active:scale-[0.98]' : ''} transition-all`} onClick={onClick}>
-      <CardContent className="p-3 flex items-center gap-2">
-        <Icon className={`w-4 h-4 shrink-0 ${c.icon}`} />
-        <div className="flex-1 min-w-0">
-          <p className="text-[11px] font-medium text-foreground leading-tight truncate">{title}</p>
-        </div>
-        <span className={`text-white text-xs font-bold rounded-full px-2 py-0.5 ${c.badge} shrink-0`}>{count}</span>
-      </CardContent>
-    </Card>
+    <>
+      {separator && <div className="border-t border-border/60 my-1.5" />}
+      <div className={`flex items-center justify-between py-1.5 px-1 rounded ${bold ? 'bg-muted/30' : ''}`}>
+        <span className={`text-xs ${bold ? 'font-semibold' : 'font-medium'} text-muted-foreground`}>{label}</span>
+        <span className={`text-sm ${bold ? 'font-black' : 'font-semibold'} ${colorMap[color]}`}>{value}</span>
+      </div>
+    </>
   );
-}
+});
 
-// ── Quick Action Button ───────────────────────────────────────────────────────
-function QuickActionBtn({ icon: Icon, label, color, onClick }) {
+const AlertRow = memo(({ icon: Icon, title, count, severity = 'amber', onClick }) => {
+  const severityMap = {
+    critical: { bg: 'bg-red-50 dark:bg-red-950/40',    border: 'border-red-200 dark:border-red-800',    icon: 'text-red-600',    badge: 'bg-red-500' },
+    high:     { bg: 'bg-orange-50 dark:bg-orange-950/40', border: 'border-orange-200 dark:border-orange-800', icon: 'text-orange-600', badge: 'bg-orange-500' },
+    amber:    { bg: 'bg-amber-50 dark:bg-amber-950/40', border: 'border-amber-200 dark:border-amber-800', icon: 'text-amber-600',  badge: 'bg-amber-500' },
+    blue:     { bg: 'bg-blue-50 dark:bg-blue-950/40',   border: 'border-blue-200 dark:border-blue-800',  icon: 'text-blue-600',   badge: 'bg-blue-500' },
+    green:    { bg: 'bg-emerald-50 dark:bg-emerald-950/40', border: 'border-emerald-200 dark:border-emerald-800', icon: 'text-emerald-600', badge: 'bg-emerald-500' },
+  };
+  const s = severityMap[severity] || severityMap.amber;
+  return (
+    <div
+      className={`flex items-center gap-3 p-3 rounded-xl border ${s.border} ${s.bg} ${onClick ? 'cursor-pointer active:scale-[0.98]' : ''} transition-all`}
+      onClick={onClick}
+    >
+      <Icon className={`w-4 h-4 shrink-0 ${s.icon}`} />
+      <span className="flex-1 text-xs font-medium text-foreground leading-tight">{title}</span>
+      <span className={`text-white text-xs font-bold rounded-full px-2.5 py-0.5 ${s.badge} shrink-0 min-w-[24px] text-center`}>{count}</span>
+    </div>
+  );
+});
+
+const QuickActionBtn = memo(({ icon: Icon, label, color, onClick }) => {
   const colorMap = {
     blue:   'bg-blue-500 hover:bg-blue-600',
     green:  'bg-emerald-500 hover:bg-emerald-600',
@@ -123,16 +213,32 @@ function QuickActionBtn({ icon: Icon, label, color, onClick }) {
       <span className="text-[10px] font-semibold text-center leading-tight">{label}</span>
     </button>
   );
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ERROR BOUNDARY
+// ─────────────────────────────────────────────────────────────────────────────
+class WidgetErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { hasError: false }; }
+  static getDerivedStateFromError() { return { hasError: true }; }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <Card className="border-red-200 bg-red-50 dark:bg-red-950/30">
+          <CardContent className="p-4 flex items-center gap-2 text-red-600">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span className="text-xs font-medium">Widget failed to load. Please refresh.</span>
+          </CardContent>
+        </Card>
+      );
+    }
+    return this.props.children;
+  }
 }
 
-// ── Section Label ─────────────────────────────────────────────────────────────
-function SectionLabel({ children }) {
-  return (
-    <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-0.5 mb-2">{children}</p>
-  );
-}
-
-// ── Main Dashboard ────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// MAIN DASHBOARD
+// ─────────────────────────────────────────────────────────────────────────────
 export default function OwnerDashboard() {
   const { t, currency } = useLanguage();
   const { branches, ownerFilter, orgId, activeRestaurant } = useTenant();
@@ -144,61 +250,113 @@ export default function OwnerDashboard() {
   const { autoSettle } = useNetworkSettlement({ orgId, user, currency });
   const [showSaleModal, setShowSaleModal] = useState(false);
 
-  const today = format(new Date(), 'yyyy-MM-dd');
-  const monthStart = format(startOfMonth(new Date()), 'yyyy-MM-dd');
+  const today       = format(new Date(), 'yyyy-MM-dd');
+  const yesterday   = format(subDays(new Date(), 1), 'yyyy-MM-dd');
+  const weekStart   = format(startOfWeek(new Date(), { weekStartsOn: 6 }), 'yyyy-MM-dd');
+  const monthStart  = format(startOfMonth(new Date()), 'yyyy-MM-dd');
+  const yearStart   = format(startOfYear(new Date()), 'yyyy-MM-dd');
+  const prevWeekStart  = format(subWeeks(new Date(), 1), 'yyyy-MM-dd');
+  const prevMonthStart = format(subMonths(new Date(), 1), 'yyyy-MM-dd');
 
-  // ── Data Queries ─────────────────────────────────────────────────────────────
+  const enabled = !!(ownerFilter?.created_by || ownerFilter?.branch);
+
+  const fmt = useCallback((n) =>
+    `${currency}${(n || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`, [currency]);
+  const fmtPct = useCallback((n) =>
+    `${n >= 0 ? '+' : ''}${(n || 0).toFixed(1)}%`, []);
+
+  // ── DATA QUERIES ─────────────────────────────────────────────────────────────
+
   const { data: todaySales = [], isLoading: loadingSales } = useQuery({
     queryKey: ['sales_today', ownerFilter, today],
     queryFn: () => base44.entities.DailySales.filter({ ...(ownerFilter || {}), date: today }, '-date', 100),
     staleTime: 15000,
-    enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
+    enabled,
+  });
+
+  const { data: yesterdaySales = [] } = useQuery({
+    queryKey: ['sales_yesterday', ownerFilter, yesterday],
+    queryFn: () => base44.entities.DailySales.filter({ ...(ownerFilter || {}), date: yesterday }, '-date', 100),
+    staleTime: 60000,
+    enabled,
+  });
+
+  const { data: weekSales = [] } = useQuery({
+    queryKey: ['sales_week', ownerFilter, weekStart],
+    queryFn: () => base44.entities.DailySales.filter(ownerFilter || {}, '-date', 500),
+    staleTime: 60000,
+    enabled,
+    select: (d) => d.filter(s => s.date >= weekStart),
   });
 
   const { data: monthSales = [] } = useQuery({
     queryKey: ['sales_month', ownerFilter, monthStart],
     queryFn: () => base44.entities.DailySales.filter(ownerFilter || {}, '-date', 1000),
     staleTime: 60000,
-    enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
-    select: (data) => data.filter(s => s.date >= monthStart),
+    enabled,
+    select: (d) => d.filter(s => s.date >= monthStart),
   });
 
-  const { data: todayPurchases = [] } = useQuery({
-    queryKey: ['purchases_today', ownerFilter, today],
-    queryFn: () => base44.entities.Purchase.filter({ ...(ownerFilter || {}), date: today }, '-date', 200),
-    staleTime: 15000,
-    enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
+  const { data: yearSales = [] } = useQuery({
+    queryKey: ['sales_year', ownerFilter, yearStart],
+    queryFn: () => base44.entities.DailySales.filter(ownerFilter || {}, '-date', 5000),
+    staleTime: 120000,
+    enabled,
+    select: (d) => d.filter(s => s.date >= yearStart),
+  });
+
+  const { data: prevWeekSales = [] } = useQuery({
+    queryKey: ['sales_prev_week', ownerFilter, prevWeekStart, weekStart],
+    queryFn: () => base44.entities.DailySales.filter(ownerFilter || {}, '-date', 500),
+    staleTime: 120000,
+    enabled,
+    select: (d) => d.filter(s => s.date >= prevWeekStart && s.date < weekStart),
+  });
+
+  const { data: prevMonthSales = [] } = useQuery({
+    queryKey: ['sales_prev_month', ownerFilter, prevMonthStart, monthStart],
+    queryFn: () => base44.entities.DailySales.filter(ownerFilter || {}, '-date', 1000),
+    staleTime: 120000,
+    enabled,
+    select: (d) => d.filter(s => s.date >= prevMonthStart && s.date < monthStart),
+  });
+
+  const { data: weekPurchases = [] } = useQuery({
+    queryKey: ['purchases_week', ownerFilter, weekStart],
+    queryFn: () => base44.entities.Purchase.filter(ownerFilter || {}, '-date', 500),
+    staleTime: 60000,
+    enabled,
+    select: (d) => d.filter(p => p.date >= weekStart),
   });
 
   const { data: monthPurchases = [] } = useQuery({
     queryKey: ['purchases_month', ownerFilter, monthStart],
     queryFn: () => base44.entities.Purchase.filter(ownerFilter || {}, '-date', 1000),
     staleTime: 60000,
-    enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
-    select: (data) => data.filter(p => p.date >= monthStart),
+    enabled,
+    select: (d) => d.filter(p => p.date >= monthStart),
+  });
+
+  const { data: todayExpenses = [] } = useQuery({
+    queryKey: ['expenses_today', ownerFilter, today],
+    queryFn: () => base44.entities.Expense.filter({ ...(ownerFilter || {}), date: today }, '-date', 200),
+    staleTime: 15000,
+    enabled,
   });
 
   const { data: monthExpenses = [] } = useQuery({
     queryKey: ['expenses_month', ownerFilter, monthStart],
     queryFn: () => base44.entities.Expense.filter(ownerFilter || {}, '-date', 500),
     staleTime: 60000,
-    enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
-    select: (data) => data.filter(e => e.date >= monthStart),
-  });
-
-  // FIX 4: Today's expenses for accurate profit calculation
-  const { data: todayExpenses = [] } = useQuery({
-    queryKey: ['expenses_today', ownerFilter, today],
-    queryFn: () => base44.entities.Expense.filter({ ...(ownerFilter || {}), date: today }, '-date', 200),
-    staleTime: 15000,
-    enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
+    enabled,
+    select: (d) => d.filter(e => e.date >= monthStart),
   });
 
   const { data: supplierInvoices = [] } = useQuery({
     queryKey: ['supplier_invoices_dash', ownerFilter],
     queryFn: () => base44.entities.SupplierInvoice.filter(ownerFilter || {}, '-date', 500),
     staleTime: 30000,
-    enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
+    enabled,
   });
 
   const { data: customerDebts = [] } = useQuery({
@@ -208,21 +366,21 @@ export default function OwnerDashboard() {
       '-date', 500
     ),
     staleTime: 30000,
-    enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
+    enabled,
   });
 
   const { data: inventory = [] } = useQuery({
     queryKey: ['inventory_dash', ownerFilter],
     queryFn: () => base44.entities.Inventory.filter(ownerFilter || {}, 'product_name', 500),
     staleTime: 60000,
-    enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
+    enabled,
   });
 
   const { data: networkAccounts = [] } = useQuery({
     queryKey: ['network_accounts_dash', ownerFilter],
     queryFn: () => base44.entities.NetworkAccount.filter(ownerFilter || {}),
     staleTime: 120000,
-    enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
+    enabled,
   });
 
   const { data: todayInvoices = [] } = useQuery({
@@ -231,144 +389,259 @@ export default function OwnerDashboard() {
       ? base44.entities.SalesInvoice.filter({ ...(ownerFilter || {}), sale_date: today }, '-created_date', 100)
       : Promise.resolve([]),
     staleTime: 15000,
-    enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
+    enabled,
   });
 
-  // ── KPI Calculations ─────────────────────────────────────────────────────────
-  const kpis = useMemo(() => {
-    // ── TODAY'S SALES ──
-    // Cash Sales = Closing Cash - Opening Cash  (per record)
+  const { data: priceHistory = [] } = useQuery({
+    queryKey: ['price_history_dash', user?.email || ownerFilter?.created_by],
+    queryFn: async () => {
+      const createdBy = user?.email || ownerFilter?.created_by;
+      if (!createdBy) return [];
+      const since = subDays(new Date(), 30).toISOString();
+      const { data, error } = await supabase
+        .from('product_price_history')
+        .select('*')
+        .eq('created_by', createdBy)
+        .gte('recorded_at', since)
+        .order('recorded_at', { ascending: false })
+        .limit(50);
+      if (error) { console.warn('price history error:', error.message); return []; }
+      return data || [];
+    },
+    staleTime: 60000,
+    enabled: !!(user?.email || ownerFilter?.created_by),
+  });
+
+  // ── MEMOIZED CALCULATIONS ─────────────────────────────────────────────────────
+
+  const sumSales = useCallback((arr) =>
+    arr.reduce((s, r) => s + getSaleCash(r) + getSaleNetwork(r) + (Number(r.credit) || 0), 0), []);
+
+  const sumPurchaseCost = useCallback((arr) =>
+    arr.reduce((s, p) => s + ((p.qty || 0) * (p.used_price || p.current_price || 0)), 0), []);
+
+  // ── Section 1: Executive Summary ──────────────────────────────────────────────
+  const execSummary = useMemo(() => {
     const cashSalesToday = todaySales.reduce((s, r) => {
       const closing = Number(r.closing_cash) || Number(r.restaurant_cash) || Number(r.cash) || 0;
       const opening = Number(r.opening_cash) || 0;
-      // If opening_cash exists, use the difference; otherwise fall back to closing_cash
       return s + (r.opening_cash != null ? Math.max(0, closing - opening) : closing);
     }, 0);
-
     const networkSalesToday = todaySales.reduce((s, r) =>
       s + (Number(r.restaurant_network) || Number(r.network) || 0), 0);
-
-    const creditSalesToday = todaySales.reduce((s, r) =>
-      s + (Number(r.credit) || 0), 0);
-
+    const creditSalesToday = todaySales.reduce((s, r) => s + (Number(r.credit) || 0), 0);
     const salesToday = cashSalesToday + networkSalesToday + creditSalesToday;
 
-    // ── CASH IN REGISTER = Latest Closing Cash ──
+    // Today's Purchases = approved supplier invoices for today
+    const purchasesToday = supplierInvoices
+      .filter(inv => inv.date === today && inv.status === 'approved')
+      .reduce((s, inv) => s + (Number(inv.total_amount) || Number(inv.amount) || 0), 0);
+
+    const expensesToday = todayExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    const grossProfit = salesToday - purchasesToday;
+    const netProfit   = salesToday - purchasesToday - expensesToday;
+
     const latestSale = todaySales.length > 0
-      ? todaySales.reduce((latest, s) => {
-          if (!latest) return s;
-          return (s.created_date || s.date) > (latest.created_date || latest.date) ? s : latest;
-        }, null)
+      ? todaySales.reduce((latest, s) =>
+          (!latest || (s.created_date || s.date) > (latest.created_date || latest.date)) ? s : latest, null)
       : null;
     const cashInRegister = latestSale
       ? (Number(latestSale.closing_cash) || Number(latestSale.restaurant_cash) || Number(latestSale.cash) || 0)
       : 0;
 
-    // ── TODAY'S PURCHASES (Bug 2) ──
-    // Use approved supplier invoices for today, calculating using total_amount.
-    const purchasesToday = supplierInvoices
-      .filter(inv => inv.date === today && inv.status === 'approved')
-      .reduce((s, inv) => s + (Number(inv.total_amount) || Number(inv.amount) || 0), 0);
-
-    // ── TODAY'S PROFIT (Bug 3) ──
-    // Profit = Sales - Purchases (approved today only)
-    const profitToday = salesToday - purchasesToday;
-
-    // ── CASH DIFFERENCE & INJECTION (Bug 4) ──
-    const ownerCashInjectionToday = todaySales.reduce((s, r) => s + (Number(r.owner_cash_injection) || 0), 0);
-    const expensesToday = todayExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
-    
-    // Expected Cash = Opening Cash + Cash Sales + Owner Cash Injection - Cash Expenses
-    // Cash Difference = Expected Cash - Actual Closing Cash
-    const cashDifferenceToday = todaySales.reduce((s, r) => {
-      const opening = Number(r.opening_cash) || 0;
-      const closing = Number(r.closing_cash) || 0;
-      const cashSales = (Number(r.opening_cash) != null ? Math.max(0, (Number(r.closing_cash) || 0) - opening) : (Number(r.closing_cash) || 0));
-      const injection = Number(r.owner_cash_injection) || 0;
-      // Note: We don't have per-sale expenses easily, so we use the saved cash_difference if available,
-      // but the user wants a specific formula.
-      return s + (Number(r.cash_difference) || 0);
-    }, 0);
-
-    // ── NETWORK BALANCE (sum of all active network account balances) ──
-    // We approximate from today's network sales
     const networkBalance = networkSalesToday;
 
-    // ── CUSTOMER CREDIT BALANCE ──
-    const customerCreditBalance = customerDebts
+    const customerCredit = customerDebts
       .filter(d => d.status !== 'paid' && d.status !== 'written_off')
       .reduce((s, d) => s + (Number(d.remaining_amount) || 0), 0);
 
-    // ── SUPPLIER PAYABLES ──
+    const inventoryValue = inventory.reduce((s, item) =>
+      s + ((item.quantity || 0) * (item.unit_cost || item.avg_cost || item.cost_price || 0)), 0);
+
     const supplierPayables = supplierInvoices
       .filter(inv => inv.status !== 'paid')
       .reduce((s, inv) => s + Math.max(0, (inv.amount || 0) - (inv.paid_amount || 0)), 0);
 
-    // ── INVENTORY VALUE ──
-    const inventoryValue = inventory.reduce((s, item) =>
-      s + ((item.quantity || 0) * (item.unit_cost || item.avg_cost || item.cost_price || 0)), 0);
+    const ownerCapitalToday = todaySales.reduce((s, r) => s + (Number(r.owner_cash_injection) || 0), 0);
 
-    // ── ALERTS ──
-    const lowStockItems = inventory.filter(item => {
+    const cashShortageToday = todaySales
+      .filter(r => (Number(r.cash_difference) || 0) < 0)
+      .reduce((s, r) => s + Math.abs(Number(r.cash_difference) || 0), 0);
+    const cashOverageToday = todaySales
+      .filter(r => (Number(r.cash_difference) || 0) > 0)
+      .reduce((s, r) => s + (Number(r.cash_difference) || 0), 0);
+
+    return {
+      salesToday, cashSalesToday, networkSalesToday, creditSalesToday,
+      purchasesToday, grossProfit, netProfit,
+      cashInRegister, networkBalance, customerCredit,
+      inventoryValue, supplierPayables,
+      ownerCapitalToday, cashShortageToday, cashOverageToday,
+    };
+  }, [todaySales, todayExpenses, supplierInvoices, customerDebts, inventory, today]);
+
+  // ── Section 2: Operating Result (NEVER REMOVE) ───────────────────────────────
+  const operatingResult = useMemo(() => {
+    const salesRevenue      = execSummary.salesToday;
+    const approvedPurchases = execSummary.purchasesToday;
+    const result            = salesRevenue - approvedPurchases;
+    return { salesRevenue, approvedPurchases, result };
+  }, [execSummary]);
+
+  // ── Section 3: Cash Reconciliation ───────────────────────────────────────────
+  const cashRecon = useMemo(() => {
+    const openingCash  = todaySales.reduce((s, r) => s + (Number(r.opening_cash) || 0), 0);
+    const cashSales    = execSummary.cashSalesToday;
+    const ownerContrib = execSummary.ownerCapitalToday;
+    const expensesOut  = todayExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    const expectedCash = openingCash + cashSales + ownerContrib - expensesOut;
+    const actualCash   = execSummary.cashInRegister;
+    const cashDiff     = actualCash - expectedCash;
+    const remainingDiff = cashDiff - ownerContrib;
+    const closingCash  = actualCash;
+    return { openingCash, expectedCash, actualCash, cashDiff, ownerContrib, remainingDiff, closingCash };
+  }, [todaySales, todayExpenses, execSummary]);
+
+  // ── Section 4: Sales Analytics ────────────────────────────────────────────────
+  const salesAnalytics = useMemo(() => {
+    const calcSales = (arr) => arr.reduce((s, r) =>
+      s + getSaleCash(r) + getSaleNetwork(r) + (Number(r.credit) || 0), 0);
+
+    const todayAmt     = execSummary.salesToday;
+    const yesterdayAmt = calcSales(yesterdaySales);
+    const weekAmt      = calcSales(weekSales);
+    const monthAmt     = calcSales(monthSales);
+    const yearAmt      = calcSales(yearSales);
+    const prevWeekAmt  = calcSales(prevWeekSales);
+    const prevMonthAmt = calcSales(prevMonthSales);
+
+    const weekGrowth  = prevWeekAmt  > 0 ? ((weekAmt  - prevWeekAmt)  / prevWeekAmt)  * 100 : 0;
+    const monthGrowth = prevMonthAmt > 0 ? ((monthAmt - prevMonthAmt) / prevMonthAmt) * 100 : 0;
+
+    const daysInMonth = monthSales.length > 0 ? new Set(monthSales.map(s => s.date)).size : 1;
+    const avgDailySales = daysInMonth > 0 ? monthAmt / daysInMonth : 0;
+
+    const dailyTotals = {};
+    monthSales.forEach(r => {
+      const d = r.date;
+      dailyTotals[d] = (dailyTotals[d] || 0) + getSaleCash(r) + getSaleNetwork(r) + (Number(r.credit) || 0);
+    });
+    const dailyArr = Object.values(dailyTotals);
+    const highestDay = dailyArr.length > 0 ? Math.max(...dailyArr) : 0;
+    const lowestDay  = dailyArr.length > 0 ? Math.min(...dailyArr) : 0;
+
+    return { todayAmt, yesterdayAmt, weekAmt, monthAmt, yearAmt, weekGrowth, monthGrowth, avgDailySales, highestDay, lowestDay };
+  }, [execSummary, yesterdaySales, weekSales, monthSales, yearSales, prevWeekSales, prevMonthSales]);
+
+  // ── Section 5: Purchase Analytics ────────────────────────────────────────────
+  const purchaseAnalytics = useMemo(() => {
+    const todayAmt = execSummary.purchasesToday;
+    const weekAmt  = sumPurchaseCost(weekPurchases);
+    const monthAmt = sumPurchaseCost(monthPurchases);
+
+    const supplierMap = {};
+    supplierInvoices.forEach(inv => {
+      const name = inv.supplier_name || 'Unknown';
+      supplierMap[name] = (supplierMap[name] || 0) + (Number(inv.amount) || 0);
+    });
+    const supplierRanking = Object.entries(supplierMap)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3);
+
+    const allAmounts = supplierInvoices.map(inv => Number(inv.amount) || 0);
+    const largestPurchase = allAmounts.length > 0 ? Math.max(...allAmounts) : 0;
+    const avgPurchase     = allAmounts.length > 0 ? allAmounts.reduce((s, v) => s + v, 0) / allAmounts.length : 0;
+
+    return { todayAmt, weekAmt, monthAmt, supplierRanking, largestPurchase, avgPurchase };
+  }, [execSummary, weekPurchases, monthPurchases, supplierInvoices, sumPurchaseCost]);
+
+  // ── Section 6: Inventory Analytics ───────────────────────────────────────────
+  const inventoryAnalytics = useMemo(() => {
+    const inventoryValue = execSummary.inventoryValue;
+
+    const lowStock = inventory.filter(item => {
       const qty = item.quantity || 0;
       const threshold = item.low_stock_threshold || item.min_quantity || item.reorder_point || 0;
       return threshold > 0 && qty > 0 && qty <= threshold;
     });
-    const outOfStockItems = inventory.filter(item => (item.quantity || 0) <= 0);
+    const outOfStock = inventory.filter(item => (item.quantity || 0) <= 0);
+    const deadStock  = inventory.filter(item => {
+      const qty = item.quantity || 0;
+      const threshold = item.low_stock_threshold || item.min_quantity || item.reorder_point || 0;
+      return qty > 0 && threshold === 0;
+    }).slice(0, 3);
+    const slowMoving = inventory
+      .filter(item => (item.quantity || 0) > (item.low_stock_threshold || item.min_quantity || 0) * 3)
+      .slice(0, 3);
+    const fastMoving = inventory
+      .filter(item => (item.quantity || 0) > 0 && (item.reorder_point || item.min_quantity || 0) > 0)
+      .sort((a, b) => (b.quantity || 0) - (a.quantity || 0))
+      .slice(0, 3);
 
-    const pendingSupplierPayments = supplierInvoices.filter(inv => inv.status !== 'paid').length;
-    const pendingCustomerDebts = customerDebts.filter(d => d.status !== 'paid' && d.status !== 'written_off').length;
+    return { inventoryValue, fastMoving, slowMoving, lowStock, outOfStock, deadStock };
+  }, [inventory, execSummary]);
 
-    // ── MONTHLY ──
-    const monthlySales = monthSales.reduce((s, r) =>
-      s + (Number(r.restaurant_cash) || Number(r.cash) || 0)
-        + (Number(r.restaurant_network) || Number(r.network) || 0)
-        + (Number(r.credit) || 0), 0);
+  // ── Section 7: Cash Flow ─────────────────────────────────────────────────────
+  const cashFlow = useMemo(() => {
+    const moneyIn      = execSummary.salesToday;
+    const expenses     = todayExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    const moneyOut     = execSummary.purchasesToday + expenses;
+    const ownerCapital = execSummary.ownerCapitalToday;
+    const netCashFlow  = moneyIn - moneyOut + ownerCapital;
+    return { moneyIn, moneyOut, ownerCapital, expenses, netCashFlow };
+  }, [execSummary, todayExpenses]);
 
-    const monthlyPurchaseCost = monthPurchases.reduce((s, p) =>
-      s + ((p.qty || 0) * (p.used_price || p.current_price || 0)), 0);
+  // ── Section 8: Product Price Intelligence ────────────────────────────────────
+  const priceIntelligence = useMemo(() => {
+    const map = {};
+    for (const row of priceHistory) {
+      if (!map[row.product_id]) map[row.product_id] = [];
+      map[row.product_id].push(row);
+    }
+    return Object.entries(map).slice(0, 5).map(([pid, rows]) => {
+      const sorted   = rows.sort((a, b) => b.recorded_at.localeCompare(a.recorded_at));
+      const latest   = sorted[0];
+      const previous = sorted[1];
+      const diff     = latest && previous ? (latest.new_price || 0) - (previous.new_price || 0) : 0;
+      const pct      = previous?.new_price > 0 ? (diff / previous.new_price) * 100 : 0;
+      const since7d  = subDays(new Date(), 7).toISOString();
+      const since30d = subDays(new Date(), 30).toISOString();
+      return {
+        product_id:    pid,
+        product_name:  latest?.product_name || 'Unknown',
+        latestPrice:   latest?.new_price || 0,
+        previousPrice: previous?.new_price || latest?.old_price || 0,
+        diff, pct,
+        weeklyTrend:  rows.filter(r => r.recorded_at >= since7d).length,
+        monthlyTrend: rows.filter(r => r.recorded_at >= since30d).length,
+        yearlyTrend:  rows.length,
+      };
+    });
+  }, [priceHistory]);
 
-    const monthlyExpenseCost = monthExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  // ── Section 9: Alerts ─────────────────────────────────────────────────────────
+  const alerts = useMemo(() => {
+    const salesDays    = new Set(monthSales.map(s => s.date));
+    const purchaseDays = new Set(monthPurchases.map(p => p.date));
+    const missingPurchaseDays = [...salesDays].filter(d => !purchaseDays.has(d)).length;
+    const cashShortage        = todaySales.filter(r => (Number(r.cash_difference) || 0) < 0).length;
+    const negativeProfit      = execSummary.netProfit < 0 ? 1 : 0;
+    const inventoryAlerts     = inventoryAnalytics.lowStock.length + inventoryAnalytics.outOfStock.length;
+    const customerCreditAlerts = customerDebts.filter(d => d.status !== 'paid' && d.status !== 'written_off').length;
+    const supplierDueAlerts   = supplierInvoices.filter(inv => inv.status !== 'paid' && inv.due_date && inv.due_date <= today).length;
+    return { missingPurchaseDays, cashShortage, negativeProfit, inventoryAlerts, customerCreditAlerts, supplierDueAlerts };
+  }, [monthSales, monthPurchases, todaySales, execSummary, inventoryAnalytics, customerDebts, supplierInvoices, today]);
 
-    const monthlyNetProfit = monthlySales - monthlyPurchaseCost - monthlyExpenseCost;
+  const totalAlerts = useMemo(() => Object.values(alerts).reduce((s, v) => s + v, 0), [alerts]);
 
-    // ── ORDERS TODAY (from DailySales records) ──
-    const ordersToday = todaySales.length;
-
-    return {
-      salesToday, cashSalesToday, networkSalesToday, creditSalesToday,
-      purchasesToday, profitToday, cashInRegister,
-      ownerCashInjectionToday, cashDifferenceToday,
-      networkBalance, customerCreditBalance, supplierPayables, inventoryValue,
-      lowStockCount: lowStockItems.length,
-      outOfStockCount: outOfStockItems.length,
-      pendingSupplierPayments, pendingCustomerDebts,
-      ordersToday,
-      invoicesToday: todayInvoices.length,
-      monthlySales, monthlyNetProfit,
-    };
-  }, [
-    todaySales, todayPurchases, todayExpenses, monthSales, monthPurchases, monthExpenses,
-    supplierInvoices, customerDebts, inventory, todayInvoices,
-  ]);
-
-  const fmt = (n) => `${currency}${(n || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
-
-  // ── Create Sale Mutation ──────────────────────────────────────────────────────
+  // ── CREATE SALE MUTATION ──────────────────────────────────────────────────────
   const createMut = useMutation({
     mutationFn: async ({ data, proofUrl, ocr }) => {
       try {
         if (activeRestaurant?.id) data.restaurant_id = activeRestaurant.id;
-        
-        // Root Cause Fix: restaurant_network_account_id is a UUID in DB. 
-        // SalesForm sends "" if manual entry. Postgres rejects "" as UUID.
-        if (data.restaurant_network_account_id === "") {
-          data.restaurant_network_account_id = null;
-        }
-
+        if (data.restaurant_network_account_id === '') data.restaurant_network_account_id = null;
         const sale = await base44.entities.DailySales.create(data);
         try { await autoSettle(data, sale.id, proofUrl || null, ocr || null, null); } catch (e) { console.warn('autoSettle skipped:', e.message); }
-        // Auto-generate invoice
         try {
           const restaurantId = activeRestaurant?.id;
           const invNum = await generateSalesInvoiceNumber(restaurantId, data.date);
@@ -396,205 +669,312 @@ export default function OwnerDashboard() {
     },
   });
 
-  const handleSaleSubmit = async (data, proofUrl, ocr) => {
+  const handleSaleSubmit = useCallback(async (data, proofUrl, ocr) => {
     await createMut.mutateAsync({ data, proofUrl, ocr });
-  };
+  }, [createMut]);
 
+  // ─────────────────────────────────────────────────────────────────────────────
+  // RENDER
+  // ─────────────────────────────────────────────────────────────────────────────
   return (
-    <div className="space-y-4 pb-24">
-      {/* ── Header ── */}
-      <div className="flex items-center justify-between pt-1">
+    <div className="space-y-6 pb-28 max-w-2xl mx-auto">
+
+      {/* ── HEADER ── */}
+      <div className="flex items-center justify-between pt-2">
         <div>
-          <h1 className="text-xl font-bold text-foreground">{t('dashboard')}</h1>
-          <p className="text-xs text-muted-foreground mt-0.5">{format(new Date(), 'EEEE, MMMM d yyyy')}</p>
+          <div className="flex items-center gap-2">
+            <LayoutDashboard className="w-5 h-5 text-primary" />
+            <h1 className="text-xl font-black text-foreground tracking-tight">Executive Dashboard</h1>
+          </div>
+          <p className="text-xs text-muted-foreground mt-0.5 ml-7">{format(new Date(), 'EEEE, MMMM d yyyy')}</p>
         </div>
-        <Badge variant="outline" className="text-xs capitalize">{role}</Badge>
-      </div>
-
-      {/* ══════════════════════════════════════════════════════════════
-          ROW 1 — TOP KPIs (Most Important)
-      ══════════════════════════════════════════════════════════════ */}
-      <div>
-        <SectionLabel>Today's Performance</SectionLabel>
-        <div className="grid grid-cols-2 gap-3">
-          <KPICard
-            title="Today's Profit/Loss"
-            value={fmt(kpis.profitToday)}
-            subtitle="Sales − Purchases"
-            icon={kpis.profitToday >= 0 ? TrendingUp : TrendingDown}
-            color={kpis.profitToday >= 0 ? 'green' : 'red'}
-            large
-          />
-          <KPICard
-            title="Today's Purchases"
-            value={fmt(kpis.purchasesToday)}
-            subtitle="Approved Invoices"
-            icon={ShoppingCart}
-            color="amber"
-            large
-          />
-          <KPICard
-            title="Today's Cash Difference"
-            value={fmt(kpis.cashDifferenceToday)}
-            subtitle="Expected vs Actual"
-            icon={AlertTriangle}
-            color={kpis.cashDifferenceToday === 0 ? 'blue' : 'orange'}
-            large
-          />
-          <KPICard
-            title="Today's Owner Injection"
-            value={fmt(kpis.ownerCashInjectionToday)}
-            subtitle="Personal pocket money"
-            icon={DollarSign}
-            color="purple"
-            large
-          />
-          <KPICard
-            title="Operating Result"
-            value={fmt(kpis.profitToday)}
-            subtitle="Sales − Purchases"
-            icon={kpis.profitToday >= 0 ? TrendingUp : TrendingDown}
-            color={kpis.profitToday >= 0 ? 'green' : 'red'}
-            large
-          />
+        <div className="flex items-center gap-2">
+          {totalAlerts > 0 && (
+            <span className="bg-red-500 text-white text-xs font-bold rounded-full px-2 py-0.5">
+              {totalAlerts} alerts
+            </span>
+          )}
+          <Badge variant="outline" className="text-xs capitalize">{role}</Badge>
         </div>
       </div>
 
-      {/* ══════════════════════════════════════════════════════════════
-          ROW 2 — Balances
-      ══════════════════════════════════════════════════════════════ */}
-      <div>
-        <SectionLabel>Balances</SectionLabel>
-        <div className="grid grid-cols-2 gap-3">
-          <KPICard
-            title="Network Balance"
-            value={fmt(kpis.networkBalance)}
-            icon={Wifi}
-            color="blue"
-            onClick={() => navigate('/network-management')}
-          />
-          <KPICard
-            title="Customer Credit"
-            value={fmt(kpis.customerCreditBalance)}
-            icon={CreditCard}
-            color="purple"
-            onClick={() => navigate('/debt-management')}
-          />
-          <KPICard
-            title="Supplier Payables"
-            value={fmt(kpis.supplierPayables)}
-            icon={Truck}
-            color="orange"
-            onClick={() => navigate('/suppliers')}
-          />
-          <KPICard
-            title="Inventory Value"
-            value={fmt(kpis.inventoryValue)}
-            icon={Package}
-            color="amber"
-            onClick={() => navigate('/inventory')}
-          />
-        </div>
-      </div>
+      {/* ══════════════════════════════════════════════════════════════════════
+          SECTION 1 — EXECUTIVE SUMMARY
+      ══════════════════════════════════════════════════════════════════════ */}
+      <WidgetErrorBoundary>
+        <section>
+          <SectionHeader icon={LayoutDashboard} title="Executive Summary" subtitle="Today's key performance indicators" color="blue" />
+          {loadingSales ? (
+            <div className="grid grid-cols-2 gap-3">
+              {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              <MetricCard title="Today's Sales"      value={fmt(execSummary.salesToday)}       subtitle={`Cash ${fmt(execSummary.cashSalesToday)} · Net ${fmt(execSummary.networkSalesToday)}`} icon={DollarSign}   color="green"  large onClick={() => navigate('/sales')} />
+              <MetricCard title="Today's Purchases"  value={fmt(execSummary.purchasesToday)}   subtitle="Approved invoices"          icon={ShoppingCart}  color="amber"  large onClick={() => navigate('/enterprise-purchases')} />
+              <MetricCard title="Gross Profit"       value={fmt(execSummary.grossProfit)}      subtitle="Sales − Purchases"          icon={execSummary.grossProfit >= 0 ? TrendingUp : TrendingDown} color={execSummary.grossProfit >= 0 ? 'green' : 'red'} onClick={() => navigate('/profit-loss')} />
+              <MetricCard title="Net Profit"         value={fmt(execSummary.netProfit)}        subtitle="Sales − Purchases − Expenses" icon={execSummary.netProfit >= 0 ? TrendingUp : TrendingDown} color={execSummary.netProfit >= 0 ? 'green' : 'red'} onClick={() => navigate('/profit-loss')} />
+              <MetricCard title="Cash in Register"   value={fmt(execSummary.cashInRegister)}   subtitle="Latest closing cash"        icon={Banknote}      color="blue"   onClick={() => navigate('/sales')} />
+              <MetricCard title="Network Balance"    value={fmt(execSummary.networkBalance)}   subtitle="Today's network sales"      icon={Wifi}          color="cyan"   onClick={() => navigate('/network-management')} />
+              <MetricCard title="Customer Credit"    value={fmt(execSummary.customerCredit)}   subtitle="Outstanding receivables"    icon={CreditCard}    color="purple" onClick={() => navigate('/debt-management')} />
+              <MetricCard title="Inventory Value"    value={fmt(execSummary.inventoryValue)}   subtitle="At cost price"              icon={Package}       color="indigo" onClick={() => navigate('/inventory')} />
+              <MetricCard title="Supplier Payables"  value={fmt(execSummary.supplierPayables)} subtitle="Outstanding invoices"       icon={Truck}         color="orange" onClick={() => navigate('/suppliers')} />
+              <MetricCard title="Owner Capital Today" value={fmt(execSummary.ownerCapitalToday)} subtitle="Cash injected today"     icon={Wallet}        color="slate" />
+              <MetricCard title="Cash Shortage Today" value={fmt(execSummary.cashShortageToday)} subtitle="Not sales · Not profit"  icon={AlertTriangle} color={execSummary.cashShortageToday > 0 ? 'red' : 'green'} />
+              <MetricCard title="Cash Overage Today"  value={fmt(execSummary.cashOverageToday)}  subtitle="Excess cash on hand"     icon={CheckCircle2}  color={execSummary.cashOverageToday > 0 ? 'green' : 'slate'} />
+            </div>
+          )}
+        </section>
+      </WidgetErrorBoundary>
 
-      {/* ══════════════════════════════════════════════════════════════
-          ROW 3 — Alerts
-      ══════════════════════════════════════════════════════════════ */}
-      <div>
-        <SectionLabel>Alerts</SectionLabel>
-        <div className="grid grid-cols-2 gap-2">
-          <AlertCard
-            title="Low Stock Alerts"
-            count={kpis.lowStockCount}
-            icon={AlertTriangle}
-            color="amber"
-            onClick={() => navigate('/inventory')}
-          />
-          <AlertCard
-            title="Out Of Stock Items"
-            count={kpis.outOfStockCount}
-            icon={Package}
-            color="red"
-            onClick={() => navigate('/inventory')}
-          />
-          <AlertCard
-            title="Pending Supplier Payments"
-            count={kpis.pendingSupplierPayments}
-            icon={Truck}
-            color="amber"
-            onClick={() => navigate('/suppliers')}
-          />
-          <AlertCard
-            title="Pending Customer Debts"
-            count={kpis.pendingCustomerDebts}
-            icon={Users}
-            color="blue"
-            onClick={() => navigate('/debt-management')}
-          />
-        </div>
-      </div>
+      {/* ══════════════════════════════════════════════════════════════════════
+          SECTION 2 — OPERATING RESULT  (NEVER REMOVE THIS WIDGET)
+      ══════════════════════════════════════════════════════════════════════ */}
+      <WidgetErrorBoundary>
+        <section>
+          <SectionHeader icon={Scale} title="Operating Result" subtitle="Sales Revenue − Approved Purchases" color="green" />
+          <Card className={`border-2 ${operatingResult.result >= 0 ? 'border-emerald-200 dark:border-emerald-800' : 'border-red-200 dark:border-red-800'}`}>
+            <CardContent className="p-4 space-y-1">
+              <LedgerRow label="Sales Revenue"      value={fmt(operatingResult.salesRevenue)}      color="green" bold />
+              <LedgerRow label="Approved Purchases" value={`− ${fmt(operatingResult.approvedPurchases)}`} color="amber" />
+              <LedgerRow label="Operating Result"   value={fmt(operatingResult.result)}            color={operatingResult.result >= 0 ? 'green' : 'red'} bold separator />
+            </CardContent>
+          </Card>
+        </section>
+      </WidgetErrorBoundary>
 
-      {/* ══════════════════════════════════════════════════════════════
-          ROW 4 — Monthly / Orders
-      ══════════════════════════════════════════════════════════════ */}
-      <div>
-        <SectionLabel>Summary</SectionLabel>
-        <div className="grid grid-cols-2 gap-3">
-          <KPICard
-            title="Today's Orders"
-            value={kpis.ordersToday}
-            icon={Store}
-            color="blue"
-            onClick={() => navigate('/sales')}
-          />
-          <KPICard
-            title="Today's Invoices"
-            value={kpis.invoicesToday}
-            icon={FileText}
-            color="purple"
-            onClick={() => navigate('/sales/invoices')}
-          />
-          <KPICard
-            title="Monthly Sales"
-            value={fmt(kpis.monthlySales)}
-            icon={BarChart3}
-            color="green"
-            onClick={() => navigate('/reports')}
-          />
-          <KPICard
-            title="Monthly Net Profit"
-            value={fmt(kpis.monthlyNetProfit)}
-            subtitle="Sales − Purchases − Expenses"
-            icon={kpis.monthlyNetProfit >= 0 ? TrendingUp : TrendingDown}
-            color={kpis.monthlyNetProfit >= 0 ? 'green' : 'red'}
-            onClick={() => navigate('/profit-loss')}
-          />
-        </div>
-      </div>
+      {/* ══════════════════════════════════════════════════════════════════════
+          SECTION 3 — CASH RECONCILIATION
+      ══════════════════════════════════════════════════════════════════════ */}
+      <WidgetErrorBoundary>
+        <section>
+          <SectionHeader icon={Wallet} title="Cash Reconciliation" subtitle="Today's cash position" color="amber" action={{ label: 'Treasury', onClick: () => navigate('/treasury') }} />
+          <Card>
+            <CardContent className="p-4 space-y-1">
+              <LedgerRow label="Opening Cash"        value={fmt(cashRecon.openingCash)}   color="blue" />
+              <LedgerRow label="Expected Cash"       value={fmt(cashRecon.expectedCash)}  color="blue" />
+              <LedgerRow label="Actual Cash"         value={fmt(cashRecon.actualCash)}    color={cashRecon.actualCash >= cashRecon.expectedCash ? 'green' : 'red'} />
+              <LedgerRow label="Cash Difference"     value={fmt(cashRecon.cashDiff)}      color={cashRecon.cashDiff === 0 ? 'green' : cashRecon.cashDiff > 0 ? 'green' : 'red'} separator />
+              <LedgerRow label="Owner Contribution"  value={fmt(cashRecon.ownerContrib)}  color="purple" />
+              <LedgerRow label="Remaining Difference" value={fmt(cashRecon.remainingDiff)} color={cashRecon.remainingDiff === 0 ? 'green' : 'red'} />
+              <LedgerRow label="Closing Cash"        value={fmt(cashRecon.closingCash)}   color="green" bold separator />
+            </CardContent>
+          </Card>
+        </section>
+      </WidgetErrorBoundary>
 
-      {/* ══════════════════════════════════════════════════════════════
-          QUICK ACTIONS (8)
-      ══════════════════════════════════════════════════════════════ */}
-      <div>
-        <SectionLabel>Quick Actions</SectionLabel>
+      {/* ══════════════════════════════════════════════════════════════════════
+          SECTION 4 — SALES ANALYTICS
+      ══════════════════════════════════════════════════════════════════════ */}
+      <WidgetErrorBoundary>
+        <section>
+          <SectionHeader icon={BarChart3} title="Sales Analytics" subtitle="Multi-period sales performance" color="green" action={{ label: 'Reports', onClick: () => navigate('/reports') }} />
+          <div className="grid grid-cols-2 gap-3">
+            <MetricCard title="Today"            value={fmt(salesAnalytics.todayAmt)}     icon={DollarSign}    color="green" />
+            <MetricCard title="Yesterday"        value={fmt(salesAnalytics.yesterdayAmt)} icon={Clock}         color="slate" />
+            <MetricCard title="This Week"        value={fmt(salesAnalytics.weekAmt)}      icon={Activity}      color="blue"   trend={salesAnalytics.weekGrowth}  trendLabel="vs last week" />
+            <MetricCard title="This Month"       value={fmt(salesAnalytics.monthAmt)}     icon={BarChart3}     color="purple" trend={salesAnalytics.monthGrowth} trendLabel="vs last month" />
+            <MetricCard title="This Year"        value={fmt(salesAnalytics.yearAmt)}      icon={TrendingUp}    color="indigo" />
+            <MetricCard title="Growth %"         value={fmtPct(salesAnalytics.monthGrowth)} icon={TrendingUp}  color={salesAnalytics.monthGrowth >= 0 ? 'green' : 'red'} />
+            <MetricCard title="Avg Daily Sales"  value={fmt(salesAnalytics.avgDailySales)} icon={Target}       color="cyan" />
+            <MetricCard title="Highest Sales Day" value={fmt(salesAnalytics.highestDay)}  icon={ArrowUpRight}  color="green" />
+            <MetricCard title="Lowest Sales Day"  value={fmt(salesAnalytics.lowestDay)}   icon={ArrowDownRight} color="amber" />
+          </div>
+        </section>
+      </WidgetErrorBoundary>
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          SECTION 5 — PURCHASE ANALYTICS
+      ══════════════════════════════════════════════════════════════════════ */}
+      <WidgetErrorBoundary>
+        <section>
+          <SectionHeader icon={ShoppingCart} title="Purchase Analytics" subtitle="Procurement overview" color="amber" action={{ label: 'Purchases', onClick: () => navigate('/enterprise-purchases') }} />
+          <div className="grid grid-cols-2 gap-3">
+            <MetricCard title="Today's Purchases"  value={fmt(purchaseAnalytics.todayAmt)}          icon={ShoppingCart}  color="amber" />
+            <MetricCard title="Weekly Purchases"   value={fmt(purchaseAnalytics.weekAmt)}            icon={Activity}      color="blue" />
+            <MetricCard title="Monthly Purchases"  value={fmt(purchaseAnalytics.monthAmt)}           icon={BarChart3}     color="purple" />
+            <MetricCard title="Largest Purchase"   value={fmt(purchaseAnalytics.largestPurchase)}    icon={ArrowUpRight}  color="red" />
+            <MetricCard title="Average Purchase"   value={fmt(purchaseAnalytics.avgPurchase)}        icon={Target}        color="slate" />
+          </div>
+          {purchaseAnalytics.supplierRanking.length > 0 && (
+            <Card className="mt-3">
+              <CardContent className="p-4">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Supplier Ranking</p>
+                <div className="space-y-1.5">
+                  {purchaseAnalytics.supplierRanking.map(([name, amount], i) => (
+                    <div key={name} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className={`w-5 h-5 rounded-full text-[10px] font-black flex items-center justify-center text-white ${i === 0 ? 'bg-amber-500' : i === 1 ? 'bg-slate-400' : 'bg-orange-400'}`}>{i + 1}</span>
+                        <span className="text-xs font-medium text-foreground truncate max-w-[120px]">{name}</span>
+                      </div>
+                      <span className="text-xs font-bold text-amber-600">{fmt(amount)}</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </section>
+      </WidgetErrorBoundary>
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          SECTION 6 — INVENTORY ANALYTICS
+      ══════════════════════════════════════════════════════════════════════ */}
+      <WidgetErrorBoundary>
+        <section>
+          <SectionHeader icon={Package} title="Inventory Analytics" subtitle="Stock health overview" color="indigo" action={{ label: 'Inventory', onClick: () => navigate('/inventory') }} />
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <MetricCard title="Inventory Value"  value={fmt(inventoryAnalytics.inventoryValue)} icon={Package}       color="indigo" large />
+            <MetricCard title="Low Stock Items"  value={inventoryAnalytics.lowStock.length}      icon={AlertTriangle} color={inventoryAnalytics.lowStock.length > 0 ? 'amber' : 'green'} large onClick={() => navigate('/inventory')} />
+            <MetricCard title="Out of Stock"     value={inventoryAnalytics.outOfStock.length}    icon={XCircle}       color={inventoryAnalytics.outOfStock.length > 0 ? 'red' : 'green'} onClick={() => navigate('/inventory')} />
+            <MetricCard title="Dead Stock Items" value={inventoryAnalytics.deadStock.length}     icon={Layers}        color="slate" />
+          </div>
+          {inventoryAnalytics.lowStock.length > 0 && (
+            <Card className="border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20">
+              <CardContent className="p-3">
+                <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 mb-2">Low Stock Items</p>
+                <div className="space-y-1">
+                  {inventoryAnalytics.lowStock.slice(0, 5).map(item => (
+                    <div key={item.id} className="flex items-center justify-between">
+                      <span className="text-xs text-foreground truncate max-w-[160px]">{item.product_name}</span>
+                      <Badge variant="outline" className="text-[10px] border-amber-300 text-amber-700">{item.quantity} left</Badge>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          {inventoryAnalytics.outOfStock.length > 0 && (
+            <Card className="border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20 mt-2">
+              <CardContent className="p-3">
+                <p className="text-xs font-semibold text-red-700 dark:text-red-400 mb-2">Out of Stock</p>
+                <div className="space-y-1">
+                  {inventoryAnalytics.outOfStock.slice(0, 5).map(item => (
+                    <div key={item.id} className="flex items-center justify-between">
+                      <span className="text-xs text-foreground truncate max-w-[160px]">{item.product_name}</span>
+                      <Badge variant="destructive" className="text-[10px]">0 units</Badge>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </section>
+      </WidgetErrorBoundary>
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          SECTION 7 — CASH FLOW
+      ══════════════════════════════════════════════════════════════════════ */}
+      <WidgetErrorBoundary>
+        <section>
+          <SectionHeader icon={Activity} title="Cash Flow" subtitle="Today's money movement" color="cyan" action={{ label: 'Treasury', onClick: () => navigate('/treasury') }} />
+          <Card>
+            <CardContent className="p-4 space-y-1">
+              <LedgerRow label="Money In"      value={fmt(cashFlow.moneyIn)}                  color="green" />
+              <LedgerRow label="Money Out"     value={`− ${fmt(cashFlow.moneyOut)}`}          color="red" />
+              <LedgerRow label="Owner Capital" value={fmt(cashFlow.ownerCapital)}             color="purple" />
+              <LedgerRow label="Expenses"      value={`− ${fmt(cashFlow.expenses)}`}          color="amber" />
+              <LedgerRow label="Net Cash Flow" value={fmt(cashFlow.netCashFlow)}              color={cashFlow.netCashFlow >= 0 ? 'green' : 'red'} bold separator />
+            </CardContent>
+          </Card>
+        </section>
+      </WidgetErrorBoundary>
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          SECTION 8 — PRODUCT PRICE INTELLIGENCE
+      ══════════════════════════════════════════════════════════════════════ */}
+      <WidgetErrorBoundary>
+        <section>
+          <SectionHeader icon={TrendingUp} title="Product Price Intelligence" subtitle="Price changes & trends (last 30 days)" color="purple" action={{ label: 'Products', onClick: () => navigate('/product-management') }} />
+          {priceIntelligence.length === 0 ? (
+            <Card>
+              <CardContent className="p-4 text-center text-xs text-muted-foreground">
+                No price changes recorded in the last 30 days.
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-2">
+              {priceIntelligence.map(item => (
+                <Card key={item.product_id} className="border border-border/60">
+                  <CardContent className="p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-semibold text-foreground truncate max-w-[160px]">{item.product_name}</span>
+                      <span className={`text-xs font-bold flex items-center gap-0.5 ${item.diff > 0 ? 'text-red-600' : item.diff < 0 ? 'text-emerald-600' : 'text-muted-foreground'}`}>
+                        {item.diff > 0 ? <ArrowUpRight className="w-3 h-3" /> : item.diff < 0 ? <ArrowDownRight className="w-3 h-3" /> : null}
+                        {item.pct.toFixed(1)}%
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-[11px]">
+                      <div>
+                        <p className="text-muted-foreground">Latest</p>
+                        <p className="font-bold text-foreground">{fmt(item.latestPrice)}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Previous</p>
+                        <p className="font-semibold text-muted-foreground">{fmt(item.previousPrice)}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Difference</p>
+                        <p className={`font-bold ${item.diff > 0 ? 'text-red-600' : item.diff < 0 ? 'text-emerald-600' : 'text-muted-foreground'}`}>
+                          {item.diff >= 0 ? '+' : ''}{fmt(item.diff)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex gap-3 mt-2 text-[10px] text-muted-foreground">
+                      <span>Weekly: <strong>{item.weeklyTrend}</strong></span>
+                      <span>Monthly: <strong>{item.monthlyTrend}</strong></span>
+                      <span>Yearly: <strong>{item.yearlyTrend}</strong></span>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </section>
+      </WidgetErrorBoundary>
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          SECTION 9 — ALERTS
+      ══════════════════════════════════════════════════════════════════════ */}
+      <WidgetErrorBoundary>
+        <section>
+          <SectionHeader icon={AlertTriangle} title="Alerts" subtitle={`${totalAlerts} active alert${totalAlerts !== 1 ? 's' : ''}`} color="red" />
+          <div className="space-y-2">
+            <AlertRow icon={ShoppingBag}  title="Missing Purchases"       count={alerts.missingPurchaseDays}    severity={alerts.missingPurchaseDays > 0 ? 'amber' : 'green'}    onClick={() => navigate('/enterprise-purchases')} />
+            <AlertRow icon={AlertTriangle} title="Cash Shortage (today)"  count={alerts.cashShortage}           severity={alerts.cashShortage > 0 ? 'critical' : 'green'}        onClick={() => navigate('/sales')} />
+            <AlertRow icon={TrendingDown}  title="Negative Profit"        count={alerts.negativeProfit}         severity={alerts.negativeProfit > 0 ? 'critical' : 'green'}      onClick={() => navigate('/profit-loss')} />
+            <AlertRow icon={Package}       title="Inventory Alerts"       count={alerts.inventoryAlerts}        severity={alerts.inventoryAlerts > 0 ? 'amber' : 'green'}        onClick={() => navigate('/inventory')} />
+            <AlertRow icon={Users}         title="Customer Credit Alerts" count={alerts.customerCreditAlerts}   severity={alerts.customerCreditAlerts > 0 ? 'blue' : 'green'}    onClick={() => navigate('/debt-management')} />
+            <AlertRow icon={Truck}         title="Supplier Due Alerts"    count={alerts.supplierDueAlerts}      severity={alerts.supplierDueAlerts > 0 ? 'high' : 'green'}       onClick={() => navigate('/suppliers')} />
+          </div>
+        </section>
+      </WidgetErrorBoundary>
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          QUICK ACTIONS
+      ══════════════════════════════════════════════════════════════════════ */}
+      <section>
+        <SectionHeader icon={Zap} title="Quick Actions" color="slate" />
         <Card className="border-primary/20 bg-primary/5">
           <CardContent className="p-3">
             <div className="grid grid-cols-4 gap-2">
-              <QuickActionBtn icon={Plus}          label="Add Sale"         color="green"  onClick={() => setShowSaleModal(true)} />
-              <QuickActionBtn icon={ShoppingCart}  label="Add Purchase"     color="blue"   onClick={() => navigate('/enterprise-purchases')} />
-              <QuickActionBtn icon={Receipt}       label="Add Expense"      color="amber"  onClick={() => navigate('/expenses')} />
-              <QuickActionBtn icon={ArrowDownLeft} label="Receive Debt"     color="cyan"   onClick={() => navigate('/debt-management')} />
-              <QuickActionBtn icon={Truck}         label="Supplier Payment" color="orange" onClick={() => navigate('/suppliers?tab=payments')} />
-              <QuickActionBtn icon={FileText}      label="Create Invoice"   color="purple" onClick={() => navigate('/sales/invoices')} />
-              <QuickActionBtn icon={PackagePlus}   label="Add Product"      color="indigo" onClick={() => navigate('/products')} />
-              <QuickActionBtn icon={ArrowLeftRight}label="Stock Transfer"   color="red"    onClick={() => navigate('/inventory')} />
+              <QuickActionBtn icon={Plus}           label="Add Sale"         color="green"  onClick={() => setShowSaleModal(true)} />
+              <QuickActionBtn icon={ShoppingCart}   label="Add Purchase"     color="blue"   onClick={() => navigate('/enterprise-purchases')} />
+              <QuickActionBtn icon={Receipt}        label="Add Expense"      color="amber"  onClick={() => navigate('/expenses')} />
+              <QuickActionBtn icon={ArrowDownLeft}  label="Receive Debt"     color="cyan"   onClick={() => navigate('/debt-management')} />
+              <QuickActionBtn icon={Truck}          label="Supplier Payment" color="orange" onClick={() => navigate('/suppliers?tab=payments')} />
+              <QuickActionBtn icon={FileText}       label="Create Invoice"   color="purple" onClick={() => navigate('/sales/invoices')} />
+              <QuickActionBtn icon={PackagePlus}    label="Add Product"      color="indigo" onClick={() => navigate('/products')} />
+              <QuickActionBtn icon={ArrowLeftRight} label="Stock Transfer"   color="red"    onClick={() => navigate('/inventory')} />
             </div>
           </CardContent>
         </Card>
-      </div>
+      </section>
 
-      {/* ── Price Changes Widget ── */}
-      <PriceChangesWidget />
+      {/* ── Price Changes Widget (existing component preserved) ── */}
+      <WidgetErrorBoundary>
+        <PriceChangesWidget />
+      </WidgetErrorBoundary>
 
       {/* ── Add Sale Modal ── */}
       <Dialog open={showSaleModal} onOpenChange={setShowSaleModal}>
