@@ -163,7 +163,7 @@ export default function KitchenDashboard() {
             <Button size="sm" variant="ghost" className="text-slate-400 hover:text-white" onClick={() => refetch()}>
               <RefreshCw className="w-4 h-4" />
             </Button>
-            <Button size="sm" variant="ghost" className="text-slate-400 hover:text-white" onClick={() => base44.auth.logout('/')}>
+            <Button size="sm" variant="ghost" className="text-slate-400 hover:text-white" onClick={() => base44.auth.logout('/auth')}>
               <LogOut className="w-4 h-4" />
             </Button>
           </div>

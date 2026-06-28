@@ -1,4 +1,5 @@
 import React, { createContext, useState, useContext, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/api/supabaseClient';
 import { base44 } from '@/api/base44Client';
 
@@ -9,6 +10,7 @@ const withTimeout = (promise, ms) =>
   Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))]);
 
 export const AuthProvider = ({ children }) => {
+  const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
@@ -122,12 +124,12 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     setUser(null);
     setIsAuthenticated(false);
-    supabase.auth.signOut().then(() => { window.location.href = '/auth'; });
+    supabase.auth.signOut().then(() => { navigate('/auth', { replace: true }); });
   };
 
   const navigateToLogin = () => {
-    const next = encodeURIComponent(window.location.href);
-    window.location.href = `/auth?next=${next}`;
+    const next = encodeURIComponent(window.location.pathname + window.location.search);
+    navigate(`/auth?next=${next}`, { replace: true });
   };
 
   return (

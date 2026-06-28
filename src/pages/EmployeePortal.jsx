@@ -150,7 +150,7 @@ export default function EmployeePortal() {
         <p className="text-sm text-muted-foreground max-w-xs">
           Your employee profile hasn't been linked yet. Contact your manager to set your email ({user?.email}).
         </p>
-        <Button variant="outline" className="mt-4" onClick={() => base44.auth.logout('/')}>Sign Out</Button>
+        <Button variant="outline" className="mt-4" onClick={() => base44.auth.logout('/auth')}>Sign Out</Button>
       </div>
     );
   }
@@ -179,7 +179,7 @@ export default function EmployeePortal() {
                 </span>
               </div>
             )}
-            <Button size="sm" variant="ghost" onClick={() => base44.auth.logout('/')}>
+            <Button size="sm" variant="ghost" onClick={() => base44.auth.logout('/auth')}>
               <LogOut className="w-4 h-4" />
             </Button>
           </div>

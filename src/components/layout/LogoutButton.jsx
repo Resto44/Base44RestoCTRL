@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { LogOut } from 'lucide-react';
-import { base44 } from '@/api/base44Client';
+import { useAuth } from '@/lib/AuthContext';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
@@ -11,6 +11,7 @@ import { useLanguage } from '@/lib/LanguageContext';
 export default function LogoutButton({ variant = 'icon' }) {
   const [open, setOpen] = useState(false);
   const queryClient = useQueryClient();
+  const { logout } = useAuth();
   const { lang } = useLanguage();
 
   const labels = {
@@ -29,8 +30,8 @@ export default function LogoutButton({ variant = 'icon' }) {
     try { localStorage.clear(); } catch (_) {}
     try { sessionStorage.clear(); } catch (_) {}
 
-    // 3. Logout via SDK (redirects to login)
-    base44.auth.logout();
+    // 3. Logout via AuthContext (redirects to /auth via navigate)
+    logout();
   };
 
   if (variant === 'menu-item') {

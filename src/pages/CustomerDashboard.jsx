@@ -163,7 +163,7 @@ export default function CustomerDashboard() {
                 {cartCount} · {cartTotal.toFixed(0)} SAR
               </button>
             )}
-            <Button size="sm" variant="ghost" onClick={() => base44.auth.logout('/')}>
+            <Button size="sm" variant="ghost" onClick={() => base44.auth.logout('/auth')}>
               <LogOut className="w-4 h-4" />
             </Button>
           </div>
