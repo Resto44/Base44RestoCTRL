@@ -15,6 +15,7 @@
  *   No manual calculations. No duplicated logic. Single source of truth.
  *
  * SECTIONS:
+ *   0. Branch Selector  (NEW — always at top)
  *   1. Executive Summary
  *   2. Operating Result  (NEVER REMOVE)
  *   3. Cash Reconciliation
@@ -56,7 +57,7 @@ import {
   PackagePlus, ArrowLeftRight, FileText, ShoppingBag, Activity,
   Scale, Target, Zap, ChevronRight, ArrowUpRight, ArrowDownRight,
   CheckCircle2, XCircle, AlertCircle,
-  LayoutDashboard, Layers, Clock,
+  LayoutDashboard, Layers, Clock, MapPin, Globe, ChevronDown,
 } from 'lucide-react';
 import {
   format, startOfMonth, startOfWeek, startOfYear,
@@ -216,6 +217,92 @@ const QuickActionBtn = memo(({ icon: Icon, label, color, onClick }) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// BRANCH SELECTOR COMPONENT
+// ─────────────────────────────────────────────────────────────────────────────
+const BranchSelector = memo(({ branches, selectedBranch, onSelect }) => {
+  const [open, setOpen] = useState(false);
+
+  const selectedLabel = useMemo(() => {
+    if (selectedBranch === 'all') return 'All Branches';
+    const b = branches.find(br => (br.key || br.id) === selectedBranch);
+    return b ? (b.name || b.key || selectedBranch) : selectedBranch;
+  }, [selectedBranch, branches]);
+
+  const isAll = selectedBranch === 'all';
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl border-2 border-primary/30 bg-primary/5 hover:bg-primary/10 active:scale-[0.98] transition-all"
+      >
+        <div className="flex items-center gap-2">
+          {isAll
+            ? <Globe className="w-4 h-4 text-primary shrink-0" />
+            : <MapPin className="w-4 h-4 text-primary shrink-0" />
+          }
+          <div className="text-left">
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider leading-none mb-0.5">Selected Branch</p>
+            <p className="text-sm font-bold text-foreground leading-tight">{selectedLabel}</p>
+          </div>
+        </div>
+        <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && (
+        <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-background border border-border rounded-xl shadow-xl overflow-hidden">
+          {/* All Branches option */}
+          <button
+            className={`w-full flex items-center gap-2.5 px-4 py-3 text-left hover:bg-muted/60 transition-colors ${selectedBranch === 'all' ? 'bg-primary/10' : ''}`}
+            onClick={() => { onSelect('all'); setOpen(false); }}
+          >
+            <Globe className="w-4 h-4 text-primary shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-foreground">All Branches</p>
+              <p className="text-[10px] text-muted-foreground">Aggregate data from every branch</p>
+            </div>
+            {selectedBranch === 'all' && <CheckCircle2 className="w-4 h-4 text-primary ml-auto shrink-0" />}
+          </button>
+
+          {/* Divider */}
+          {branches.length > 0 && <div className="border-t border-border/60 mx-3" />}
+
+          {/* Individual branches */}
+          {branches.map((br) => {
+            const key = br.key || br.id;
+            const name = br.name || br.key || key;
+            const isSelected = selectedBranch === key;
+            return (
+              <button
+                key={key}
+                className={`w-full flex items-center gap-2.5 px-4 py-3 text-left hover:bg-muted/60 transition-colors ${isSelected ? 'bg-primary/10' : ''}`}
+                onClick={() => { onSelect(key); setOpen(false); }}
+              >
+                <MapPin className="w-4 h-4 text-muted-foreground shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold text-foreground">{name}</p>
+                  {br.address && <p className="text-[10px] text-muted-foreground truncate max-w-[200px]">{br.address}</p>}
+                </div>
+                {isSelected && <CheckCircle2 className="w-4 h-4 text-primary ml-auto shrink-0" />}
+              </button>
+            );
+          })}
+
+          {branches.length === 0 && (
+            <div className="px-4 py-3 text-xs text-muted-foreground">No branches configured.</div>
+          )}
+        </div>
+      )}
+
+      {/* Backdrop to close dropdown */}
+      {open && (
+        <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+      )}
+    </div>
+  );
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // ERROR BOUNDARY
 // ─────────────────────────────────────────────────────────────────────────────
 class WidgetErrorBoundary extends React.Component {
@@ -249,6 +336,25 @@ export default function OwnerDashboard() {
   const qc = useQueryClient();
   const { autoSettle } = useNetworkSettlement({ orgId, user, currency });
 
+  // ── BRANCH SELECTION STATE ────────────────────────────────────────────────
+  // 'all' means aggregate all branches; any other value is a branch key/id
+  const [selectedBranch, setSelectedBranch] = useState('all');
+
+  // Build the effective filter: owner-scoped + optional branch filter
+  // When 'all' is selected: use ownerFilter as-is (all branches)
+  // When a branch is selected: add branch key to the filter
+  const branchFilter = useMemo(() => {
+    if (!ownerFilter) return null;
+    if (selectedBranch === 'all') return ownerFilter;
+    return { ...ownerFilter, branch: selectedBranch };
+  }, [ownerFilter, selectedBranch]);
+
+  // Branch display info for the badge
+  const selectedBranchLabel = useMemo(() => {
+    if (selectedBranch === 'all') return 'All Branches';
+    const b = branches.find(br => (br.key || br.id) === selectedBranch);
+    return b ? (b.name || b.key || selectedBranch) : selectedBranch;
+  }, [selectedBranch, branches]);
 
   const today       = format(new Date(), 'yyyy-MM-dd');
   const yesterday   = format(subDays(new Date(), 1), 'yyyy-MM-dd');
@@ -265,104 +371,105 @@ export default function OwnerDashboard() {
   const fmtPct = useCallback((n) =>
     `${n >= 0 ? '+' : ''}${(n || 0).toFixed(1)}%`, []);
 
-  // ── DATA QUERIES ─────────────────────────────────────────────────────────────
+  // ── DATA QUERIES — all use branchFilter + selectedBranch in queryKey ──────
+  // This ensures React Query invalidates and refetches when branch changes.
 
   const { data: todaySales = [], isLoading: loadingSales } = useQuery({
-    queryKey: ['sales_today', ownerFilter, today],
-    queryFn: () => base44.entities.DailySales.filter({ ...(ownerFilter || {}), date: today }, '-date', 100),
+    queryKey: ['sales_today', branchFilter, today, selectedBranch],
+    queryFn: () => base44.entities.DailySales.filter({ ...(branchFilter || {}), date: today }, '-date', 100),
     staleTime: 15000,
     enabled,
   });
 
   const { data: yesterdaySales = [] } = useQuery({
-    queryKey: ['sales_yesterday', ownerFilter, yesterday],
-    queryFn: () => base44.entities.DailySales.filter({ ...(ownerFilter || {}), date: yesterday }, '-date', 100),
+    queryKey: ['sales_yesterday', branchFilter, yesterday, selectedBranch],
+    queryFn: () => base44.entities.DailySales.filter({ ...(branchFilter || {}), date: yesterday }, '-date', 100),
     staleTime: 60000,
     enabled,
   });
 
   const { data: weekSales = [] } = useQuery({
-    queryKey: ['sales_week', ownerFilter, weekStart],
-    queryFn: () => base44.entities.DailySales.filter(ownerFilter || {}, '-date', 500),
+    queryKey: ['sales_week', branchFilter, weekStart, selectedBranch],
+    queryFn: () => base44.entities.DailySales.filter(branchFilter || {}, '-date', 500),
     staleTime: 60000,
     enabled,
     select: (d) => d.filter(s => s.date >= weekStart),
   });
 
   const { data: monthSales = [] } = useQuery({
-    queryKey: ['sales_month', ownerFilter, monthStart],
-    queryFn: () => base44.entities.DailySales.filter(ownerFilter || {}, '-date', 1000),
+    queryKey: ['sales_month', branchFilter, monthStart, selectedBranch],
+    queryFn: () => base44.entities.DailySales.filter(branchFilter || {}, '-date', 1000),
     staleTime: 60000,
     enabled,
     select: (d) => d.filter(s => s.date >= monthStart),
   });
 
   const { data: yearSales = [] } = useQuery({
-    queryKey: ['sales_year', ownerFilter, yearStart],
-    queryFn: () => base44.entities.DailySales.filter(ownerFilter || {}, '-date', 5000),
+    queryKey: ['sales_year', branchFilter, yearStart, selectedBranch],
+    queryFn: () => base44.entities.DailySales.filter(branchFilter || {}, '-date', 5000),
     staleTime: 120000,
     enabled,
     select: (d) => d.filter(s => s.date >= yearStart),
   });
 
   const { data: prevWeekSales = [] } = useQuery({
-    queryKey: ['sales_prev_week', ownerFilter, prevWeekStart, weekStart],
-    queryFn: () => base44.entities.DailySales.filter(ownerFilter || {}, '-date', 500),
+    queryKey: ['sales_prev_week', branchFilter, prevWeekStart, weekStart, selectedBranch],
+    queryFn: () => base44.entities.DailySales.filter(branchFilter || {}, '-date', 500),
     staleTime: 120000,
     enabled,
     select: (d) => d.filter(s => s.date >= prevWeekStart && s.date < weekStart),
   });
 
   const { data: prevMonthSales = [] } = useQuery({
-    queryKey: ['sales_prev_month', ownerFilter, prevMonthStart, monthStart],
-    queryFn: () => base44.entities.DailySales.filter(ownerFilter || {}, '-date', 1000),
+    queryKey: ['sales_prev_month', branchFilter, prevMonthStart, monthStart, selectedBranch],
+    queryFn: () => base44.entities.DailySales.filter(branchFilter || {}, '-date', 1000),
     staleTime: 120000,
     enabled,
     select: (d) => d.filter(s => s.date >= prevMonthStart && s.date < monthStart),
   });
 
   const { data: weekPurchases = [] } = useQuery({
-    queryKey: ['purchases_week', ownerFilter, weekStart],
-    queryFn: () => base44.entities.Purchase.filter(ownerFilter || {}, '-date', 500),
+    queryKey: ['purchases_week', branchFilter, weekStart, selectedBranch],
+    queryFn: () => base44.entities.Purchase.filter(branchFilter || {}, '-date', 500),
     staleTime: 60000,
     enabled,
     select: (d) => d.filter(p => p.date >= weekStart),
   });
 
   const { data: monthPurchases = [] } = useQuery({
-    queryKey: ['purchases_month', ownerFilter, monthStart],
-    queryFn: () => base44.entities.Purchase.filter(ownerFilter || {}, '-date', 1000),
+    queryKey: ['purchases_month', branchFilter, monthStart, selectedBranch],
+    queryFn: () => base44.entities.Purchase.filter(branchFilter || {}, '-date', 1000),
     staleTime: 60000,
     enabled,
     select: (d) => d.filter(p => p.date >= monthStart),
   });
 
   const { data: todayExpenses = [] } = useQuery({
-    queryKey: ['expenses_today', ownerFilter, today],
-    queryFn: () => base44.entities.Expense.filter({ ...(ownerFilter || {}), date: today }, '-date', 200),
+    queryKey: ['expenses_today', branchFilter, today, selectedBranch],
+    queryFn: () => base44.entities.Expense.filter({ ...(branchFilter || {}), date: today }, '-date', 200),
     staleTime: 15000,
     enabled,
   });
 
   const { data: monthExpenses = [] } = useQuery({
-    queryKey: ['expenses_month', ownerFilter, monthStart],
-    queryFn: () => base44.entities.Expense.filter(ownerFilter || {}, '-date', 500),
+    queryKey: ['expenses_month', branchFilter, monthStart, selectedBranch],
+    queryFn: () => base44.entities.Expense.filter(branchFilter || {}, '-date', 500),
     staleTime: 60000,
     enabled,
     select: (d) => d.filter(e => e.date >= monthStart),
   });
 
   const { data: supplierInvoices = [] } = useQuery({
-    queryKey: ['supplier_invoices_dash', ownerFilter],
-    queryFn: () => base44.entities.SupplierInvoice.filter(ownerFilter || {}, '-date', 500),
+    queryKey: ['supplier_invoices_dash', branchFilter, selectedBranch],
+    queryFn: () => base44.entities.SupplierInvoice.filter(branchFilter || {}, '-date', 500),
     staleTime: 30000,
     enabled,
   });
 
   const { data: customerDebts = [] } = useQuery({
-    queryKey: ['debts_customer_dash', ownerFilter],
+    queryKey: ['debts_customer_dash', branchFilter, selectedBranch],
     queryFn: () => base44.entities.DebtRecord.filter(
-      { ...(ownerFilter || {}), type: 'receivable', party_type: 'customer' },
+      { ...(branchFilter || {}), type: 'receivable', party_type: 'customer' },
       '-date', 500
     ),
     staleTime: 30000,
@@ -370,23 +477,23 @@ export default function OwnerDashboard() {
   });
 
   const { data: inventory = [] } = useQuery({
-    queryKey: ['inventory_dash', ownerFilter],
-    queryFn: () => base44.entities.Inventory.filter(ownerFilter || {}, 'product_name', 500),
+    queryKey: ['inventory_dash', branchFilter, selectedBranch],
+    queryFn: () => base44.entities.Inventory.filter(branchFilter || {}, 'product_name', 500),
     staleTime: 60000,
     enabled,
   });
 
   const { data: networkAccounts = [] } = useQuery({
-    queryKey: ['network_accounts_dash', ownerFilter],
-    queryFn: () => base44.entities.NetworkAccount.filter(ownerFilter || {}),
+    queryKey: ['network_accounts_dash', branchFilter, selectedBranch],
+    queryFn: () => base44.entities.NetworkAccount.filter(branchFilter || {}),
     staleTime: 120000,
     enabled,
   });
 
   const { data: todayInvoices = [] } = useQuery({
-    queryKey: ['sales_invoices_today', ownerFilter, today],
+    queryKey: ['sales_invoices_today', branchFilter, today, selectedBranch],
     queryFn: () => base44.entities.SalesInvoice
-      ? base44.entities.SalesInvoice.filter({ ...(ownerFilter || {}), sale_date: today }, '-created_date', 100)
+      ? base44.entities.SalesInvoice.filter({ ...(branchFilter || {}), sale_date: today }, '-created_date', 100)
       : Promise.resolve([]),
     staleTime: 15000,
     enabled,
@@ -658,6 +765,30 @@ export default function OwnerDashboard() {
             </span>
           )}
           <Badge variant="outline" className="text-xs capitalize">{role}</Badge>
+        </div>
+      </div>
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          SECTION 0 — BRANCH SELECTOR  (always at top)
+      ══════════════════════════════════════════════════════════════════════ */}
+      <div className="space-y-2">
+        <BranchSelector
+          branches={branches}
+          selectedBranch={selectedBranch}
+          onSelect={setSelectedBranch}
+        />
+        {/* Branch badge below selector */}
+        <div className="flex items-center gap-1.5 px-1">
+          {selectedBranch === 'all'
+            ? <Globe className="w-3.5 h-3.5 text-primary" />
+            : <MapPin className="w-3.5 h-3.5 text-primary" />
+          }
+          <span className="text-[11px] text-muted-foreground">
+            Showing data for:{' '}
+            <strong className="text-foreground">
+              {selectedBranch === 'all' ? '🌐 All Branches' : `📍 ${selectedBranchLabel}`}
+            </strong>
+          </span>
         </div>
       </div>
 
