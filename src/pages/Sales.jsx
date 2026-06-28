@@ -4,6 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { useLanguage } from '@/lib/LanguageContext';
 import PageHeader from '@/components/shared/PageHeader';
 import SalesForm from '@/components/sales/SalesForm';
+import ERPSalesWorkspace from '@/components/sales/ERPSalesWorkspace';
 import SalesListItem from '@/components/sales/SalesListItem';
 import EmptyState from '@/components/shared/EmptyState';
 import { Button } from '@/components/ui/button';
@@ -540,19 +541,32 @@ export default function Sales() {
         </div>
       </div>
 
-      {/* Add Sale Dialog */}
+            {/* Add Sale Dialog — Enterprise ERP Sales Closing Workspace */}
       <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>{t('add_sales')}</DialogTitle></DialogHeader>
-          <SalesForm onSubmit={handleSave} onCancel={() => setShowForm(false)} />
+        <DialogContent className="max-w-xl w-full max-h-[92vh] p-0 overflow-hidden flex flex-col">
+          <DialogHeader className="px-4 pt-4 pb-2 border-b border-border flex-shrink-0">
+            <DialogTitle className="flex items-center gap-2 text-base font-bold">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              Enterprise Sales Closing Workspace
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto">
+            <ERPSalesWorkspace onSubmit={handleSave} onCancel={() => setShowForm(false)} />
+          </div>
         </DialogContent>
       </Dialog>
-
-      {/* Edit Sale Dialog */}
+      {/* Edit Sale Dialog — Enterprise ERP Sales Closing Workspace */}
       <Dialog open={!!editing} onOpenChange={(open) => { if (!open) setEditing(null); }}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>{t('edit_sales')}</DialogTitle></DialogHeader>
-          {editing && <SalesForm initial={editing} onSubmit={handleSave} onCancel={() => setEditing(null)} />}
+        <DialogContent className="max-w-xl w-full max-h-[92vh] p-0 overflow-hidden flex flex-col">
+          <DialogHeader className="px-4 pt-4 pb-2 border-b border-border flex-shrink-0">
+            <DialogTitle className="flex items-center gap-2 text-base font-bold">
+              <span className="w-2 h-2 rounded-full bg-blue-500" />
+              Edit Sales Closing Workspace
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto">
+            {editing && <ERPSalesWorkspace initial={editing} onSubmit={handleSave} onCancel={() => setEditing(null)} />}
+          </div>
         </DialogContent>
       </Dialog>
 
