@@ -694,9 +694,11 @@ export default function EnterprisePurchaseCommandCenter() {
               </Link>
             </div>
           </TabsContent>
-        </Tabs>
+                </Tabs>
+        
+        {/* Bottom Spacer for Sticky Bar + BottomNav */}
+        <div className="h-32" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }} />
       </div>
-
       {/* ── Section 14: Sticky Action Bar ── */}
       <StickyActionBar
         onAddInvoice={handleAddInvoice}

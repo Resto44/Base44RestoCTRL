@@ -210,8 +210,8 @@ export const StickyActionBar = memo(function StickyActionBar({
 }) {
   return (
     <div
-      className="fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-md border-t border-border/60 shadow-lg"
-      style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+      className="fixed bottom-16 left-0 right-0 z-40 bg-background/95 backdrop-blur-md border-t border-border/60 shadow-lg"
+      style={{ marginBottom: 'env(safe-area-inset-bottom, 0px)' }}
     >
       <div className="flex items-center gap-2 px-3 py-2 max-w-2xl mx-auto">
         {/* Alert indicators */}
