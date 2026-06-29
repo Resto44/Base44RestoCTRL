@@ -18,6 +18,7 @@ import { useLanguage } from '@/lib/LanguageContext';
 import { useTenant } from '@/lib/TenantContext';
 import { useAuth } from '@/lib/AuthContext';
 import { usePurchaseProductsByCategory } from '@/hooks/usePurchaseProductsByCategory';
+import { usePurchaseCategoriesHierarchy } from '@/hooks/usePurchaseCategoriesHierarchy';
 import BranchSelect from '@/components/shared/BranchSelect';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -159,18 +160,8 @@ export default function PurchaseInvoiceForm({ invoice = null, onSuccess, onCance
     enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
   });
 
-  const { data: categories = [] } = useQuery({
-    queryKey: ['purchase_categories', ownerFilter],
-    queryFn: () => base44.entities.PurchaseCategory.filter({ ...ownerFilter, is_active: true }, 'name', 100),
-    enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
-  });
-
-  useEffect(() => {
-    console.log('[PurchaseInvoiceForm] categories.length:', categories.length);
-    if (categories.length > 0) {
-      console.log('[PurchaseInvoiceForm] categories sample:', categories[0]);
-    }
-  }, [categories]);
+  // Use hierarchical categories hook
+  const { categories, tree: categoriesTree } = usePurchaseCategoriesHierarchy();
 
   // ── Totals ─────────────────────────────────────────────────────────────
   const totals = calcInvoiceTotals(items, additionalCosts);
@@ -441,8 +432,20 @@ export default function PurchaseInvoiceForm({ invoice = null, onSuccess, onCance
                       <SelectValue placeholder="Select..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {categories.map(c => (
-                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                      {/* Render hierarchical categories */}
+                      {categoriesTree.map(rootCat => (
+                        <div key={rootCat.id}>
+                          <SelectItem value={rootCat.id}>
+                            {rootCat.icon || '🛒'} {rootCat.name}
+                          </SelectItem>
+                          {rootCat.children && rootCat.children.length > 0 && (
+                            rootCat.children.map(childCat => (
+                              <SelectItem key={childCat.id} value={childCat.id} className="pl-6">
+                                └─ {childCat.icon || '📦'} {childCat.name}
+                              </SelectItem>
+                            ))
+                          )}
+                        </div>
                       ))}
                     </SelectContent>
                   </Select>

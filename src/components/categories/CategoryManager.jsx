@@ -67,7 +67,7 @@ export const CATEGORY_MODULES = {
     icon: ShoppingCart,
     color: '#8B5CF6',
     defaultIcon: '🛒',
-    hierarchical: false,
+    hierarchical: true,
     description: 'Used by Purchases module only',
   },
   sales: {
