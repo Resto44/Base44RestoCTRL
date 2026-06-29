@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ArrowLeft, Phone, Mail, Package, ShoppingCart, Send, Loader2, FileText } from 'lucide-react';
+import { useTenant } from '@/lib/TenantContext';
 import SupplierStatement from './SupplierStatement';
 import { formatCurrency } from '@/lib/helpers';
 import { format } from 'date-fns';
@@ -17,7 +18,8 @@ import SupplierPriceComparison from './SupplierPriceComparison';
 import SupplierPriceTracker from './SupplierPriceTracker';
 
 export default function SupplierDetail({ supplier, onBack }) {
-  const { currency, branches } = useLanguage();
+  const { currency } = useLanguage();
+  const { branches } = useTenant();
   const qc = useQueryClient();
   const [showPOForm, setShowPOForm] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);

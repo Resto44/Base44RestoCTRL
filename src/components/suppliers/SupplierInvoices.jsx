@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ArrowLeft, Plus, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
+import { useTenant } from '@/lib/TenantContext';
 import { format } from 'date-fns';
 
 const ui = {
@@ -22,7 +23,8 @@ const statusColor = { paid: 'text-emerald-500', partial: 'text-amber-500', unpai
 const emptyForm = { invoice_number: '', date: format(new Date(), 'yyyy-MM-dd'), due_date: '', amount: '', paid_amount: 0, status: 'unpaid', notes: '', branch: '' };
 
 export default function SupplierInvoices({ supplier, onBack, embedded = false }) {
-  const { lang, currency, branches } = useLanguage();
+  const { lang, currency } = useLanguage();
+  const { branches } = useTenant();
   const m = ui[lang] || ui.en;
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
