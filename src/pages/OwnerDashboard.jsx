@@ -541,7 +541,7 @@ export default function OwnerDashboard() {
 
     // Today's Purchases = approved supplier invoices for today
     const purchasesToday = supplierInvoices
-      .filter(inv => inv.date === today && inv.status === 'approved')
+      .filter(inv => inv.date === today && (inv.status === 'approved' || inv.approval_status === 'approved' || inv.approval_status === 'auto_approved'))
       .reduce((s, inv) => s + (Number(inv.total_amount) || Number(inv.amount) || 0), 0);
 
     const expensesToday =  (todayExpenses || []).reduce((s, e) => s + (Number(e.amount) || 0), 0);
