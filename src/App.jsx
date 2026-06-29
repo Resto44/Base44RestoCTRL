@@ -433,10 +433,10 @@ const AuthenticatedApp = () => {
 // ── Root app ──────────────────────────────────────────────────────────────────
 function App() {
   return (
-    <AuthProvider>
-      <QueryClientProvider client={queryClientInstance}>
-        <LanguageProvider>
-          <Router>
+    <QueryClientProvider client={queryClientInstance}>
+      <LanguageProvider>
+        <Router>
+          <AuthProvider>
             <Routes>
               {/* Public routes — no auth required */}
               <Route path="/" element={<LandingPage />} />
@@ -454,11 +454,11 @@ function App() {
               {/* All authenticated routes */}
               <Route path="*" element={<AuthenticatedApp />} />
             </Routes>
-          </Router>
-          <Toaster />
-        </LanguageProvider>
-      </QueryClientProvider>
-    </AuthProvider>
+            <Toaster />
+          </AuthProvider>
+        </Router>
+      </LanguageProvider>
+    </QueryClientProvider>
   );
 }
 
