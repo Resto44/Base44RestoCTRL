@@ -62,6 +62,7 @@ const emptyItem = () => ({
   _id: Math.random().toString(36).slice(2),
   category: '',
   category_id: '',
+  purchase_category_id: '',
   product_id: '',
   product_name: '',
   unit: '',
@@ -406,8 +407,8 @@ export default function PurchaseInvoiceForm({ invoice = null, onSuccess, onCance
 
         <div className="space-y-3">
           {items.map((item, idx) => {
-            // Fetch products for this item's category
-            const { products: categoryProducts = [] } = usePurchaseProductsByCategory(item.category_id);
+            // Fetch products for this item's purchase category
+            const { products: categoryProducts = [] } = usePurchaseProductsByCategory(item.purchase_category_id);
             
             return (
             <div key={item._id} className="rounded-lg border border-border p-3 space-y-2 bg-secondary/20">
@@ -420,9 +421,9 @@ export default function PurchaseInvoiceForm({ invoice = null, onSuccess, onCance
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <div>
-                  <Label className="text-[10px] text-muted-foreground">Category</Label>
+                  <Label className="text-[10px] text-muted-foreground">Product Category</Label>
                   <Select value={item.category_id} onValueChange={v => {
                     const cat = categories.find(c => c.id === v);
                     updateItem(item._id, 'category_id', v);
@@ -433,6 +434,32 @@ export default function PurchaseInvoiceForm({ invoice = null, onSuccess, onCance
                     </SelectTrigger>
                     <SelectContent>
                       {/* Render hierarchical categories */}
+                      {categoriesTree.map(rootCat => (
+                        <div key={rootCat.id}>
+                          <SelectItem value={rootCat.id}>
+                            {rootCat.icon || '🛒'} {rootCat.name}
+                          </SelectItem>
+                          {rootCat.children && rootCat.children.length > 0 && (
+                            rootCat.children.map(childCat => (
+                              <SelectItem key={childCat.id} value={childCat.id} className="pl-6">
+                                └─ {childCat.icon || '📦'} {childCat.name}
+                              </SelectItem>
+                            ))
+                          )}
+                        </div>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-[10px] text-muted-foreground">Purchase Category *</Label>
+                  <Select value={item.purchase_category_id} onValueChange={v => {
+                    updateItem(item._id, 'purchase_category_id', v);
+                  }}>
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="Select..." />
+                    </SelectTrigger>
+                    <SelectContent>
                       {categoriesTree.map(rootCat => (
                         <div key={rootCat.id}>
                           <SelectItem value={rootCat.id}>

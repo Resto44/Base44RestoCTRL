@@ -3,29 +3,29 @@ import { base44 } from '@/api/base44Client';
 import { useTenant } from '@/lib/TenantContext';
 
 /**
- * Fetch products filtered by purchase category_id using server-side filtering.
- * Returns empty array if categoryId is not provided.
- * Uses WHERE category_id = categoryId in the database query.
+ * Fetch products filtered by purchase_category_id using server-side filtering.
+ * Returns empty array if purchaseCategoryId is not provided.
+ * Uses WHERE purchase_category_id = purchaseCategoryId in the database query.
  */
-export function usePurchaseProductsByCategory(categoryId) {
+export function usePurchaseProductsByCategory(purchaseCategoryId) {
   const { activeRestaurantId } = useTenant();
 
   const { data: products = [], isLoading } = useQuery({
-    queryKey: ['purchase_products_by_category', categoryId, activeRestaurantId],
+    queryKey: ['purchase_products_by_category', purchaseCategoryId, activeRestaurantId],
     queryFn: () => {
-      if (!categoryId) return [];
+      if (!purchaseCategoryId) return [];
       
-      // Server-side filter: only fetch products where category_id matches
+      // Server-side filter: only fetch products where purchase_category_id matches
       return base44.entities.Product.filter(
         {
-          category_id: categoryId,
+          purchase_category_id: purchaseCategoryId,
           ...(activeRestaurantId && { restaurant_id: activeRestaurantId }),
         },
         'name',
         1000
       );
     },
-    enabled: !!categoryId, // Only run query if categoryId is provided
+    enabled: !!purchaseCategoryId, // Only run query if purchaseCategoryId is provided
     staleTime: 30000,
   });
 

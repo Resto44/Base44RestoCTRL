@@ -17,6 +17,7 @@ export default function ProductForm({ initial, onSubmit, onCancel }) {
     category_id: '',
     subcategory_id: '',
     category: '',
+    purchase_category_id: '',
     unit: '',
     default_price: '',
     default_cost: '',
@@ -29,6 +30,18 @@ export default function ProductForm({ initial, onSubmit, onCancel }) {
   const { data: categories = [] } = useQuery({
     queryKey: ['product_categories', activeRestaurant?.id],
     queryFn: () => base44.entities.ProductCategory.filter(
+      activeRestaurant?.id ? { restaurant_id: activeRestaurant.id, is_active: true } : { is_active: true },
+      'sort_order',
+      500
+    ),
+    enabled: !!activeRestaurant?.id,
+    staleTime: 30000,
+  });
+
+  // Load Purchase Categories separately for purchase filtering
+  const { data: purchaseCategories = [] } = useQuery({
+    queryKey: ['purchase_categories', activeRestaurant?.id],
+    queryFn: () => base44.entities.PurchaseCategory.filter(
       activeRestaurant?.id ? { restaurant_id: activeRestaurant.id, is_active: true } : { is_active: true },
       'sort_order',
       500
@@ -77,6 +90,7 @@ export default function ProductForm({ initial, onSubmit, onCancel }) {
       category_id: form.category_id || null,
       subcategory_id: form.subcategory_id || null,
       category: selectedCat ? getName(selectedCat) : (form.category || null),
+      purchase_category_id: form.purchase_category_id || null,
       unit: form.unit || null,
       default_price: Number(form.default_price) || 0,
       default_cost: Number(form.default_cost) || 0,
@@ -162,6 +176,24 @@ export default function ProductForm({ initial, onSubmit, onCancel }) {
             </Select>
           </div>
         )}
+      </div>
+
+      {/* Purchase Category — separate from Product Category */}
+      <div>
+        <Label className="text-xs font-medium">Purchase Category</Label>
+        <Select value={form.purchase_category_id || '__none__'} onValueChange={v => handleChange('purchase_category_id', v === '__none__' ? '' : v)}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select purchase category..." />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__none__">— None —</SelectItem>
+            {purchaseCategories.map(c => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.icon ? `${c.icon} ` : ''}{getName(c)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div>
