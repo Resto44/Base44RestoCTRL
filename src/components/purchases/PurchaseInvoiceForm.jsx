@@ -17,6 +17,7 @@ import { supabase } from '@/api/supabaseClient';
 import { useLanguage } from '@/lib/LanguageContext';
 import { useTenant } from '@/lib/TenantContext';
 import { useAuth } from '@/lib/AuthContext';
+import { usePurchaseProductsByCategory } from '@/hooks/usePurchaseProductsByCategory';
 import BranchSelect from '@/components/shared/BranchSelect';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -150,7 +151,9 @@ export default function PurchaseInvoiceForm({ invoice = null, onSuccess, onCance
     enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
   });
 
-  const { data: products = [] } = useQuery({
+  // Note: products are now fetched per-category via usePurchaseProductsByCategory hook
+  // This global query is kept for backward compatibility but not used for invoice items
+  const { data: _allProducts = [] } = useQuery({
     queryKey: ['products', ownerFilter],
     queryFn: () => base44.entities.Product.filter(ownerFilter || {}, 'name', 1000),
     enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
@@ -180,18 +183,17 @@ export default function PurchaseInvoiceForm({ invoice = null, onSuccess, onCance
     setItems(prev => prev.map(item => {
       if (item._id !== id) return item;
       const updated = { ...item, [field]: value };
-      if (field === 'product_id') {
-        const prod = products.find(p => p.id === value);
-        if (prod) {
-          updated.product_name = prod.name;
-          updated.unit = prod.unit || updated.unit;
-          updated.unit_cost = prod.default_cost || updated.unit_cost;
-        }
+      
+      // When category changes: clear product selection
+      if (field === 'category_id') {
+        updated.product_id = '';
+        updated.product_name = '';
       }
+      
       updated.line_total = calcLineTotal(updated);
       return updated;
     }));
-  }, [products]);
+  }, []);
 
   const addItem = () => setItems(prev => [...prev, emptyItem()]);
   const removeItem = (id) => setItems(prev => prev.filter(i => i._id !== id));
@@ -412,7 +414,11 @@ export default function PurchaseInvoiceForm({ invoice = null, onSuccess, onCance
         </div>
 
         <div className="space-y-3">
-          {items.map((item, idx) => (
+          {items.map((item, idx) => {
+            // Fetch products for this item's category
+            const { products: categoryProducts = [] } = usePurchaseProductsByCategory(item.category_id);
+            
+            return (
             <div key={item._id} className="rounded-lg border border-border p-3 space-y-2 bg-secondary/20">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-muted-foreground">Item {idx + 1}</span>
@@ -443,13 +449,27 @@ export default function PurchaseInvoiceForm({ invoice = null, onSuccess, onCance
                 </div>
                 <div>
                   <Label className="text-[10px] text-muted-foreground">Product *</Label>
-                  <Select value={item.product_id} onValueChange={v => updateItem(item._id, 'product_id', v)}>
-                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select..." /></SelectTrigger>
+                  <Select value={item.product_id} onValueChange={v => {
+                    const prod = categoryProducts.find(p => p.id === v);
+                    updateItem(item._id, 'product_id', v);
+                    if (prod) {
+                      updateItem(item._id, 'product_name', prod.name);
+                      updateItem(item._id, 'unit', prod.unit || item.unit);
+                      updateItem(item._id, 'unit_cost', prod.default_cost || item.unit_cost);
+                    }
+                  }} disabled={!item.category_id}>
+                    <SelectTrigger className="h-8 text-xs" disabled={!item.category_id}>
+                      <SelectValue placeholder={item.category_id ? (categoryProducts.length === 0 ? 'No products in this category.' : 'Select...') : 'Select category first'} />
+                    </SelectTrigger>
                     <SelectContent>
-                      {products.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                      {categoryProducts.length === 0 && item.category_id ? (
+                        <div className="px-2 py-1.5 text-xs text-muted-foreground">No products in this category.</div>
+                      ) : (
+                        categoryProducts.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)
+                      )}
                     </SelectContent>
                   </Select>
-                  {!item.product_id && (
+                  {!item.product_id && item.category_id && (
                     <Input value={item.product_name} onChange={e => updateItem(item._id, 'product_name', e.target.value)}
                       placeholder="Or type product name" className="h-8 text-xs mt-1" />
                   )}
@@ -492,7 +512,8 @@ export default function PurchaseInvoiceForm({ invoice = null, onSuccess, onCance
                 </div>
               </div>
             </div>
-          ))}
+          );
+          })}
         </div>
       </Card>
 
