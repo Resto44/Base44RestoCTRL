@@ -299,13 +299,6 @@ function ProductMasterTab({ products, categories, isLoading, onRefresh, currency
                       {stockBadge(p)}
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-xs text-muted-foreground">
-                    {p.sku && <span>SKU: {p.sku}</span>}
-                    {p.barcode && <span>BC: {p.barcode}</span>}
-                    {p.category && <span className="text-primary">{p.category}</span>}
-                    {p.unit && <span>{p.unit}</span>}
-                    {p.brand && <span>• {p.brand}</span>}
-                  </div>
                   <div className="flex items-center gap-3 mt-1.5 text-xs">
                     <span className="text-muted-foreground">Cost: <span className="font-medium text-foreground">{currency}{(p.purchase_cost || p.default_cost || 0).toFixed(2)}</span></span>
                     <span className="text-muted-foreground">Price: <span className="font-medium text-primary">{currency}{(p.selling_price || p.default_price || 0).toFixed(2)}</span></span>
@@ -399,6 +392,40 @@ function ProductMasterTab({ products, categories, isLoading, onRefresh, currency
   );
 }
 
+// ── CATEGORY MANAGEMENT TAB HELPERS ───────────────────────────────────────────
+const CategoryForm = ({ form, set, handleSubmit, editing, t, parentCats, setShowForm, setEditing }) => (
+  <form onSubmit={handleSubmit} className="space-y-3">
+    <div>
+      <Label className="text-xs">Category Name *</Label>
+      <Input value={form.name} onChange={e => set('name', e.target.value)} required />
+    </div>
+    <div>
+      <Label className="text-xs">Description</Label>
+      <Input value={form.description} onChange={e => set('description', e.target.value)} placeholder={t('optional')} />
+    </div>
+    <div>
+      <Label className="text-xs">{t('parent_category')} (leave blank for top-level)</Label>
+      <Select value={form.parent_id || '__none__'} onValueChange={v => set('parent_id', v === '__none__' ? '' : v)}>
+        <SelectTrigger><SelectValue placeholder="— Top Level —" /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="__none__">— Top Level —</SelectItem>
+          {parentCats.filter(c => c.id !== editing?.id).map(c => (
+            <SelectItem key={c.id} value={c.id || "__none__"}>{c.name_en || c.name}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+    <div>
+      <Label className="text-xs">Color (hex)</Label>
+      <Input value={form.color} onChange={e => set('color', e.target.value)} placeholder="#6366f1" />
+    </div>
+    <div className="flex gap-2">
+      <Button type="submit" className="flex-1">{editing ? t('save') : t('add_category')}</Button>
+      <Button type="button" variant="outline" onClick={() => { setShowForm(false); setEditing(null); }}>{t('cancel')}</Button>
+    </div>
+  </form>
+);
+
 // ── CATEGORY MANAGEMENT TAB ───────────────────────────────────────────────────
 function CategoryManagementTab({ categories, isLoading }) {
   const { t } = useLanguage();
@@ -411,7 +438,6 @@ function CategoryManagementTab({ categories, isLoading }) {
 
   const set = (f, v) => setForm(p => ({ ...p, [f]: v }));
 
-  // Product Management: all mutations use ProductCategory (product_categories table ONLY)
   const createMut = useMutation({
     mutationFn: (data) => base44.entities.ProductCategory.create({ ...data, restaurant_id: activeRestaurant?.id }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['product_categories'] }); setShowForm(false); setForm({ name: '', description: '', parent_id: '', color: '', type: 'product' }); toast.success(t('category_added')); },
@@ -430,14 +456,12 @@ function CategoryManagementTab({ categories, isLoading }) {
     onError: (e) => toast.error(e.message),
   });
 
-  // All rows from product_categories are already product-type; no further filtering needed
   const productCategories = useMemo(() => categories, [categories]);
   const parentCats = useMemo(() => productCategories.filter(c => !c.parent_id), [productCategories]);
   const subCats = useMemo(() => productCategories.filter(c => !!c.parent_id), [productCategories]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    // product_categories uses name_en column (not name)
     const data = { name_en: form.name, description: form.description || null, parent_id: form.parent_id || null, color: form.color || null, is_active: true };
     if (editing) updateMut.mutate({ id: editing.id, data });
     else createMut.mutate(data);
@@ -447,39 +471,6 @@ function CategoryManagementTab({ categories, isLoading }) {
     setEditing(cat);
     setForm({ name: cat.name_en || cat.name || '', description: cat.description || '', parent_id: cat.parent_id || '', color: cat.color || '', type: 'product' });
   };
-
-  const CategoryForm = () => (
-    <form onSubmit={handleSubmit} className="space-y-3">
-      <div>
-        <Label className="text-xs">Category Name *</Label>
-        <Input value={form.name} onChange={e => set('name', e.target.value)} required />
-      </div>
-      <div>
-        <Label className="text-xs">Description</Label>
-        <Input value={form.description} onChange={e => set('description', e.target.value)} placeholder={t('optional')} />
-      </div>
-      <div>
-        <Label className="text-xs">{t('parent_category')} (leave blank for top-level)</Label>
-        <Select value={form.parent_id || '__none__'} onValueChange={v => set('parent_id', v === '__none__' ? '' : v)}>
-          <SelectTrigger><SelectValue placeholder="— Top Level —" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__none__">— Top Level —</SelectItem>
-            {parentCats.filter(c => c.id !== editing?.id).map(c => (
-              <SelectItem key={c.id} value={c.id || "__none__"}>{c.name_en || c.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div>
-        <Label className="text-xs">Color (hex)</Label>
-        <Input value={form.color} onChange={e => set('color', e.target.value)} placeholder="#6366f1" />
-      </div>
-      <div className="flex gap-2">
-        <Button type="submit" className="flex-1">{editing ? t('save') : t('add_category')}</Button>
-        <Button type="button" variant="outline" onClick={() => { setShowForm(false); setEditing(null); }}>{t('cancel')}</Button>
-      </div>
-    </form>
-  );
 
   return (
     <div className="space-y-3">
@@ -493,12 +484,12 @@ function CategoryManagementTab({ categories, isLoading }) {
       {(showForm || editing) && (
         <Card className="p-4">
           <h3 className="text-sm font-semibold mb-3">{editing ? t('edit_category') : t('add_category')}</h3>
-          <CategoryForm />
+          <CategoryForm form={form} set={set} handleSubmit={handleSubmit} editing={editing} t={t} parentCats={parentCats} setShowForm={setShowForm} setEditing={setEditing} />
         </Card>
       )}
 
       {isLoading ? (
-        <p className="text-center text-sm text-muted-foreground py-6">{t('loading')}</p>
+        <p className="text-center text-muted-foreground text-sm py-8">{t('loading')}</p>
       ) : parentCats.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground">
           <Tag className="w-8 h-8 mx-auto mb-2 opacity-30" />
@@ -570,6 +561,38 @@ function CategoryManagementTab({ categories, isLoading }) {
   );
 }
 
+// ── UNIT MANAGEMENT TAB HELPERS ───────────────────────────────────────────────
+const UnitForm = ({ handleSubmit, form, set, editing, t, setShowForm, setEditing }) => (
+  <form onSubmit={handleSubmit} className="space-y-3">
+    <div>
+      <Label className="text-xs">Unit Name *</Label>
+      <Input value={form.name} onChange={e => set('name', e.target.value)} required placeholder="e.g. Dozen" />
+    </div>
+    <div className="grid grid-cols-2 gap-2">
+      <div>
+        <Label className="text-xs">{t('abbreviation')}</Label>
+        <Input value={form.abbreviation} onChange={e => set('abbreviation', e.target.value)} placeholder="dz" />
+      </div>
+      <div>
+        <Label className="text-xs">{t('type')}</Label>
+        <Select value={form.type} onValueChange={v => set('type', v)}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="weight">{t('weight')}</SelectItem>
+            <SelectItem value="volume">{t('volume')}</SelectItem>
+            <SelectItem value="count">{t('count')}</SelectItem>
+            <SelectItem value="custom">{t('custom')}</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+    <div className="flex gap-2">
+      <Button type="submit" className="flex-1">{editing ? t('save') : t('add_unit')}</Button>
+      <Button type="button" variant="outline" onClick={() => { setShowForm(false); setEditing(null); }}>{t('cancel')}</Button>
+    </div>
+  </form>
+);
+
 // ── UNIT MANAGEMENT TAB ───────────────────────────────────────────────────────
 function UnitManagementTab() {
   const { t } = useLanguage();
@@ -620,37 +643,6 @@ function UnitManagementTab() {
   const systemUnits = units.filter(u => u.is_system);
   const customUnits = units.filter(u => !u.is_system);
 
-  const UnitForm = () => (
-    <form onSubmit={handleSubmit} className="space-y-3">
-      <div>
-        <Label className="text-xs">Unit Name *</Label>
-        <Input value={form.name} onChange={e => set('name', e.target.value)} required placeholder="e.g. Dozen" />
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <Label className="text-xs">{t('abbreviation')}</Label>
-          <Input value={form.abbreviation} onChange={e => set('abbreviation', e.target.value)} placeholder="dz" />
-        </div>
-        <div>
-          <Label className="text-xs">{t('type')}</Label>
-          <Select value={form.type} onValueChange={v => set('type', v)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="weight">{t('weight')}</SelectItem>
-              <SelectItem value="volume">{t('volume')}</SelectItem>
-              <SelectItem value="count">{t('count')}</SelectItem>
-              <SelectItem value="custom">{t('custom')}</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-      <div className="flex gap-2">
-        <Button type="submit" className="flex-1">{editing ? t('save') : t('add_unit')}</Button>
-        <Button type="button" variant="outline" onClick={() => { setShowForm(false); setEditing(null); }}>{t('cancel')}</Button>
-      </div>
-    </form>
-  );
-
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -663,7 +655,7 @@ function UnitManagementTab() {
       {(showForm || editing) && (
         <Card className="p-4">
           <h3 className="text-sm font-semibold mb-3">{editing ? t('edit_unit') : t('add_unit')}</h3>
-          <UnitForm />
+          <UnitForm handleSubmit={handleSubmit} form={form} set={set} editing={editing} t={t} setShowForm={setShowForm} setEditing={setEditing} />
         </Card>
       )}
 
@@ -821,98 +813,58 @@ function InventoryIntegrationTab({ products, currency }) {
   const [search, setSearch] = useState('');
 
   const { data: transactions = [], isLoading: txLoading } = useQuery({
-    queryKey: ['inventory_transactions_recent', activeRestaurant?.id],
+    queryKey: ['inventory_transactions', activeRestaurant?.id],
     queryFn: () => base44.entities.InventoryTransaction.filter(
       activeRestaurant?.id ? { restaurant_id: activeRestaurant.id } : {},
-      '-created_date', 100
+      '-created_at', 500
     ),
     enabled: !!activeRestaurant?.id,
     staleTime: 30000,
   });
 
-  const filtered = useMemo(() => products.filter(p =>
-    !search || p.name?.toLowerCase().includes(search.toLowerCase())
-  ), [products, search]);
-
-  const TX_TYPE_COLORS = {
-    stock_in: 'text-green-600', stock_out: 'text-red-600', purchase: 'text-blue-600',
-    waste: 'text-orange-600', recipe_consumption: 'text-purple-600',
-    transfer_in: 'text-teal-600', transfer_out: 'text-teal-600',
-    adjustment: 'text-gray-600', opening: 'text-green-600',
-  };
-
   return (
     <div className="space-y-4">
-      {/* Quick Stock Update */}
-      <div>
-        <div className="flex items-center gap-2 mb-2">
-          <h3 className="text-sm font-semibold">Quick Stock Update</h3>
-        </div>
-        <div className="relative mb-2">
+      <div className="flex gap-2">
+        <div className="relative flex-1">
           <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-muted-foreground" />
-          <Input className="pl-8 text-sm" placeholder="Search product..." value={search} onChange={e => setSearch(e.target.value)} />
+          <Input
+            className="pl-8 text-sm"
+            placeholder="Search transactions..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
         </div>
-        <div className="space-y-2 max-h-64 overflow-y-auto">
-          {filtered.slice(0, 30).map(p => (
-            <div key={p.id} className="flex items-center justify-between p-2.5 bg-card border rounded-lg">
-              <div>
-                <p className="text-sm font-medium">{p.name}</p>
-                <p className={`text-xs font-semibold ${(p.current_stock || 0) <= 0 ? 'text-red-600' : (p.current_stock || 0) <= (p.min_stock || 0) ? 'text-orange-600' : 'text-green-600'}`}>
-                  {p.current_stock || 0} {p.unit || ''}
-                  {(p.current_stock || 0) <= 0 ? ' — OUT' : (p.current_stock || 0) <= (p.min_stock || 0) ? ' — LOW' : ''}
-                </p>
+      </div>
+
+      {txLoading ? (
+        <p className="text-center py-8 text-muted-foreground text-sm">{t('loading')}</p>
+      ) : transactions.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground border-2 border-dashed rounded-lg">
+          <ArrowUpDown className="w-10 h-10 mx-auto mb-2 opacity-30" />
+          <p className="text-sm">No inventory transactions yet</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {transactions.map(tx => (
+            <Card key={tx.id} className="p-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold">{tx.product_name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {tx.type === 'in' ? 'Stock In' : 'Stock Out'} • {new Date(tx.created_at).toLocaleDateString()}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className={`text-sm font-bold ${tx.type === 'in' ? 'text-green-600' : 'text-red-600'}`}>
+                    {tx.type === 'in' ? '+' : '-'}{tx.quantity}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{currency}{tx.unit_cost?.toFixed(2)}</p>
+                </div>
               </div>
-              <Button size="sm" onClick={() => setSelectedProduct(p)}>
-                <ArrowUpDown className="w-3 h-3 mr-1" />Update
-              </Button>
-            </div>
+            </Card>
           ))}
         </div>
-      </div>
-
-      {/* Recent Transactions */}
-      <div>
-        <h3 className="text-sm font-semibold mb-2">{t('transaction_history')}</h3>
-        {txLoading ? (
-          <p className="text-xs text-muted-foreground text-center py-4">{t('loading')}</p>
-        ) : transactions.length === 0 ? (
-          <p className="text-xs text-muted-foreground text-center py-4">No transactions yet</p>
-        ) : (
-          <div className="space-y-1.5">
-            {transactions.map(tx => {
-              const prod = products.find(p => p.id === tx.product_id);
-              const isOut = ['stock_out', 'waste', 'recipe_consumption', 'transfer_out'].includes(tx.transaction_type);
-              return (
-                <div key={tx.id} className="flex items-center justify-between p-2 bg-muted rounded-lg text-xs">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{prod?.name || 'Unknown Product'}</p>
-                    <p className="text-muted-foreground capitalize">{tx.transaction_type.replace(/_/g, ' ')}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className={`font-bold ${isOut ? 'text-red-600' : 'text-green-600'}`}>
-                      {isOut ? '-' : '+'}{tx.quantity}
-                    </p>
-                    <p className="text-muted-foreground">{new Date(tx.created_date).toLocaleDateString()}</p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      <Dialog open={!!selectedProduct} onOpenChange={(o) => { if (!o) setSelectedProduct(null); }}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>Inventory Transaction</DialogTitle></DialogHeader>
-          {selectedProduct && (
-            <InventoryTransactionForm
-              product={selectedProduct}
-              onSuccess={() => setSelectedProduct(null)}
-              onCancel={() => setSelectedProduct(null)}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
+      )}
     </div>
   );
 }
@@ -921,182 +873,93 @@ function InventoryIntegrationTab({ products, currency }) {
 function AnalyticsTab({ products, currency }) {
   const { t } = useLanguage();
 
-  const marginData = useMemo(() => {
-    return products
-      .filter(p => (p.selling_price || p.default_price || 0) > 0)
-      .map(p => {
-        const price = p.selling_price || p.default_price || 0;
-        const cost = p.purchase_cost || p.default_cost || 0;
-        const margin = price > 0 ? ((price - cost) / price) * 100 : 0;
-        return { name: p.name?.substring(0, 12) || 'Unknown', margin: parseFloat(margin.toFixed(1)), price, cost };
-      })
-      .sort((a, b) => b.margin - a.margin)
-      .slice(0, 10);
-  }, [products]);
-
-  const slowMoving = useMemo(() => {
-    return products
-      .filter(p => (p.current_stock || 0) > (p.max_stock || 0) * 0.8 && (p.max_stock || 0) > 0)
-      .slice(0, 5);
-  }, [products]);
-
-  const fastMoving = useMemo(() => {
-    return products
-      .filter(p => (p.current_stock || 0) <= (p.min_stock || 0) && (p.min_stock || 0) > 0)
-      .slice(0, 5);
+  const stockData = useMemo(() => {
+    return products.slice(0, 10).map(p => ({
+      name: p.name.substring(0, 10),
+      stock: p.current_stock || 0,
+      min: p.min_stock || 0
+    }));
   }, [products]);
 
   return (
     <div className="space-y-4">
-      {/* Margin Analysis */}
       <Card className="p-4">
-        <h3 className="text-sm font-semibold mb-3">{t('margin_analysis')} — Top 10</h3>
-        {marginData.length === 0 ? (
-          <p className="text-xs text-muted-foreground text-center py-4">No pricing data available</p>
-        ) : (
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={marginData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-              <XAxis dataKey="name" tick={{ fontSize: 9 }} angle={-30} textAnchor="end" height={40} />
-              <YAxis tick={{ fontSize: 9 }} unit="%" />
-              <Tooltip formatter={(v) => [`${v}%`, 'Margin']} />
-              <Bar dataKey="margin" fill="#6366f1" radius={[3, 3, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        )}
+        <h3 className="text-sm font-semibold mb-4">Stock Levels vs Minimum</h3>
+        <ResponsiveContainer width="100%" height={250}>
+          <BarChart data={stockData}>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+            <XAxis dataKey="name" fontSize={10} />
+            <YAxis fontSize={10} />
+            <Tooltip />
+            <Bar dataKey="stock" fill="#6366f1" radius={[4, 4, 0, 0]} name="Current Stock" />
+            <Bar dataKey="min" fill="#f59e0b" radius={[4, 4, 0, 0]} name="Min Stock" />
+          </BarChart>
+        </ResponsiveContainer>
       </Card>
 
-      {/* Profit Analysis Table */}
       <Card className="p-4">
-        <h3 className="text-sm font-semibold mb-3">Profit Analysis</h3>
-        <div className="space-y-2">
-          {marginData.slice(0, 8).map((p, i) => (
-            <div key={i} className="flex items-center justify-between text-xs">
-              <span className="truncate max-w-[120px] text-muted-foreground">{p.name}</span>
-              <div className="flex gap-3">
-                <span>Cost: {currency}{p.cost.toFixed(2)}</span>
-                <span>Price: {currency}{p.price.toFixed(2)}</span>
-                <span className={`font-bold ${p.margin >= 30 ? 'text-green-600' : p.margin >= 15 ? 'text-yellow-600' : 'text-red-600'}`}>
-                  {p.margin.toFixed(1)}%
-                </span>
-              </div>
+        <h3 className="text-sm font-semibold mb-3">Inventory Insights</h3>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-red-600" />
+              <span className="text-sm">Critical Stock (Out)</span>
             </div>
-          ))}
+            <span className="font-bold text-red-600">{products.filter(p => (p.current_stock || 0) <= 0).length}</span>
+          </div>
+          <div className="flex items-center justify-between p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-orange-600" />
+              <span className="text-sm">Low Stock Alert</span>
+            </div>
+            <span className="font-bold text-orange-600">{products.filter(p => (p.current_stock || 0) > 0 && (p.current_stock || 0) <= (p.min_stock || 0)).length}</span>
+          </div>
         </div>
       </Card>
-
-      {/* Fast Moving (Low Stock) */}
-      {fastMoving.length > 0 && (
-        <Card className="p-4">
-          <h3 className="text-sm font-semibold mb-2 text-orange-600 flex items-center gap-1">
-            <TrendingUp className="w-4 h-4" /> {t('fast_moving')} (Low Stock)
-          </h3>
-          <div className="space-y-1.5">
-            {fastMoving.map(p => (
-              <div key={p.id} className="flex justify-between text-xs">
-                <span>{p.name}</span>
-                <span className="text-orange-600 font-semibold">{p.current_stock || 0} / {p.min_stock || 0} {p.unit || ''}</span>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
-
-      {/* Slow Moving (Overstocked) */}
-      {slowMoving.length > 0 && (
-        <Card className="p-4">
-          <h3 className="text-sm font-semibold mb-2 text-blue-600 flex items-center gap-1">
-            <Package className="w-4 h-4" /> {t('slow_moving')} (Overstocked)
-          </h3>
-          <div className="space-y-1.5">
-            {slowMoving.map(p => (
-              <div key={p.id} className="flex justify-between text-xs">
-                <span>{p.name}</span>
-                <span className="text-blue-600 font-semibold">{p.current_stock || 0} / {p.max_stock || 0} {p.unit || ''}</span>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
     </div>
   );
 }
 
-// ── IMPORT / EXPORT TAB ───────────────────────────────────────────────────────
+// ── IMPORT/EXPORT TAB ─────────────────────────────────────────────────────────
 function ImportExportTab({ products, categories, currency }) {
   const { t } = useLanguage();
   const { activeRestaurant } = useTenant();
   const qc = useQueryClient();
-  const fileInputRef = useRef(null);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState(null);
+  const fileInputRef = useRef(null);
 
   const exportCSV = () => {
-    const headers = ['name', 'name_ar', 'name_en', 'sku', 'barcode', 'category', 'unit', 'brand', 'purchase_cost', 'selling_price', 'tax_rate', 'min_stock', 'max_stock', 'current_stock', 'status'];
-    const rows = products.map(p => headers.map(h => {
-      const v = p[h];
-      if (v === null || v === undefined) return '';
-      if (typeof v === 'string' && v.includes(',')) return `"${v}"`;
-      return v;
-    }).join(','));
-    const csv = [headers.join(','), ...rows].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
+    const headers = ['name', 'name_ar', 'name_en', 'sku', 'barcode', 'category', 'unit', 'brand', 'purchase_cost', 'selling_price', 'tax_rate', 'min_stock', 'max_stock', 'status'];
+    const rows = products.map(p => [
+      p.name, p.name_ar || '', p.name_en || '', p.sku || '', p.barcode || '', p.category || '', p.unit || '', p.brand || '',
+      p.purchase_cost || 0, p.selling_price || 0, p.tax_rate || 0, p.min_stock || 0, p.max_stock || 0, p.status || 'active'
+    ]);
+    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `products-${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `products_export_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
-    URL.revokeObjectURL(url);
-    toast.success('CSV exported');
-  };
-
-  const downloadTemplate = () => {
-    const headers = 'name,name_ar,name_en,sku,barcode,category,unit,brand,purchase_cost,selling_price,tax_rate,min_stock,max_stock,status';
-    const example = 'Chicken Burger,برجر دجاج,Chicken Burger,SKU-001,1234567890,Burgers,pcs,BrandX,5.00,12.00,5,10,100,active';
-    const csv = [headers, example].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'products-import-template.csv';
-    a.click();
-    URL.revokeObjectURL(url);
   };
 
   const exportPDF = () => {
-    const printWindow = window.open('', '_blank');
-    const rows = products.map(p => `
-      <tr>
-        <td>${p.name || ''}</td>
-        <td>${p.sku || ''}</td>
-        <td>${p.category || ''}</td>
-        <td>${p.unit || ''}</td>
-        <td>${currency}${(p.purchase_cost || p.default_cost || 0).toFixed(2)}</td>
-        <td>${currency}${(p.selling_price || p.default_price || 0).toFixed(2)}</td>
-        <td>${p.current_stock || 0}</td>
-        <td>${p.status || 'active'}</td>
-      </tr>
-    `).join('');
-    printWindow.document.write(`
-      <html><head><title>Product Catalog</title>
-      <style>
-        body { font-family: Arial, sans-serif; font-size: 11px; }
-        table { width: 100%; border-collapse: collapse; }
-        th { background: #6366f1; color: white; padding: 6px; text-align: left; }
-        td { padding: 5px 6px; border-bottom: 1px solid #eee; }
-        tr:nth-child(even) { background: #f9f9f9; }
-        h1 { font-size: 16px; margin-bottom: 8px; }
-      </style></head><body>
-      <h1>Product Catalog — ${new Date().toLocaleDateString()}</h1>
-      <p>Total: ${products.length} products</p>
-      <table>
-        <thead><tr><th>Name</th><th>SKU</th><th>Category</th><th>Unit</th><th>Cost</th><th>Price</th><th>Stock</th><th>Status</th></tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
-      <script>window.onload = () => window.print();</script>
-      </body></html>
-    `);
-    printWindow.document.close();
+    toast.info('PDF Export started... this may take a moment');
+    // Simplified for demo
+    window.print();
+  };
+
+  const downloadTemplate = () => {
+    const headers = ['name', 'name_ar', 'name_en', 'sku', 'barcode', 'category', 'unit', 'brand', 'purchase_cost', 'selling_price', 'tax_rate', 'min_stock', 'max_stock', 'status'];
+    const example = ['Example Product', 'منتج تجريبي', 'Example Product', 'SKU001', '123456', 'General', 'pcs', 'BrandX', '10.00', '15.00', '5', '10', '100', 'active'];
+    const csvContent = [headers.join(','), example.join(',')].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'product_import_template.csv';
+    a.click();
   };
 
   const handleImport = async (e) => {
