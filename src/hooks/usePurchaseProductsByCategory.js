@@ -5,30 +5,47 @@ import { useTenant } from '@/lib/TenantContext';
 /**
  * Fetch products filtered by product_category_id, supplier_id, and subcategory_id using server-side filtering.
  * Used in Purchase Invoice flow: Supplier → Product Category → Subcategory → Product
+ * 
+ * FIX: Fallback to category-level products if subcategory is selected but products 
+ * are not yet mapped to it (subcategory_id is NULL on Product record).
  */
 export function usePurchaseProductsByCategory(productCategoryId, supplierId, subcategoryId) {
   const { activeRestaurantId } = useTenant();
 
   const { data: products = [], isLoading } = useQuery({
     queryKey: ['purchase_products_filtered', productCategoryId, supplierId, subcategoryId, activeRestaurantId],
-    queryFn: () => {
-      // Prioritize subcategoryId or productCategoryId
-      const effectiveCategoryId = subcategoryId || productCategoryId;
-      
+    queryFn: async () => {
+      // If no category or supplier, return empty
+      if (!productCategoryId && !supplierId) return [];
+
       const filter = {
         ...(activeRestaurantId && { restaurant_id: activeRestaurantId }),
+        ...(supplierId && { supplier_id: supplierId }),
       };
 
-      if (effectiveCategoryId) {
-        filter.category_id = effectiveCategoryId;
+      // 1. Try fetching with specific subcategory if provided
+      if (subcategoryId) {
+        const subFilter = { ...filter, subcategory_id: subcategoryId };
+        const subProducts = await base44.entities.Product.filter(subFilter, 'name', 1000);
+        
+        // If products found for subcategory, return them
+        if (subProducts && subProducts.length > 0) {
+          return subProducts;
+        }
+        
+        // 2. If no products for subcategory, fallback to parent category
+        // but ONLY if the products actually belong to this parent category.
+        // This prevents the "disappearing products" bug when subcategory_id is NULL.
+        if (productCategoryId) {
+          const catFilter = { ...filter, category_id: productCategoryId };
+          return base44.entities.Product.filter(catFilter, 'name', 1000);
+        }
       }
 
-      if (supplierId) {
-        filter.supplier_id = supplierId;
+      // 3. Standard category-only filtering
+      if (productCategoryId) {
+        filter.category_id = productCategoryId;
       }
-
-      // If no filters are provided, return empty to avoid loading all products
-      if (!effectiveCategoryId && !supplierId) return [];
 
       return base44.entities.Product.filter(filter, 'name', 1000);
     },
