@@ -15,8 +15,6 @@ import {
 } from 'lucide-react';
 import { format, subDays } from 'date-fns';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import QuickActionsDock from './QuickActionsDock';
-
 const UI = {
   en: {
     greeting: 'Branch Operations',
@@ -205,7 +203,7 @@ export default function ManagerWorkspace() {
         </Card>
       )}
 
-      <QuickActionsDock />
+
 
       {/* Employees quick stat */}
       {employees.length > 0 && (

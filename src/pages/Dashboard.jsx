@@ -28,7 +28,6 @@ import WelcomeDashboard from '@/components/dashboard/WelcomeDashboard';
 import ExecutiveSummaryBar from '@/components/dashboard/ExecutiveSummaryBar';
 import ManagerWorkspace from '@/components/dashboard/ManagerWorkspace';
 import FinancialKPIs from '@/components/dashboard/FinancialKPIs';
-import QuickActionsDock from '@/components/dashboard/QuickActionsDock';
 import { useRole, ROLES } from '@/lib/RoleContext';
 
 const FETCH_DAYS = 90;
@@ -168,8 +167,6 @@ export default function Dashboard() {
 
   return (
     <div className="relative">
-      <QuickActionsDock />
-
       <Tabs defaultValue="overview">
       <PageHeader
         title={t('dashboard')}
