@@ -29,7 +29,7 @@
 import React, { useState, useMemo, useCallback, memo } from 'react';
 import { useBusinessMode } from '@/lib/BusinessModeContext';
 import ModeBadge from '@/components/shared/ModeBadge';
-import { ModeSpecificDashboardSection, QuickActionsWidget, useModeDashboardConfig } from '@/components/dashboard/DashboardWidgetRegistry';
+import { ModeSpecificDashboardSection } from '@/components/dashboard/DashboardWidgetRegistry';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
@@ -197,27 +197,7 @@ const AlertRow = memo(({ icon: Icon, title, count, severity = 'amber', onClick }
   );
 });
 
-const QuickActionBtn = memo(({ icon: Icon, label, color, onClick }) => {
-  const colorMap = {
-    blue:   'bg-blue-500 hover:bg-blue-600',
-    green:  'bg-emerald-500 hover:bg-emerald-600',
-    amber:  'bg-amber-500 hover:bg-amber-600',
-    purple: 'bg-purple-500 hover:bg-purple-600',
-    red:    'bg-red-500 hover:bg-red-600',
-    cyan:   'bg-cyan-500 hover:bg-cyan-600',
-    orange: 'bg-orange-500 hover:bg-orange-600',
-    indigo: 'bg-indigo-500 hover:bg-indigo-600',
-  };
-  return (
-    <button
-      onClick={onClick}
-      className={`flex flex-col items-center gap-1.5 p-3 rounded-xl text-white ${colorMap[color] || colorMap.blue} transition-colors active:scale-95 shadow-sm`}
-    >
-      <Icon className="w-5 h-5" />
-      <span className="text-[10px] font-semibold text-center leading-tight">{label}</span>
-    </button>
-  );
-});
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // BRANCH SELECTOR COMPONENT
@@ -1048,29 +1028,7 @@ export default function OwnerDashboard() {
         </section>
       </WidgetErrorBoundary>
 
-      {/* ══════════════════════════════════════════════════════════════════════
-          QUICK ACTIONS (Sticky)
-      ══════════════════════════════════════════════════════════════════════ */}
-      <section className="sticky top-16 z-30 bg-background/95 backdrop-blur-md -mx-3 px-3 py-2 border-b border-border/40 shadow-sm">
-        <div className="flex items-center gap-1.5 mb-2 px-1">
-          <Zap className="w-3.5 h-3.5 text-slate-500" />
-          <h2 className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Quick Actions</h2>
-        </div>
-        <Card className="border-primary/20 bg-primary/5">
-          <CardContent className="p-2">
-            <div className="grid grid-cols-4 gap-2">
-              <QuickActionBtn icon={Plus}           label="Add Sale"         color="green"  onClick={() => navigate('/sales')} />
-              <QuickActionBtn icon={ShoppingCart}   label="Add Purchase"     color="blue"   onClick={() => navigate('/enterprise-purchases')} />
-              <QuickActionBtn icon={Receipt}        label="Add Expense"      color="amber"  onClick={() => navigate('/expenses')} />
-              <QuickActionBtn icon={ArrowDownLeft}  label="Receive Debt"     color="cyan"   onClick={() => navigate('/debt-management')} />
-              <QuickActionBtn icon={Truck}          label="Supplier Payment" color="orange" onClick={() => navigate('/suppliers?tab=payments')} />
-              <QuickActionBtn icon={FileText}       label="Create Invoice"   color="purple" onClick={() => navigate('/sales/invoices')} />
-              <QuickActionBtn icon={PackagePlus}    label="Add Product"      color="indigo" onClick={() => navigate('/products')} />
-              <QuickActionBtn icon={Wallet}         label="Treasury"         color="red"    onClick={() => navigate('/treasury')} />
-            </div>
-          </CardContent>
-        </Card>
-      </section>
+
 
             {/* ── Price Changes Widget (existing component preserved) ── */}
       <WidgetErrorBoundary>

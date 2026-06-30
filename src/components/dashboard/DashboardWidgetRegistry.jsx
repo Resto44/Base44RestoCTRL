@@ -113,52 +113,7 @@ export function AlertWidget({ title, items, emptyMsg, icon: Icon, color = 'amber
   );
 }
 
-// ── Widget: Quick Actions ─────────────────────────────────────────────────────
-export function QuickActionsWidget({ actions }) {
-  return (
-    <Card className="border border-border/60">
-      <CardContent className="p-4">
-        <h3 className="text-sm font-semibold mb-3">Quick Actions</h3>
-        <div className="grid grid-cols-2 gap-2">
-          {actions.map((action) => {
-            const Icon = action.icon;
-            return (
-              <Link key={action.path} to={action.path}>
-                <div className={cn(
-                  'flex flex-col items-center gap-1.5 p-3 rounded-xl transition-colors text-center',
-                  'bg-muted hover:bg-muted/80'
-                )}>
-                  <Icon className="w-5 h-5 text-muted-foreground" />
-                  <span className="text-[10px] font-medium text-muted-foreground leading-tight">{action.label}</span>
-                </div>
-              </Link>
-            );
-          })}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
 
-// ── Mode-Aware Quick Actions ──────────────────────────────────────────────────
-
-const RESTAURANT_QUICK_ACTIONS = [
-  { path: '/sales',          icon: Receipt,     label: 'New Sale' },
-  { path: '/menu-products',  icon: BookOpen,    label: 'Menu' },
-  { path: '/kitchen-v2',     icon: ChefHat,     label: 'Kitchen' },
-  { path: '/delivery',       icon: Truck,       label: 'Delivery' },
-  { path: '/inventory',      icon: Package,     label: 'Inventory' },
-  { path: '/production',     icon: Factory,     label: 'Production' },
-];
-
-const RETAIL_QUICK_ACTIONS = [
-  { path: '/sales',          icon: Receipt,     label: 'New Sale' },
-  { path: '/retail/barcode', icon: Barcode,     label: 'Scan Barcode' },
-  { path: '/inventory',      icon: Boxes,       label: 'Inventory' },
-  { path: '/retail/batches', icon: Tags,        label: 'Batches' },
-  { path: '/retail/expiry',  icon: Calendar,    label: 'Expiry' },
-  { path: '/purchases',      icon: ShoppingBag, label: 'Purchase' },
-];
 
 // ── Dashboard Widget Layout ───────────────────────────────────────────────────
 
@@ -170,7 +125,7 @@ export function useModeDashboardConfig() {
   const { isRetail, isRestaurant } = useBusinessMode();
 
   return useMemo(() => ({
-    quickActions: isRetail ? RETAIL_QUICK_ACTIONS : RESTAURANT_QUICK_ACTIONS,
+
     mode: isRetail ? 'retail' : 'restaurant',
 
     // KPI widget definitions (data fetched by parent)
