@@ -1,141 +1,253 @@
+/**
+ * BottomNav — Business Mode Aware Navigation
+ *
+ * The bottom navigation adapts to the active business mode.
+ * Restaurant Mode shows: Dashboard, Sales, Kitchen, Menu, More
+ * Retail Mode shows:     Dashboard, Sales, Inventory, Barcode, More
+ *
+ * The "More" menu also filters items by business mode.
+ */
+
 import React, { memo, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Receipt, BarChart3, MoreHorizontal, Wallet, Users, Truck,
   ChefHat, ShoppingBag, ClipboardList, UserCheck, Bell, Bot, Building2,
   Package, CreditCard, ShoppingCart, Star, Grid3x3, X,
-  TrendingUp, Calendar, Utensils, Zap
+  TrendingUp, Calendar, Utensils, Zap, Barcode, Boxes, Tags,
+  UtensilsCrossed, BookOpen, Factory, ScanLine, Hash, Layers,
 } from 'lucide-react';
 import { useLanguage } from '@/lib/LanguageContext';
 import { useRole, ROLES } from '@/lib/RoleContext';
+import { useBusinessMode } from '@/lib/BusinessModeContext';
 
-const PRIMARY_NAV = {
-  [ROLES.OWNER]: [
-    { path: '/owner-command-center', icon: LayoutDashboard, labelKey: 'dashboard' },
-    { path: '/sales',                icon: Receipt,          labelKey: 'sales' },
-    { path: '/smart-alerts',         icon: Bell,             labelKey: 'alerts' },
-    { path: '/ai-copilot',           icon: Bot,              labelKey: 'ai_copilot' },
-    { path: '/more',                 icon: Grid3x3,          labelKey: 'more', isMore: true },
-  ],
-  [ROLES.MANAGER]: [
-    { path: '/manager-dashboard',    icon: LayoutDashboard, labelKey: 'dashboard' },
-    { path: '/sales',                icon: Receipt,         labelKey: 'sales' },
-    { path: '/delivery',             icon: Truck,           labelKey: 'delivery' },
-    { path: '/employees',            icon: Users,           labelKey: 'employees' },
-    { path: '/more',                 icon: Grid3x3,         labelKey: 'more', isMore: true },
-  ],
-  [ROLES.EMPLOYEE]: [
-    { path: '/employee-dashboard',   icon: LayoutDashboard, labelKey: 'dashboard' },
-    { path: '/employee-attendance',  icon: UserCheck,       labelKey: 'attendance' },
-    { path: '/tasks',                icon: ClipboardList,   labelKey: 'tasks' },
-  ],
-  [ROLES.DRIVER]: [
-    { path: '/driver-v2',            icon: Truck,           labelKey: 'my_orders' },
-    { path: '/driver-dashboard',     icon: LayoutDashboard, labelKey: 'dashboard' },
-    { path: '/delivery',             icon: Truck,           labelKey: 'delivery' },
-  ],
-  [ROLES.SPONSOR]: [
-    { path: '/sponsor-dashboard',    icon: LayoutDashboard, labelKey: 'dashboard' },
-    { path: '/sponsor-treasury',     icon: Wallet,          labelKey: 'treasury' },
-  ],
-  [ROLES.KITCHEN]: [
-    { path: '/kitchen-v2',           icon: ChefHat,         labelKey: 'kitchen_v2' },
-    { path: '/kds',                  icon: ChefHat,         labelKey: 'kds' },
-    { path: '/kitchen-dashboard',    icon: LayoutDashboard, labelKey: 'dashboard' },
-  ],
-  [ROLES.CUSTOMER]: [
-    { path: '/order',                icon: ShoppingBag,     labelKey: 'order_now' },
-    { path: '/online-ordering',      icon: ShoppingBag,     labelKey: 'menu_page' },
-    { path: '/customer-dashboard',   icon: LayoutDashboard, labelKey: 'dashboard' },
-  ],
-};
+// ── Primary Nav by Role + Mode ────────────────────────────────────────────────
 
-const MORE_SECTIONS_OWNER = [
+const PRIMARY_NAV_OWNER_RESTAURANT = [
+  { path: '/owner-command-center', icon: LayoutDashboard, labelKey: 'dashboard' },
+  { path: '/sales',                icon: Receipt,          labelKey: 'sales' },
+  { path: '/menu-products',        icon: BookOpen,         labelKey: 'menu' },
+  { path: '/kitchen-dashboard',    icon: ChefHat,          labelKey: 'kitchen' },
+  { path: '/more',                 icon: Grid3x3,          labelKey: 'more', isMore: true },
+];
+
+const PRIMARY_NAV_OWNER_RETAIL = [
+  { path: '/owner-command-center', icon: LayoutDashboard, labelKey: 'dashboard' },
+  { path: '/sales',                icon: Receipt,          labelKey: 'sales' },
+  { path: '/inventory',            icon: Boxes,            labelKey: 'inventory' },
+  { path: '/retail/barcode',       icon: Barcode,          labelKey: 'barcode' },
+  { path: '/more',                 icon: Grid3x3,          labelKey: 'more', isMore: true },
+];
+
+const PRIMARY_NAV_MANAGER_RESTAURANT = [
+  { path: '/manager-dashboard',    icon: LayoutDashboard, labelKey: 'dashboard' },
+  { path: '/sales',                icon: Receipt,         labelKey: 'sales' },
+  { path: '/kitchen-dashboard',    icon: ChefHat,         labelKey: 'kitchen' },
+  { path: '/employees',            icon: Users,           labelKey: 'employees' },
+  { path: '/more',                 icon: Grid3x3,         labelKey: 'more', isMore: true },
+];
+
+const PRIMARY_NAV_MANAGER_RETAIL = [
+  { path: '/manager-dashboard',    icon: LayoutDashboard, labelKey: 'dashboard' },
+  { path: '/sales',                icon: Receipt,         labelKey: 'sales' },
+  { path: '/inventory',            icon: Boxes,           labelKey: 'inventory' },
+  { path: '/retail/barcode',       icon: Barcode,         labelKey: 'barcode' },
+  { path: '/more',                 icon: Grid3x3,         labelKey: 'more', isMore: true },
+];
+
+// Role-specific navs (not mode-dependent)
+const PRIMARY_NAV_EMPLOYEE = [
+  { path: '/employee-dashboard',   icon: LayoutDashboard, labelKey: 'dashboard' },
+  { path: '/employee-attendance',  icon: UserCheck,       labelKey: 'attendance' },
+  { path: '/tasks',                icon: ClipboardList,   labelKey: 'tasks' },
+];
+const PRIMARY_NAV_DRIVER = [
+  { path: '/driver-v2',            icon: Truck,           labelKey: 'my_orders' },
+  { path: '/driver-dashboard',     icon: LayoutDashboard, labelKey: 'dashboard' },
+  { path: '/delivery',             icon: Truck,           labelKey: 'delivery' },
+];
+const PRIMARY_NAV_SPONSOR = [
+  { path: '/sponsor-dashboard',    icon: LayoutDashboard, labelKey: 'dashboard' },
+  { path: '/sponsor-treasury',     icon: Wallet,          labelKey: 'treasury' },
+];
+const PRIMARY_NAV_KITCHEN = [
+  { path: '/kitchen-v2',           icon: ChefHat,         labelKey: 'kitchen_v2' },
+  { path: '/kds',                  icon: ChefHat,         labelKey: 'kds' },
+  { path: '/kitchen-dashboard',    icon: LayoutDashboard, labelKey: 'dashboard' },
+];
+const PRIMARY_NAV_CUSTOMER = [
+  { path: '/order',                icon: ShoppingBag,     labelKey: 'order_now' },
+  { path: '/online-ordering',      icon: ShoppingBag,     labelKey: 'menu_page' },
+  { path: '/customer-dashboard',   icon: LayoutDashboard, labelKey: 'dashboard' },
+];
+
+// ── More Menu Sections ────────────────────────────────────────────────────────
+
+const MORE_SECTIONS_OWNER_RESTAURANT = [
+  {
+    title: 'Restaurant',
+    items: [
+      { path: '/menu-products',             icon: BookOpen,    labelKey: 'menu' },
+      { path: '/recipes',                   icon: ChefHat,     labelKey: 'recipes' },
+      { path: '/recipe-food-costing',       icon: TrendingUp,  labelKey: 'food_cost' },
+      { path: '/reservation-table-management', icon: Utensils, labelKey: 'tables' },
+      { path: '/order-management',          icon: ClipboardList, labelKey: 'orders' },
+      { path: '/kds',                       icon: ChefHat,     labelKey: 'kds' },
+      { path: '/delivery',                  icon: Truck,       labelKey: 'delivery' },
+      { path: '/online-ordering',           icon: ShoppingCart, labelKey: 'online_ordering' },
+      { path: '/production',                icon: Factory,     labelKey: 'production' },
+    ],
+  },
   {
     title: 'Operations',
     items: [
-      { path: '/cash-register',            icon: CreditCard,  labelKey: 'cash_register' },
+      { path: '/cash-register',             icon: CreditCard,  labelKey: 'cash_register' },
       { path: '/sales/invoices',            icon: Receipt,     labelKey: 'sales_invoices' },
-      { path: '/kds',                      icon: ChefHat,     labelKey: 'kds' },
-      { path: '/online-ordering',          icon: ShoppingCart,labelKey: 'online_ordering' },
-      { path: '/order',                    icon: ShoppingBag, labelKey: 'order_now' },
-      { path: '/order-management',         icon: Package,     labelKey: 'order_management' },
-      { path: '/kitchen-v2',               icon: ChefHat,     labelKey: 'kitchen_v2' },
-      { path: '/driver-v2',                icon: Truck,       labelKey: 'driver_v2' },
-      { path: '/reservations',             icon: Calendar,    labelKey: 'reservations' },
+      { path: '/inventory',                 icon: Package,     labelKey: 'inventory' },
+      { path: '/inventory-waste',           icon: Package,     labelKey: 'waste_tracking' },
+      { path: '/purchases',                 icon: ShoppingCart, labelKey: 'purchases' },
+      { path: '/suppliers',                 icon: Truck,       labelKey: 'suppliers' },
     ],
   },
   {
     title: 'Analytics',
     items: [
       { path: '/network-management',        icon: Building2,   labelKey: 'network_management' },
-      { path: '/order-analytics',          icon: BarChart3,   labelKey: 'order_analytics' },
-      { path: '/bi-center',                icon: BarChart3,   labelKey: 'bi_center' },
-      { path: '/branch-command-center',    icon: Building2,   labelKey: 'branch_command_center' },
-      { path: '/reports',                  icon: TrendingUp,  labelKey: 'reports' },
-      { path: '/profit-loss',              icon: Wallet,      labelKey: 'profit_loss' },
-    ],
-  },
-  {
-    title: 'Inventory',
-    items: [
-      { path: '/product-management',       icon: Package,     labelKey: 'product_management' },
-      { path: '/inventory-command-center', icon: Package,     labelKey: 'inventory_command_center' },
-      { path: '/recipe-food-costing',      icon: Utensils,    labelKey: 'recipe_food_costing' },
-      { path: '/inventory',                icon: Package,     labelKey: 'inventory' },
-      { path: '/suppliers',                icon: Truck,       labelKey: 'suppliers' },
+      { path: '/bi-center',                 icon: BarChart3,   labelKey: 'bi_center' },
+      { path: '/reports',                   icon: TrendingUp,  labelKey: 'reports' },
+      { path: '/profit-loss',               icon: Wallet,      labelKey: 'profit_loss' },
+      { path: '/ai-copilot',                icon: Bot,         labelKey: 'ai_copilot' },
     ],
   },
   {
     title: 'People & Finance',
     items: [
-      { path: '/driver-management',        icon: Truck,       labelKey: 'driver_management' },
-      { path: '/customer-management',      icon: Star,        labelKey: 'customer_management' },
-      { path: '/loyalty-v2',               icon: Star,        labelKey: 'loyalty_v2' },
-      { path: '/promotions',               icon: Package,     labelKey: 'promotions' },
-      { path: '/employees',                icon: Users,       labelKey: 'employees' },
+      { path: '/employees',                 icon: Users,       labelKey: 'employees' },
+      { path: '/customer-management',       icon: Star,        labelKey: 'customer_management' },
+      { path: '/driver-management',         icon: Truck,       labelKey: 'driver_management' },
       { path: '/debt-management',           icon: CreditCard,  labelKey: 'debt_management' },
-      { path: '/treasury',                 icon: Wallet,      labelKey: 'treasury' },
-      { path: '/payroll',                  icon: Receipt,     labelKey: 'payroll' },
+      { path: '/treasury',                  icon: Wallet,      labelKey: 'treasury' },
+      { path: '/payroll',                   icon: Receipt,     labelKey: 'payroll' },
     ],
   },
   {
     title: 'Settings',
     items: [
-      { path: '/settings',                 icon: Zap,         labelKey: 'settings' },
-      { path: '/branch-management',        icon: Building2,   labelKey: 'branches' },
-      { path: '/billing',                  icon: CreditCard,  labelKey: 'billing' },
+      { path: '/settings',                  icon: Zap,         labelKey: 'settings' },
+      { path: '/branch-management',         icon: Building2,   labelKey: 'branches' },
+      { path: '/billing',                   icon: CreditCard,  labelKey: 'billing' },
     ],
   },
 ];
 
-const MORE_SECTIONS_MANAGER = [
+const MORE_SECTIONS_OWNER_RETAIL = [
   {
-    title: 'Operations',
+    title: 'Retail',
     items: [
-      { path: '/cash-register',    icon: CreditCard,  labelKey: 'cash_register' },
-      { path: '/sales/invoices',    icon: Receipt,     labelKey: 'sales_invoices' },
-      { path: '/kds',              icon: ChefHat,     labelKey: 'kds' },
-      { path: '/reservations',     icon: Calendar,    labelKey: 'reservations' },
+      { path: '/retail/barcode',            icon: Barcode,     labelKey: 'barcode' },
+      { path: '/retail/sku',                icon: Hash,        labelKey: 'sku_management' },
+      { path: '/retail/variants',           icon: Layers,      labelKey: 'product_variants' },
+      { path: '/retail/batches',            icon: Tags,        labelKey: 'batch_tracking' },
+      { path: '/retail/expiry',             icon: Calendar,    labelKey: 'expiry_tracking' },
+      { path: '/retail/serials',            icon: ScanLine,    labelKey: 'serial_numbers' },
     ],
   },
   {
-    title: 'Inventory',
+    title: 'Operations',
     items: [
-      { path: '/product-management', icon: Package,   labelKey: 'product_management' },
-      { path: '/inventory',          icon: Package,   labelKey: 'inventory' },
-      { path: '/inventory-waste',    icon: Package,   labelKey: 'waste_tracking' },
+      { path: '/cash-register',             icon: CreditCard,  labelKey: 'cash_register' },
+      { path: '/sales/invoices',            icon: Receipt,     labelKey: 'sales_invoices' },
+      { path: '/inventory',                 icon: Boxes,       labelKey: 'inventory' },
+      { path: '/product-management',        icon: Package,     labelKey: 'product_management' },
+      { path: '/purchases',                 icon: ShoppingCart, labelKey: 'purchases' },
+      { path: '/suppliers',                 icon: Truck,       labelKey: 'suppliers' },
+    ],
+  },
+  {
+    title: 'Analytics',
+    items: [
+      { path: '/network-management',        icon: Building2,   labelKey: 'network_management' },
+      { path: '/reports',                   icon: TrendingUp,  labelKey: 'reports' },
+      { path: '/profit-loss',               icon: Wallet,      labelKey: 'profit_loss' },
+      { path: '/ai-copilot',                icon: Bot,         labelKey: 'ai_copilot' },
+    ],
+  },
+  {
+    title: 'People & Finance',
+    items: [
+      { path: '/employees',                 icon: Users,       labelKey: 'employees' },
+      { path: '/customer-management',       icon: Star,        labelKey: 'customer_management' },
+      { path: '/debt-management',           icon: CreditCard,  labelKey: 'debt_management' },
+      { path: '/treasury',                  icon: Wallet,      labelKey: 'treasury' },
+      { path: '/payroll',                   icon: Receipt,     labelKey: 'payroll' },
+    ],
+  },
+  {
+    title: 'Settings',
+    items: [
+      { path: '/settings',                  icon: Zap,         labelKey: 'settings' },
+      { path: '/branch-management',         icon: Building2,   labelKey: 'branches' },
+      { path: '/billing',                   icon: CreditCard,  labelKey: 'billing' },
+    ],
+  },
+];
+
+const MORE_SECTIONS_MANAGER_RESTAURANT = [
+  {
+    title: 'Restaurant',
+    items: [
+      { path: '/menu-products',     icon: BookOpen,    labelKey: 'menu' },
+      { path: '/kds',               icon: ChefHat,     labelKey: 'kds' },
+      { path: '/reservations',      icon: Calendar,    labelKey: 'reservations' },
+      { path: '/delivery',          icon: Truck,       labelKey: 'delivery' },
+    ],
+  },
+  {
+    title: 'Operations',
+    items: [
+      { path: '/cash-register',     icon: CreditCard,  labelKey: 'cash_register' },
+      { path: '/inventory',         icon: Package,     labelKey: 'inventory' },
+      { path: '/inventory-waste',   icon: Package,     labelKey: 'waste_tracking' },
     ],
   },
   {
     title: 'Finance',
     items: [
-      { path: '/treasury',         icon: Wallet,      labelKey: 'treasury' },
-      { path: '/expenses',         icon: Receipt,     labelKey: 'expenses' },
-      { path: '/reports',          icon: BarChart3,   labelKey: 'reports' },
+      { path: '/treasury',          icon: Wallet,      labelKey: 'treasury' },
+      { path: '/expenses',          icon: Receipt,     labelKey: 'expenses' },
+      { path: '/reports',           icon: BarChart3,   labelKey: 'reports' },
     ],
   },
 ];
+
+const MORE_SECTIONS_MANAGER_RETAIL = [
+  {
+    title: 'Retail',
+    items: [
+      { path: '/retail/barcode',    icon: Barcode,     labelKey: 'barcode' },
+      { path: '/retail/batches',    icon: Tags,        labelKey: 'batch_tracking' },
+      { path: '/retail/expiry',     icon: Calendar,    labelKey: 'expiry_tracking' },
+    ],
+  },
+  {
+    title: 'Operations',
+    items: [
+      { path: '/cash-register',     icon: CreditCard,  labelKey: 'cash_register' },
+      { path: '/inventory',         icon: Boxes,       labelKey: 'inventory' },
+      { path: '/product-management', icon: Package,    labelKey: 'product_management' },
+    ],
+  },
+  {
+    title: 'Finance',
+    items: [
+      { path: '/treasury',          icon: Wallet,      labelKey: 'treasury' },
+      { path: '/expenses',          icon: Receipt,     labelKey: 'expenses' },
+      { path: '/reports',           icon: BarChart3,   labelKey: 'reports' },
+    ],
+  },
+];
+
+// ── More Menu Component ───────────────────────────────────────────────────────
 
 function MoreMenu({ sections, onClose }) {
   const { t } = useLanguage();
@@ -174,7 +286,7 @@ function MoreMenu({ sections, onClose }) {
                     >
                       <item.icon className={`w-5 h-5 ${isActive ? 'stroke-[2.5]' : ''}`} />
                       <span className="text-[10px] font-medium text-center leading-tight">
-                        {t(item.labelKey)}
+                        {t(item.labelKey) || item.labelKey.replace(/_/g, ' ')}
                       </span>
                     </Link>
                   );
@@ -188,18 +300,39 @@ function MoreMenu({ sections, onClose }) {
   );
 }
 
+// ── Main BottomNav ────────────────────────────────────────────────────────────
+
 const BottomNav = memo(function BottomNav() {
   const location = useLocation();
   const { t } = useLanguage();
   const { role } = useRole();
+  const { isRetail } = useBusinessMode();
   const [showMore, setShowMore] = useState(false);
 
-  const visibleNav = useMemo(() => PRIMARY_NAV[role] || PRIMARY_NAV[ROLES.OWNER], [role]);
-  const moreSections = role === ROLES.MANAGER ? MORE_SECTIONS_MANAGER : MORE_SECTIONS_OWNER;
+  const { visibleNav, moreSections } = useMemo(() => {
+    if (role === ROLES.EMPLOYEE) return { visibleNav: PRIMARY_NAV_EMPLOYEE, moreSections: [] };
+    if (role === ROLES.DRIVER) return { visibleNav: PRIMARY_NAV_DRIVER, moreSections: [] };
+    if (role === ROLES.SPONSOR) return { visibleNav: PRIMARY_NAV_SPONSOR, moreSections: [] };
+    if (role === ROLES.KITCHEN) return { visibleNav: PRIMARY_NAV_KITCHEN, moreSections: [] };
+    if (role === ROLES.CUSTOMER) return { visibleNav: PRIMARY_NAV_CUSTOMER, moreSections: [] };
+
+    if (role === ROLES.MANAGER) {
+      return isRetail
+        ? { visibleNav: PRIMARY_NAV_MANAGER_RETAIL, moreSections: MORE_SECTIONS_MANAGER_RETAIL }
+        : { visibleNav: PRIMARY_NAV_MANAGER_RESTAURANT, moreSections: MORE_SECTIONS_MANAGER_RESTAURANT };
+    }
+
+    // OWNER (default)
+    return isRetail
+      ? { visibleNav: PRIMARY_NAV_OWNER_RETAIL, moreSections: MORE_SECTIONS_OWNER_RETAIL }
+      : { visibleNav: PRIMARY_NAV_OWNER_RESTAURANT, moreSections: MORE_SECTIONS_OWNER_RESTAURANT };
+  }, [role, isRetail]);
 
   return (
     <>
-      {showMore && <MoreMenu sections={moreSections} onClose={() => setShowMore(false)} />}
+      {showMore && moreSections.length > 0 && (
+        <MoreMenu sections={moreSections} onClose={() => setShowMore(false)} />
+      )}
       <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border shadow-lg">
         <div className="flex items-center justify-around h-16 max-w-lg mx-auto">
           {visibleNav.map(({ path, icon: NavIcon, labelKey, isMore }) => {
@@ -214,7 +347,7 @@ const BottomNav = memo(function BottomNav() {
                 >
                   <NavIcon className={`w-5 h-5 ${showMore ? 'stroke-[2.5]' : ''}`} />
                   <span className={`text-[10px] mt-1 ${showMore ? 'font-semibold' : 'font-medium'}`}>
-                    {t(labelKey)}
+                    {t(labelKey) || 'More'}
                   </span>
                 </button>
               );
@@ -232,7 +365,7 @@ const BottomNav = memo(function BottomNav() {
               >
                 <NavIcon className={`w-5 h-5 ${isActive ? 'stroke-[2.5]' : ''}`} />
                 <span className={`text-[10px] mt-1 ${isActive ? 'font-semibold' : 'font-medium'}`}>
-                  {t(labelKey)}
+                  {t(labelKey) || labelKey.replace(/_/g, ' ')}
                 </span>
               </Link>
             );

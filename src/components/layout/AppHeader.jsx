@@ -5,8 +5,10 @@ import { useTenant } from '@/lib/TenantContext';
 import { useAuth } from '@/lib/AuthContext';
 import { useRole, ROLES } from '@/lib/RoleContext';
 import { useLanguage } from '@/lib/LanguageContext';
+import { useBusinessMode } from '@/lib/BusinessModeContext';
 import NotificationBell from '@/components/notifications/NotificationBell';
 import LogoutButton from '@/components/layout/LogoutButton';
+import ModeBadge from '@/components/shared/ModeBadge';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from '@/components/ui/select';
@@ -24,6 +26,7 @@ const ROLE_BADGE = {
 function RestaurantSelector() {
   const { restaurants, activeRestaurant, setActiveRestaurant, loadingRestaurants, branches } = useTenant();
   const { lang } = useLanguage();
+  const { isRetail } = useBusinessMode();
 
   if (loadingRestaurants) {
     return <div className="h-8 w-36 bg-muted animate-pulse rounded-lg" />;
@@ -36,16 +39,21 @@ function RestaurantSelector() {
       <Link to="/restaurants"
         className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-primary/30 bg-primary/5 text-primary text-sm font-medium hover:bg-primary/10 transition-colors">
         <Building2 className="w-4 h-4" />
-        {lang === 'ar' ? 'إعداد المطعم' : lang === 'fa' ? 'راه‌اندازی رستوران' : 'Setup Restaurant'}
+        {lang === 'ar' ? 'إعداد العمل' : lang === 'fa' ? 'راه‌اندازی کسب‌وکار' : 'Setup Business'}
       </Link>
     );
   }
 
+  // Gradient based on mode
+  const gradientClass = isRetail
+    ? 'from-blue-600 to-indigo-600'
+    : 'from-orange-500 to-amber-500';
+
   return (
     <div className="flex items-center gap-2 min-w-0">
-      {/* Restaurant logo placeholder / initial */}
-      <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center text-primary-foreground font-bold text-base shrink-0 shadow-sm">
-        {activeRestaurant?.name?.charAt(0)?.toUpperCase() || '🍽'}
+      {/* Business logo / initial */}
+      <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${gradientClass} flex items-center justify-center text-white font-bold text-base shrink-0 shadow-sm`}>
+        {activeRestaurant?.name?.charAt(0)?.toUpperCase() || (isRetail ? '🏪' : '🍽')}
       </div>
 
       <div className="flex flex-col min-w-0">
@@ -111,11 +119,16 @@ export default function AppHeader() {
   return (
     <header className="sticky top-0 z-40 bg-card/95 backdrop-blur-md border-b border-border shadow-sm">
       <div className="max-w-lg mx-auto px-3 h-16 flex items-center justify-between gap-2">
-        {/* Left: Restaurant brand */}
+        {/* Left: Business brand */}
         <RestaurantSelector />
 
         {/* Right: Actions */}
         <div className="flex items-center gap-1.5 shrink-0">
+          {/* Business Mode badge — shown on tablet+ */}
+          <span className="hidden sm:inline-flex">
+            <ModeBadge size="xs" />
+          </span>
+
           {/* Role badge */}
           {badge && (
             <span className={`text-[10px] font-bold px-2 py-1 rounded-full border ${badge.color} hidden xs:inline-flex`}>

@@ -4,6 +4,8 @@
  * Route: /product-management
  */
 import { useState, useMemo, useRef, useCallback } from 'react';
+import { useBusinessMode } from '@/lib/BusinessModeContext';
+import ModeBadge from '@/components/shared/ModeBadge';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { supabase } from '@/api/base44Client';

@@ -10,6 +10,7 @@ import { SubscriptionProvider, useSubscription } from '@/lib/SubscriptionContext
 import { RoleProvider } from '@/lib/RoleContext';
 import RoleGuard from '@/components/rbac/RoleGuard';
 import { TenantProvider, useTenant } from '@/lib/TenantContext';
+import { BusinessModeProvider } from '@/lib/BusinessModeContext';
 import { NotificationProvider } from '@/lib/NotificationContext';
 import { useRole, ROLES, ROLE_HOME } from '@/lib/RoleContext';
 import { Toaster } from 'sonner';
@@ -110,6 +111,17 @@ const NotificationCenter  = lazy(() => import('@/pages/NotificationCenter'));
 const StaffUpload         = lazy(() => import('@/pages/StaffUpload'));
 
 const Onboarding          = lazy(() => import('@/pages/Onboarding'));
+
+// ── Retail Mode Exclusive Modules ────────────────────────────────────────────
+const BarcodeScanner      = lazy(() => import('@/pages/retail/BarcodeScanner'));
+const SKUManagement       = lazy(() => import('@/pages/retail/SKUManagement'));
+const ProductVariants     = lazy(() => import('@/pages/retail/ProductVariants'));
+const BatchTracking       = lazy(() => import('@/pages/retail/BatchTracking'));
+const ExpiryTracking      = lazy(() => import('@/pages/retail/ExpiryTracking'));
+const SerialNumbers       = lazy(() => import('@/pages/retail/SerialNumbers'));
+
+// ── Restaurant Mode Exclusive Modules ────────────────────────────────────────
+const Production          = lazy(() => import('@/pages/Production'));
 
 // ── Public pages (eager — shown before auth) ─────────────────────────────────
 import LandingPage         from '@/pages/LandingPage';
@@ -344,6 +356,24 @@ const SubscribedRoutes = () => {
         <Route path="/driver" element={<DriverPortal />} />
         <Route path="/kitchen" element={<KitchenDashboard />} />
         <Route path="/customer" element={<CustomerDashboard />} />
+
+        {/* ══════════════════════════════════════════════════════════════════════
+            RETAIL MODE EXCLUSIVE ROUTES
+            These routes are accessible to all authenticated users but the pages
+            themselves enforce Retail Mode via useBusinessMode() guard.
+        ══════════════════════════════════════════════════════════════════════ */}
+        <Route path="/retail/barcode"  element={<RoleGuard permission="viewInventory"><BarcodeScanner /></RoleGuard>} />
+        <Route path="/retail/sku"      element={<RoleGuard permission="viewInventory"><SKUManagement /></RoleGuard>} />
+        <Route path="/retail/variants" element={<RoleGuard permission="viewInventory"><ProductVariants /></RoleGuard>} />
+        <Route path="/retail/batches"  element={<RoleGuard permission="viewInventory"><BatchTracking /></RoleGuard>} />
+        <Route path="/retail/expiry"   element={<RoleGuard permission="viewInventory"><ExpiryTracking /></RoleGuard>} />
+        <Route path="/retail/serials"  element={<RoleGuard permission="viewInventory"><SerialNumbers /></RoleGuard>} />
+
+        {/* ══════════════════════════════════════════════════════════════════════
+            RESTAURANT MODE EXCLUSIVE ROUTES
+            Pages enforce Restaurant Mode via useBusinessMode() guard.
+        ══════════════════════════════════════════════════════════════════════ */}
+        <Route path="/production"      element={<RoleGuard permission="viewInventory"><Production /></RoleGuard>} />
       </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>
@@ -419,11 +449,13 @@ const AuthenticatedApp = () => {
     <SubscriptionProvider>
       <RoleProvider>
         <TenantProvider>
-          <NotificationProvider>
-            <ManagerRoleApplier />
-            <RoleHomeRedirect />
-            <SubscribedRoutes />
-          </NotificationProvider>
+          <BusinessModeProvider>
+            <NotificationProvider>
+              <ManagerRoleApplier />
+              <RoleHomeRedirect />
+              <SubscribedRoutes />
+            </NotificationProvider>
+          </BusinessModeProvider>
         </TenantProvider>
       </RoleProvider>
     </SubscriptionProvider>

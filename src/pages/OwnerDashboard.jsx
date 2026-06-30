@@ -27,6 +27,9 @@
  *   9. Alerts
  */
 import React, { useState, useMemo, useCallback, memo } from 'react';
+import { useBusinessMode } from '@/lib/BusinessModeContext';
+import ModeBadge from '@/components/shared/ModeBadge';
+import { ModeSpecificDashboardSection, QuickActionsWidget, useModeDashboardConfig } from '@/components/dashboard/DashboardWidgetRegistry';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
@@ -764,6 +767,7 @@ export default function OwnerDashboard() {
               {totalAlerts} alerts
             </span>
           )}
+          <ModeBadge />
           <Badge variant="outline" className="text-xs capitalize">{role}</Badge>
         </div>
       </div>
@@ -1068,12 +1072,29 @@ export default function OwnerDashboard() {
         </Card>
       </section>
 
-      {/* ── Price Changes Widget (existing component preserved) ── */}
+            {/* ── Price Changes Widget (existing component preserved) ── */}
       <WidgetErrorBoundary>
         <PriceChangesWidget />
       </WidgetErrorBoundary>
 
-
+      {/* ══════════════════════════════════════════════════════════════════════
+          SECTION 10 — MODE-SPECIFIC WIDGETS (Auto-switches by Business Type)
+      ══════════════════════════════════════════════════════════════════════ */}
+      <WidgetErrorBoundary>
+        <section>
+          <SectionHeader
+            icon={Layers}
+            title="Mode-Specific Insights"
+            subtitle="Widgets adapt automatically to your Business Type"
+            color="indigo"
+          />
+          <ModeSpecificDashboardSection
+            lowStockItems={alerts.inventoryAlerts > 0 ? [] : []}
+            expiryAlerts={[]}
+            pendingOrders={[]}
+          />
+        </section>
+      </WidgetErrorBoundary>
     </div>
   );
 }
