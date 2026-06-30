@@ -28,6 +28,7 @@ import WelcomeDashboard from '@/components/dashboard/WelcomeDashboard';
 import ExecutiveSummaryBar from '@/components/dashboard/ExecutiveSummaryBar';
 import ManagerWorkspace from '@/components/dashboard/ManagerWorkspace';
 import FinancialKPIs from '@/components/dashboard/FinancialKPIs';
+import QuickActionsDock from '@/components/dashboard/QuickActionsDock';
 import { useRole, ROLES } from '@/lib/RoleContext';
 
 const FETCH_DAYS = 90;
@@ -166,45 +167,8 @@ export default function Dashboard() {
   if (isFirstTime) return <WelcomeDashboard />;
 
   return (
-    <div>
-      {/* ── Quick Action Buttons (Mobile-First) — Most-used actions ── */}
-      <div className="grid grid-cols-2 gap-2 mb-4">
-        {/* Daily Sales */}
-        <Link
-          to="/sales"
-          className="flex items-center justify-center gap-2 h-12 rounded-lg bg-blue-500 hover:bg-blue-600 text-white font-bold text-sm shadow-md active:scale-95 transition-all"
-        >
-          <DollarSign className="w-4 h-4" />
-          <span>{t('daily_sales')}</span>
-        </Link>
-
-        {/* Purchases — Enterprise Purchase Command Center */}
-        <Link
-          to="/enterprise-purchases"
-          className="flex items-center justify-center gap-2 h-12 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm shadow-md active:scale-95 transition-all"
-        >
-          <Receipt className="w-4 h-4" />
-          <span>{t('purchases')}</span>
-        </Link>
-
-        {/* Expenses */}
-        <Link
-          to="/expenses"
-          className="flex items-center justify-center gap-2 h-12 rounded-lg bg-red-500 hover:bg-red-600 text-white font-bold text-sm shadow-md active:scale-95 transition-all"
-        >
-          <Wallet className="w-4 h-4" />
-          <span>{t('expenses')}</span>
-        </Link>
-
-        {/* Supplier Payment */}
-        <Link
-          to="/suppliers"
-          className="flex items-center justify-center gap-2 h-12 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-sm shadow-md active:scale-95 transition-all"
-        >
-          <ShoppingBag className="w-4 h-4" />
-          <span>{t('supplier_payment') || 'Supplier Payment'}</span>
-        </Link>
-      </div>
+    <div className="relative">
+      <QuickActionsDock />
 
       <Tabs defaultValue="overview">
       <PageHeader

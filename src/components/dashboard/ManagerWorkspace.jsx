@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { format, subDays } from 'date-fns';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import QuickActionsDock from './QuickActionsDock';
 
 const UI = {
   en: {
@@ -204,23 +205,7 @@ export default function ManagerWorkspace() {
         </Card>
       )}
 
-      {/* Quick Actions */}
-      <div>
-        <p className="text-xs font-semibold text-muted-foreground mb-2">{u.quick_actions}</p>
-        <div className="grid grid-cols-2 gap-2">
-          {quickActions.map((action) => {
-            const ActionIcon = action.icon;
-            return (
-              <Button key={action.to} variant="outline" asChild className={`h-11 justify-start gap-2 border ${action.color}`}>
-                <Link to={action.to}>
-                  <ActionIcon className="w-4 h-4" />
-                  <span className="text-xs font-semibold">{action.label}</span>
-                </Link>
-              </Button>
-            );
-          })}
-        </div>
-      </div>
+      <QuickActionsDock />
 
       {/* Employees quick stat */}
       {employees.length > 0 && (
