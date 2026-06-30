@@ -7,7 +7,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 const TenantContext = createContext({
   restaurants: [], loadingRestaurants: false, activeRestaurant: null, activeRestaurantId: null,
   setActiveRestaurant: () => {}, branches: [], allBranches: [], createRestaurant: async () => {},
-  updateRestaurantBranches: async () => {}, refetchRestaurants: () => {},
+  updateRestaurant: async () => {}, updateRestaurantBranches: async () => {}, refetchRestaurants: () => {},
   orgId: '', orgFilter: {}, restaurantFilter: null,
   managerBranch: null, isManager: false,
 });
@@ -109,12 +109,17 @@ export function TenantProvider({ children }) {
     return r;
   }, [user?.email, refetchRestaurants]);
 
-  const updateRestaurantBranches = useCallback(async (branchesArr) => {
-    if (!activeRestaurant) return;
-    await base44.entities.Restaurant.update(activeRestaurant.id, { branches: JSON.stringify(branchesArr) });
+  const updateRestaurant = useCallback(async (id, data) => {
+    const r = await base44.entities.Restaurant.update(id, data);
     refetchRestaurants();
     queryClient.invalidateQueries({ queryKey: ['restaurants'] });
-  }, [activeRestaurant, refetchRestaurants, queryClient]);
+    return r;
+  }, [refetchRestaurants, queryClient]);
+
+  const updateRestaurantBranches = useCallback(async (branchesArr) => {
+    if (!activeRestaurant) return;
+    await updateRestaurant(activeRestaurant.id, { branches: JSON.stringify(branchesArr) });
+  }, [activeRestaurant, updateRestaurant]);
 
   // org_id filter for all data queries — always scope to current user's org
   const orgFilter = { org_id: user?.email || '' };
@@ -198,6 +203,7 @@ export function TenantProvider({ children }) {
       branches: effectiveBranches,
       allBranches,
       createRestaurant,
+      updateRestaurant,
       updateRestaurantBranches,
       refetchRestaurants,
       orgId: user?.email || '',

@@ -104,6 +104,8 @@ const MORE_SECTIONS_OWNER_RESTAURANT = [
       { path: '/cash-register',             icon: CreditCard,  labelKey: 'cash_register' },
       { path: '/sales/invoices',            icon: Receipt,     labelKey: 'sales_invoices' },
       { path: '/inventory',                 icon: Package,     labelKey: 'inventory' },
+      { path: '/product-management',        icon: Package,     labelKey: 'product_management' },
+      { path: '/category-manager',          icon: Grid3x3,     labelKey: 'product_categories' },
       { path: '/inventory-waste',           icon: Package,     labelKey: 'waste_tracking' },
       { path: '/purchases',                 icon: ShoppingCart, labelKey: 'purchases' },
       { path: '/suppliers',                 icon: Truck,       labelKey: 'suppliers' },
@@ -159,6 +161,7 @@ const MORE_SECTIONS_OWNER_RETAIL = [
       { path: '/sales/invoices',            icon: Receipt,     labelKey: 'sales_invoices' },
       { path: '/inventory',                 icon: Boxes,       labelKey: 'inventory' },
       { path: '/product-management',        icon: Package,     labelKey: 'product_management' },
+      { path: '/category-manager',          icon: Grid3x3,     labelKey: 'product_categories' },
       { path: '/purchases',                 icon: ShoppingCart, labelKey: 'purchases' },
       { path: '/suppliers',                 icon: Truck,       labelKey: 'suppliers' },
     ],
@@ -207,6 +210,8 @@ const MORE_SECTIONS_MANAGER_RESTAURANT = [
     items: [
       { path: '/cash-register',     icon: CreditCard,  labelKey: 'cash_register' },
       { path: '/inventory',         icon: Package,     labelKey: 'inventory' },
+      { path: '/product-management', icon: Package,    labelKey: 'product_management' },
+      { path: '/category-manager',  icon: Grid3x3,     labelKey: 'product_categories' },
       { path: '/inventory-waste',   icon: Package,     labelKey: 'waste_tracking' },
     ],
   },
@@ -235,6 +240,7 @@ const MORE_SECTIONS_MANAGER_RETAIL = [
       { path: '/cash-register',     icon: CreditCard,  labelKey: 'cash_register' },
       { path: '/inventory',         icon: Boxes,       labelKey: 'inventory' },
       { path: '/product-management', icon: Package,    labelKey: 'product_management' },
+      { path: '/category-manager',  icon: Grid3x3,     labelKey: 'product_categories' },
     ],
   },
   {

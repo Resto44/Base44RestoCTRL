@@ -124,10 +124,8 @@ export default function AppHeader() {
 
         {/* Right: Actions */}
         <div className="flex items-center gap-1.5 shrink-0">
-          {/* Business Mode badge — shown on tablet+ */}
-          <span className="hidden sm:inline-flex">
-            <ModeBadge size="xs" />
-          </span>
+          {/* Business Mode badge */}
+          <ModeBadge size="xs" />
 
           {/* Role badge */}
           {badge && (

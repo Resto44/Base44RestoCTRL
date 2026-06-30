@@ -9,7 +9,7 @@ import { useBusinessMode } from '@/lib/BusinessModeContext';
 import { cn } from '@/lib/utils';
 
 export default function ModeBadge({ size = 'sm', showLabel = true, className }) {
-  const { isRetail, modeLabel } = useBusinessMode();
+  const { isRetail, modeLabel, setMode, activeMode, BUSINESS_MODES } = useBusinessMode();
 
   const Icon = isRetail ? ShoppingBag : UtensilsCrossed;
 
@@ -23,15 +23,25 @@ export default function ModeBadge({ size = 'sm', showLabel = true, className }) 
     ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 border border-blue-200 dark:border-blue-800'
     : 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 border border-orange-200 dark:border-orange-800';
 
+  const toggleMode = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const newMode = activeMode === 'retail' ? 'restaurant' : 'retail';
+    setMode(newMode);
+  };
+
   return (
-    <span className={cn(
-      'inline-flex items-center rounded-full font-medium',
-      sizeClasses[size] || sizeClasses.sm,
-      colorClasses,
-      className
-    )}>
+    <button 
+      onClick={toggleMode}
+      className={cn(
+        'inline-flex items-center rounded-full font-medium transition-all hover:scale-105 active:scale-95 cursor-pointer',
+        sizeClasses[size] || sizeClasses.sm,
+        colorClasses,
+        className
+      )}
+    >
       <Icon className={cn(size === 'xs' ? 'w-3 h-3' : 'w-3.5 h-3.5')} />
       {showLabel && <span>{modeLabel}</span>}
-    </span>
+    </button>
   );
 }

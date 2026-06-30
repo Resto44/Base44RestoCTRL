@@ -304,8 +304,8 @@ const SubscribedRoutes = () => {
         <Route path="/restaurants" element={<RoleGuard permission="viewBrandSettings"><RestaurantManager /></RoleGuard>} />
         <Route path="/branch-management" element={<RoleGuard permission="viewBrandSettings"><BranchManagement /></RoleGuard>} />
         {/* Legacy route kept for backward compat — redirects to new enterprise manager */}
-        <Route path="/categories" element={<RoleGuard permission="manageSettings"><EnterpriseCategoryManager /></RoleGuard>} />
-        <Route path="/category-manager" element={<RoleGuard permission="manageSettings"><EnterpriseCategoryManager /></RoleGuard>} />
+        <Route path="/categories" element={<RoleGuard permission="viewInventory"><EnterpriseCategoryManager /></RoleGuard>} />
+        <Route path="/category-manager" element={<RoleGuard permission="viewInventory"><EnterpriseCategoryManager /></RoleGuard>} />
         <Route path="/approval-policy" element={<RoleGuard permission="viewBrandSettings"><ApprovalPolicy /></RoleGuard>} />
         <Route path="/telegram-settings" element={<RoleGuard permission="viewBrandSettings"><TelegramSettings /></RoleGuard>} />
         <Route path="/billing" element={<RoleGuard permission="viewBilling"><Billing /></RoleGuard>} />

@@ -83,6 +83,7 @@ const BusinessModeContext = createContext({
   isRetail: false,
   isModuleEnabled: () => true,
   getModulesForMode: () => [],
+  setMode: async () => {},
   modeLabel: 'Restaurant',
   modeIcon: '🍽️',
   modeColor: 'orange',
@@ -90,11 +91,16 @@ const BusinessModeContext = createContext({
 
 // ── Provider ──────────────────────────────────────────────────────────────────
 export function BusinessModeProvider({ children }) {
-  const { activeRestaurant } = useTenant();
+  const { activeRestaurant, updateRestaurant } = useTenant();
 
   const activeMode = useMemo(() => {
     return activeRestaurant?.business_mode || BUSINESS_MODES.RESTAURANT;
   }, [activeRestaurant?.business_mode]);
+
+  const setMode = async (mode) => {
+    if (!activeRestaurant?.id) return;
+    await updateRestaurant(activeRestaurant.id, { business_mode: mode });
+  };
 
   const isRestaurant = activeMode === BUSINESS_MODES.RESTAURANT;
   const isRetail = activeMode === BUSINESS_MODES.RETAIL;
@@ -131,10 +137,11 @@ export function BusinessModeProvider({ children }) {
     isRetail,
     isModuleEnabled,
     getModulesForMode,
+    setMode,
     modeLabel,
     modeIcon,
     modeColor,
-  }), [activeMode, isRestaurant, isRetail]);
+  }), [activeMode, isRestaurant, isRetail, setMode]);
 
   return (
     <BusinessModeContext.Provider value={value}>
