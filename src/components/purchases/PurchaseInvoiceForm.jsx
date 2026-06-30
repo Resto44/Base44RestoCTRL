@@ -407,8 +407,8 @@ export default function PurchaseInvoiceForm({ invoice = null, onSuccess, onCance
 
         <div className="space-y-3">
           {items.map((item, idx) => {
-            // Fetch products for this item's purchase category
-            const { products: categoryProducts = [] } = usePurchaseProductsByCategory(item.purchase_category_id);
+            // Fetch products for this item's purchase category and supplier
+            const { products: categoryProducts = [] } = usePurchaseProductsByCategory(item.purchase_category_id, form.supplier_id);
             
             return (
             <div key={item._id} className="rounded-lg border border-border p-3 space-y-2 bg-secondary/20">
@@ -487,13 +487,13 @@ export default function PurchaseInvoiceForm({ invoice = null, onSuccess, onCance
                       updateItem(item._id, 'unit', prod.unit || item.unit);
                       updateItem(item._id, 'unit_cost', prod.default_cost || item.unit_cost);
                     }
-                  }} disabled={!item.category_id}>
-                    <SelectTrigger className="h-8 text-xs" disabled={!item.category_id}>
-                      <SelectValue placeholder={item.category_id ? (categoryProducts.length === 0 ? 'No products in this category.' : 'Select...') : 'Select category first'} />
+                  }} disabled={!item.purchase_category_id && !form.supplier_id}>
+                    <SelectTrigger className="h-8 text-xs" disabled={!item.purchase_category_id && !form.supplier_id}>
+                      <SelectValue placeholder={(item.purchase_category_id || form.supplier_id) ? (categoryProducts.length === 0 ? 'No matching products.' : 'Select...') : 'Select category or supplier first'} />
                     </SelectTrigger>
                     <SelectContent>
-                      {categoryProducts.length === 0 && item.category_id ? (
-                        <div className="px-2 py-1.5 text-xs text-muted-foreground">No products in this category.</div>
+                      {categoryProducts.length === 0 && (item.purchase_category_id || form.supplier_id) ? (
+                        <div className="px-2 py-1.5 text-xs text-muted-foreground">No matching products found.</div>
                       ) : (
                         categoryProducts.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)
                       )}

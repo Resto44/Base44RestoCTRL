@@ -25,6 +25,10 @@
     "default_cost": {
       "type": "number",
       "description": "Default cost/purchase price"
+    },
+    "purchase_category_id": {
+      "type": "string",
+      "description": "Linked purchase category for procurement filtering"
     }
   },
   "required": [
