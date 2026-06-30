@@ -127,26 +127,9 @@ export default function QuickPurchaseModal({ open, onOpenChange }) {
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
   const selectedProduct = products.find(p => p.product_id === form.product_id);
 
-  // Inline quick category creation
+  // Inline quick category creation disabled — use ProductCategory instead
   const handleCreateCategory = async () => {
-    if (!newCatName.trim()) return;
-    setCreatingCat(true);
-    const newCat = await base44.entities.PurchaseCategory.create({
-      ...ownerFilter,
-      name_en: newCatName.trim(),
-      name_ar: lang === 'ar' ? newCatName.trim() : '',
-      name_fa: lang === 'fa' ? newCatName.trim() : '',
-      icon: '📦',
-      color: '#3B82F6',
-      is_active: true,
-      is_favorite: false,
-    });
-    qc.invalidateQueries({ queryKey: ['purchase_categories'] });
-    set('category', newCat.id);
-    localStorage.setItem('qa_last_category', newCat.id);
-    setShowNewCat(false);
-    setNewCatName('');
-    setCreatingCat(false);
+    // This feature is deprecated. Categories should be managed through CategoryManager.
   };
 
   const saveMut = useMutation({
@@ -160,7 +143,7 @@ export default function QuickPurchaseModal({ open, onOpenChange }) {
       return purchase;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['purchases'] });
+  
       setSaved(true);
       setTimeout(() => setSaved(false), 1500);
     },

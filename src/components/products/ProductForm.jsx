@@ -17,7 +17,6 @@ export default function ProductForm({ initial, onSubmit, onCancel }) {
     category_id: '',
     subcategory_id: '',
     category: '',
-    purchase_category_id: '',
     unit: '',
     default_price: '',
     default_cost: '',
@@ -38,17 +37,7 @@ export default function ProductForm({ initial, onSubmit, onCancel }) {
     staleTime: 30000,
   });
 
-  // Load Purchase Categories with hierarchy
-  const { data: purchaseCategories = [] } = useQuery({
-    queryKey: ['purchase_categories_all', activeRestaurant?.id],
-    queryFn: () => base44.entities.PurchaseCategory.filter(
-      activeRestaurant?.id ? { restaurant_id: activeRestaurant.id, is_active: true } : { is_active: true },
-      'sort_order',
-      1000
-    ),
-    enabled: !!activeRestaurant?.id,
-    staleTime: 30000,
-  });
+
 
   // Level 1: main categories (no parent)
   const mainCategories = useMemo(() => categories.filter(c => !c.parent_id), [categories]);
@@ -65,15 +54,7 @@ export default function ProductForm({ initial, onSubmit, onCancel }) {
     return categories.filter(c => c.parent_id === form.subcategory_id);
   }, [categories, form.subcategory_id]);
 
-  // Purchase Categories Hierarchy (Parent + Child)
-  const mainPurchaseCategories = useMemo(() => purchaseCategories.filter(c => !c.parent_id), [purchaseCategories]);
-  const subPurchaseCategories = useMemo(() => {
-    if (!form.purchase_category_id) return [];
-    // If selected is a parent, show its children. If selected is already a child, show its siblings.
-    const selected = purchaseCategories.find(c => c.id === form.purchase_category_id);
-    const parentId = selected?.parent_id || form.purchase_category_id;
-    return purchaseCategories.filter(c => c.parent_id === parentId);
-  }, [purchaseCategories, form.purchase_category_id]);
+
 
   const getName = (cat) => cat[`name_${lang}`] || cat.name || cat.name_en || cat.name_ar || '—';
 
@@ -100,7 +81,6 @@ export default function ProductForm({ initial, onSubmit, onCancel }) {
       category_id: form.category_id || null,
       subcategory_id: form.subcategory_id || null,
       category: selectedCat ? getName(selectedCat) : (form.category || null),
-      purchase_category_id: form.purchase_category_id || null,
       unit: form.unit || null,
       default_price: Number(form.default_price) || 0,
       default_cost: Number(form.default_cost) || 0,
@@ -188,54 +168,7 @@ export default function ProductForm({ initial, onSubmit, onCancel }) {
         )}
       </div>
 
-      {/* Purchase Category — separate from Product Category */}
-      <div className="space-y-2">
-        <div>
-          <Label className="text-xs font-medium">Purchase Category (Parent) *</Label>
-          <Select 
-            value={purchaseCategories.find(c => c.id === form.purchase_category_id)?.parent_id || form.purchase_category_id || '__none__'} 
-            onValueChange={v => {
-              const val = v === '__none__' ? '' : v;
-              handleChange('purchase_category_id', val);
-              handleChange('purchase_subcategory_id', '');
-            }}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select parent category..." />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__none__">— Select Category —</SelectItem>
-              {mainPurchaseCategories.map(c => (
-                <SelectItem key={c.id} value={c.id}>
-                  {c.icon ? `${c.icon} ` : ''}{getName(c)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
 
-        {form.purchase_category_id && purchaseCategories.filter(c => c.parent_id === (purchaseCategories.find(cat => cat.id === form.purchase_category_id)?.parent_id || form.purchase_category_id)).length > 0 && (
-          <div>
-            <Label className="text-xs font-medium">Purchase Sub-category</Label>
-            <Select 
-              value={purchaseCategories.find(c => c.id === form.purchase_category_id)?.parent_id ? form.purchase_category_id : (form.purchase_subcategory_id || '__none__')} 
-              onValueChange={v => handleChange('purchase_category_id', v === '__none__' ? (purchaseCategories.find(c => c.id === form.purchase_category_id)?.parent_id || form.purchase_category_id) : v)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select sub-category (optional)..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">— None —</SelectItem>
-                {purchaseCategories.filter(c => c.parent_id === (purchaseCategories.find(cat => cat.id === form.purchase_category_id)?.parent_id || form.purchase_category_id)).map(c => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.icon ? `${c.icon} ` : ''}{getName(c)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-      </div>
 
       <div>
         <Label className="text-xs">{t('unit')}</Label>

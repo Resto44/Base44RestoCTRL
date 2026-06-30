@@ -3,7 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { useTenant } from '@/lib/TenantContext';
 
 /**
- * Fetch purchase categories with hierarchical structure.
+ * Fetch product categories with hierarchical structure for Purchase Invoice flow.
  * Returns categories organized by parent-child relationships.
  * Supports tree view rendering with expand/collapse.
  */
@@ -11,9 +11,9 @@ export function usePurchaseCategoriesHierarchy() {
   const { activeRestaurantId } = useTenant();
 
   const { data: categories = [], isLoading } = useQuery({
-    queryKey: ['purchase_categories_hierarchy', activeRestaurantId],
+    queryKey: ['product_categories_hierarchy', activeRestaurantId],
     queryFn: () =>
-      base44.entities.PurchaseCategory.filter(
+      base44.entities.ProductCategory.filter(
         activeRestaurantId ? { restaurant_id: activeRestaurantId, is_active: true } : { is_active: true },
         'sort_order',
         500

@@ -196,12 +196,12 @@ function createEntity(tableName) {
       
       // Only add audit fields if they are standard for this project's base entities
       // Recipes and some new tables use 'created_at' instead of 'created_date'
-      const CREATED_AT_TABLES = ['product_categories', 'expense_categories', 'purchase_categories', 'sales_categories', 'online_order_categories', 'recipes', 'recipe_ingredients', 'product_modifiers', 'product_modifier_options', 'customer_addresses', 'customer_favorites', 'promotions', 'driver_requests', 'network_pos_devices', 'network_transfers', 'network_reconciliations'];
+      const CREATED_AT_TABLES = ['product_categories', 'expense_categories', 'sales_categories', 'online_order_categories', 'recipes', 'recipe_ingredients', 'product_modifiers', 'product_modifier_options', 'customer_addresses', 'customer_favorites', 'promotions', 'driver_requests', 'network_pos_devices', 'network_transfers', 'network_reconciliations'];
       if (!CREATED_AT_TABLES.includes(tableName)) {
         payload.created_by = email;
         payload.created_date = now;
         payload.updated_date = now;
-      } else if (['product_categories', 'expense_categories', 'purchase_categories', 'sales_categories', 'online_order_categories'].includes(tableName)) {
+      } else if (['product_categories', 'expense_categories', 'sales_categories', 'online_order_categories'].includes(tableName)) {
         payload.created_by = email;
         // these tables use created_at (not created_date)
       }
@@ -351,7 +351,7 @@ const entities = {
   PayrollRun: createEntity('payroll_runs'),
   Expense: createEntity('expenses'), ExpenseCategory: createEntity('expense_categories'),
   PurchaseOrder: createEntity('purchase_orders'), Purchase: createEntity('purchases'),
-  PurchaseCategory: createEntity('purchase_categories'), Notification: createEntity('notifications'),
+  Notification: createEntity('notifications'),
   DailySales: createEntity('daily_sales'), DebtRecord: createEntity('debt_records'),
   DebtPayment: createEntity('debt_payments'), CreditCollection: createEntity('customer_collections'),
   DebtInvoice: createEntity('debt_invoices'), DebtReceipt: createEntity('debt_receipts'),
@@ -416,7 +416,7 @@ const entities = {
   // FIVE completely isolated tables — never cross-pollinate:
   //   ProductCategory       → product_categories       (Product Management / Inventory ONLY)
   //   ExpenseCategory       → expense_categories       (Expenses module ONLY)
-  //   PurchaseCategory      → purchase_categories      (Purchases module ONLY)
+
   //   SalesCategory         → sales_categories         (Sales module ONLY)
   //   OnlineOrderCategory   → online_order_categories  (Online Ordering ONLY)
   ProductCategory: createEntity('product_categories'),

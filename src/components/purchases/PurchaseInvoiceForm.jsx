@@ -62,7 +62,7 @@ const emptyItem = () => ({
   _id: Math.random().toString(36).slice(2),
   category: '',
   category_id: '',
-  purchase_category_id: '',
+  subcategory_id: '',
   product_id: '',
   product_name: '',
   unit: '',
@@ -176,8 +176,14 @@ export default function PurchaseInvoiceForm({ invoice = null, onSuccess, onCance
       if (item._id !== id) return item;
       const updated = { ...item, [field]: value };
       
-      // When category changes: clear product selection
+      // When category changes: clear product selection and subcategory
       if (field === 'category_id') {
+        updated.product_id = '';
+        updated.product_name = '';
+        updated.subcategory_id = '';
+      }
+      // When subcategory changes: clear product selection
+      if (field === 'subcategory_id') {
         updated.product_id = '';
         updated.product_name = '';
       }
@@ -407,8 +413,8 @@ export default function PurchaseInvoiceForm({ invoice = null, onSuccess, onCance
 
         <div className="space-y-3">
           {items.map((item, idx) => {
-            // Fetch products for this item's purchase category and supplier
-            const { products: categoryProducts = [] } = usePurchaseProductsByCategory(item.purchase_category_id, form.supplier_id);
+            // Fetch products for this item's category/subcategory and supplier
+            const { products: categoryProducts = [] } = usePurchaseProductsByCategory(item.category_id, form.supplier_id, item.subcategory_id);
             
             return (
             <div key={item._id} className="rounded-lg border border-border p-3 space-y-2 bg-secondary/20">
@@ -421,9 +427,9 @@ export default function PurchaseInvoiceForm({ invoice = null, onSuccess, onCance
                 )}
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <Label className="text-[10px] text-muted-foreground">Product Category</Label>
+                  <Label className="text-[10px] text-muted-foreground">Product Category *</Label>
                   <Select value={item.category_id} onValueChange={v => {
                     const cat = categories.find(c => c.id === v);
                     updateItem(item._id, 'category_id', v);
@@ -437,7 +443,7 @@ export default function PurchaseInvoiceForm({ invoice = null, onSuccess, onCance
                       {categoriesTree.map(rootCat => (
                         <div key={rootCat.id}>
                           <SelectItem value={rootCat.id}>
-                            {rootCat.icon || '🛒'} {rootCat.name}
+                            {rootCat.icon || '📦'} {rootCat.name}
                           </SelectItem>
                           {rootCat.children && rootCat.children.length > 0 && (
                             rootCat.children.map(childCat => (
@@ -452,27 +458,18 @@ export default function PurchaseInvoiceForm({ invoice = null, onSuccess, onCance
                   </Select>
                 </div>
                 <div>
-                  <Label className="text-[10px] text-muted-foreground">Purchase Category *</Label>
-                  <Select value={item.purchase_category_id} onValueChange={v => {
-                    updateItem(item._id, 'purchase_category_id', v);
-                  }}>
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="Select..." />
+                  <Label className="text-[10px] text-muted-foreground">Sub-category</Label>
+                  <Select value={item.subcategory_id} onValueChange={v => {
+                    updateItem(item._id, 'subcategory_id', v);
+                  }} disabled={!item.category_id}>
+                    <SelectTrigger className="h-8 text-xs" disabled={!item.category_id}>
+                      <SelectValue placeholder={item.category_id ? "Select..." : "Select category first"} />
                     </SelectTrigger>
                     <SelectContent>
-                      {categoriesTree.map(rootCat => (
-                        <div key={rootCat.id}>
-                          <SelectItem value={rootCat.id}>
-                            {rootCat.icon || '🛒'} {rootCat.name}
-                          </SelectItem>
-                          {rootCat.children && rootCat.children.length > 0 && (
-                            rootCat.children.map(childCat => (
-                              <SelectItem key={childCat.id} value={childCat.id} className="pl-6">
-                                └─ {childCat.icon || '📦'} {childCat.name}
-                              </SelectItem>
-                            ))
-                          )}
-                        </div>
+                      {item.category_id && categoriesTree.find(c => c.id === item.category_id)?.children?.map(subCat => (
+                        <SelectItem key={subCat.id} value={subCat.id}>
+                          {subCat.icon || '📦'} {subCat.name}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -487,9 +484,9 @@ export default function PurchaseInvoiceForm({ invoice = null, onSuccess, onCance
                       updateItem(item._id, 'unit', prod.unit || item.unit);
                       updateItem(item._id, 'unit_cost', prod.default_cost || item.unit_cost);
                     }
-                  }} disabled={!item.purchase_category_id && !form.supplier_id}>
-                    <SelectTrigger className="h-8 text-xs" disabled={!item.purchase_category_id && !form.supplier_id}>
-                      <SelectValue placeholder={(item.purchase_category_id || form.supplier_id) ? (categoryProducts.length === 0 ? 'No matching products.' : 'Select...') : 'Select category or supplier first'} />
+                  }} disabled={!item.category_id && !form.supplier_id}>
+                    <SelectTrigger className="h-8 text-xs" disabled={!item.category_id && !form.supplier_id}>
+                      <SelectValue placeholder={(item.category_id || form.supplier_id) ? (categoryProducts.length === 0 ? 'No matching products.' : 'Select...') : 'Select category or supplier first'} />
                     </SelectTrigger>
                     <SelectContent>
                       {categoryProducts.length === 0 && (item.purchase_category_id || form.supplier_id) ? (
@@ -499,7 +496,7 @@ export default function PurchaseInvoiceForm({ invoice = null, onSuccess, onCance
                       )}
                     </SelectContent>
                   </Select>
-                  {!item.product_id && item.category_id && (
+                  {!item.product_id && (item.category_id || item.subcategory_id) && (
                     <Input value={item.product_name} onChange={e => updateItem(item._id, 'product_name', e.target.value)}
                       placeholder="Or type product name" className="h-8 text-xs mt-1" />
                   )}

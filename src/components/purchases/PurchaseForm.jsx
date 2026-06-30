@@ -110,7 +110,6 @@ export default function PurchaseForm({ initial, onSubmit, onCancel }) {
       current_price: form.current_price ? Number(form.current_price) : null,
       used_price: usedPrice,
       product_name: selectedProduct?.name || '',
-        purchase_category_id: form.category || null,
       category: selectedCat ? (selectedCat.cat.name || selectedCat.cat.name_ar || selectedCat.cat.name_fa) : form.category,
     });
   };

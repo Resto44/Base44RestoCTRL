@@ -4,7 +4,7 @@
  * - Drag & Drop sorting
  * - Search & Filter
  * - Color Picker, Icon Picker, Image Upload
- * - Works for: product_categories, expense_categories, purchase_categories,
+ * - Works for: product_categories, expense_categories,
  *              sales_categories, online_order_categories
  */
 
@@ -58,18 +58,7 @@ export const CATEGORY_MODULES = {
     hierarchical: false,
     description: 'Used by Expenses module only',
   },
-  purchase: {
-    key: 'purchase',
-    label: 'Purchase Categories',
-    table: 'purchase_categories',
-    entity: 'PurchaseCategory',
-    queryKey: 'purchase_categories',
-    icon: ShoppingCart,
-    color: '#8B5CF6',
-    defaultIcon: '🛒',
-    hierarchical: true,
-    description: 'Used by Purchases module only',
-  },
+
   sales: {
     key: 'sales',
     label: 'Sales Categories',

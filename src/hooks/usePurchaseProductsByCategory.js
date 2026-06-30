@@ -3,25 +3,24 @@ import { base44 } from '@/api/base44Client';
 import { useTenant } from '@/lib/TenantContext';
 
 /**
- * Fetch products filtered by purchase_category_id, supplier_id, and subcategory using server-side filtering.
- * Supports flexible filtering based on provided parameters.
+ * Fetch products filtered by product_category_id, supplier_id, and subcategory_id using server-side filtering.
+ * Used in Purchase Invoice flow: Supplier → Product Category → Subcategory → Product
  */
-export function usePurchaseProductsByCategory(purchaseCategoryId, supplierId, purchaseSubcategoryId) {
+export function usePurchaseProductsByCategory(productCategoryId, supplierId, subcategoryId) {
   const { activeRestaurantId } = useTenant();
 
   const { data: products = [], isLoading } = useQuery({
-    queryKey: ['purchase_products_filtered', purchaseCategoryId, supplierId, purchaseSubcategoryId, activeRestaurantId],
+    queryKey: ['purchase_products_filtered', productCategoryId, supplierId, subcategoryId, activeRestaurantId],
     queryFn: () => {
-      // If no category is selected, we might still want to filter by supplier or return empty
-      // Based on requirements, we prioritize purchase_category_id or purchase_subcategory_id
-      const effectiveCategoryId = purchaseSubcategoryId || purchaseCategoryId;
+      // Prioritize subcategoryId or productCategoryId
+      const effectiveCategoryId = subcategoryId || productCategoryId;
       
       const filter = {
         ...(activeRestaurantId && { restaurant_id: activeRestaurantId }),
       };
 
       if (effectiveCategoryId) {
-        filter.purchase_category_id = effectiveCategoryId;
+        filter.category_id = effectiveCategoryId;
       }
 
       if (supplierId) {
@@ -33,7 +32,7 @@ export function usePurchaseProductsByCategory(purchaseCategoryId, supplierId, pu
 
       return base44.entities.Product.filter(filter, 'name', 1000);
     },
-    enabled: !!(purchaseCategoryId || supplierId),
+    enabled: !!(productCategoryId || supplierId),
     staleTime: 30000,
   });
 

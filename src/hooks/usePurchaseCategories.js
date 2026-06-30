@@ -4,7 +4,8 @@ import { useTenant } from '@/lib/TenantContext';
 import { useLanguage } from '@/lib/LanguageContext';
 
 /**
- * Returns only owner-created, active PurchaseCategory records.
+ * Returns ProductCategory records for use in Purchase flows.
+ * This hook has been updated to use ProductCategory instead of the deprecated PurchaseCategory.
  * NO hardcoded defaults — empty array if none created yet.
  */
 export function usePurchaseCategories() {
@@ -12,9 +13,9 @@ export function usePurchaseCategories() {
   const { lang } = useLanguage();
 
   const { data: categories = [], isLoading } = useQuery({
-    queryKey: ['purchase_categories', activeRestaurantId],
+    queryKey: ['product_categories', activeRestaurantId],
     queryFn: () =>
-      base44.entities.PurchaseCategory.filter(
+      base44.entities.ProductCategory.filter(
         activeRestaurantId ? { restaurant_id: activeRestaurantId, is_active: true } : { is_active: true },
         'sort_order',
         200
@@ -30,7 +31,7 @@ export function usePurchaseCategories() {
 
   const options = categories.map(cat => ({
     value: cat.id,
-    label: `${cat.icon || '🛒'} ${getLabel(cat)}`,
+    label: `${cat.icon || '📦'} ${getLabel(cat)}`,
     color: cat.color,
     cat,
   }));
