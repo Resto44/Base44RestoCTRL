@@ -36,9 +36,9 @@ export default function QuickActionsDock() {
 
   return (
     <div className="fixed left-0 right-0 z-[9999] pointer-events-none" 
-         style={{ bottom: 'calc(64px + env(safe-area-inset-bottom, 0px))' }}>
+         style={{ bottom: 'calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px))' }}>
       <div className="max-w-2xl mx-auto px-4 pointer-events-auto">
-        <div className="bg-background/80 backdrop-blur-xl border border-border/50 shadow-[0_-8px_30px_rgb(0,0,0,0.15)] rounded-2xl overflow-hidden">
+        <div className="bg-background/80 backdrop-blur-xl border-x border-t border-border/50 rounded-t-2xl overflow-hidden">
           <div className="flex overflow-x-auto hide-scrollbar gap-3 p-3 snap-x snap-mandatory">
             {actions.map((action, idx) => (
               <Link

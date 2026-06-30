@@ -339,8 +339,8 @@ const BottomNav = memo(function BottomNav() {
       {showMore && moreSections.length > 0 && (
         <MoreMenu sections={moreSections} onClose={() => setShowMore(false)} />
       )}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border shadow-lg">
-        <div className="flex items-center justify-around h-16 max-w-lg mx-auto">
+      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border shadow-lg pb-[env(safe-area-inset-bottom,0px)]">
+        <div className="flex items-center justify-around h-[var(--bottom-nav-height)] max-w-lg mx-auto">
           {visibleNav.map(({ path, icon: NavIcon, labelKey, isMore }) => {
             if (isMore) {
               return (

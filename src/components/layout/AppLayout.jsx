@@ -19,7 +19,7 @@ export default function AppLayout() {
   useEffect(() => { if (user) initAuditLogger(user); }, [user]);
 
   return (
-    <div className="min-h-screen bg-background pb-40">
+    <div className="min-h-screen bg-background pb-32">
       <RouteEnforcer />
       <AppHeader />
       <main className="max-w-2xl mx-auto px-4 pt-4">
