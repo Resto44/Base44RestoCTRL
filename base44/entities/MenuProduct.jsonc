@@ -2,46 +2,49 @@
   "name": "MenuProduct",
   "type": "object",
   "properties": {
-    "branch": {
-      "type": "string",
-      "description": "Branch key (or 'all' for all branches)"
+    "menu_category_id": {
+      "type": "string"
+    },
+    "menu_subcategory_id": {
+      "type": "string"
     },
     "name": {
       "type": "string"
     },
-    "name_ar": {
-      "type": "string",
-      "description": "Arabic name"
-    },
-    "category": {
-      "type": "string"
-    },
-    "price": {
-      "type": "number",
-      "default": 0
-    },
     "description": {
       "type": "string"
     },
-    "image_url": {
+    "image": {
       "type": "string"
     },
-    "is_available": {
-      "type": "boolean",
-      "default": true
-    },
-    "sort_order": {
+    "selling_price": {
       "type": "number",
       "default": 0
     },
-    "addons_json": {
-      "type": "string",
-      "description": "JSON array of {name, price}"
+    "tax": {
+      "type": "number",
+      "default": 0
+    },
+    "preparation_time": {
+      "type": "number",
+      "default": 0
+    },
+    "kitchen_station": {
+      "type": "string"
+    },
+    "availability": {
+      "type": "boolean",
+      "default": true
+    },
+    "active": {
+      "type": "boolean",
+      "default": true
     }
   },
   "required": [
+    "menu_category_id",
     "name",
-    "price"
+    "selling_price"
   ],
   "rls": {
     "create": null,

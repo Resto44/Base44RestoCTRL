@@ -58,9 +58,21 @@ export default function DeliveryOrders() {
     enabled: !!selectedBranch,
   });
 
+  const { data: menuCategories = [] } = useQuery({
+    queryKey: ['menu-categories', selectedBranch],
+    queryFn: () => base44.entities.MenuCategory.filter({ active: true }, 'sort_order', 200),
+    staleTime: 60000,
+  });
+
+  const { data: menuSubcategories = [] } = useQuery({
+    queryKey: ['menu-subcategories', selectedBranch],
+    queryFn: () => base44.entities.MenuSubcategory.filter({ active: true }, 'sort_order', 200),
+    staleTime: 60000,
+  });
+
   const { data: menuProducts = [] } = useQuery({
     queryKey: ['menu-products', selectedBranch],
-    queryFn: () => base44.entities.MenuProduct.filter({ is_active: true }, 'name', 200),
+    queryFn: () => base44.entities.MenuProduct.filter({ active: true }, 'name', 200),
     staleTime: 60000,
   });
 
@@ -225,6 +237,8 @@ export default function DeliveryOrders() {
         <NewOrderForm
           branch={selectedBranch}
           drivers={drivers}
+          menuCategories={menuCategories}
+          menuSubcategories={menuSubcategories}
           menuProducts={menuProducts}
           openShifts={openShifts}
           onClose={() => setShowNewOrder(false)}

@@ -9,16 +9,30 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { Plus, Minus, Trash2, ShoppingBag } from 'lucide-react';
 
-function groupByCategory(products) {
-  return products.reduce((acc, p) => {
-    const cat = p.category || 'Other';
-    if (!acc[cat]) acc[cat] = [];
-    acc[cat].push(p);
-    return acc;
-  }, {});
+function buildMenuHierarchy(categories, subcategories, products) {
+  const catMap = {};
+  categories.forEach(c => {
+    catMap[c.id] = { ...c, subcategories: [] };
+  });
+  
+  const subMap = {};
+  subcategories.forEach(s => {
+    subMap[s.id] = { ...s, products: [] };
+    if (catMap[s.menu_category_id]) {
+      catMap[s.menu_category_id].subcategories.push(s);
+    }
+  });
+  
+  products.forEach(p => {
+    if (subMap[p.menu_subcategory_id]) {
+      subMap[p.menu_subcategory_id].products.push(p);
+    }
+  });
+  
+  return Object.values(catMap).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
 }
 
-export default function NewOrderForm({ branch, drivers, menuProducts, openShifts, onClose, onCreated }) {
+export default function NewOrderForm({ branch, drivers = [], menuCategories = [], menuSubcategories = [], menuProducts = [], openShifts, onClose, onCreated }) {
   const [driverId, setDriverId] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -28,16 +42,20 @@ export default function NewOrderForm({ branch, drivers, menuProducts, openShifts
   const [discount, setDiscount] = useState(0);
   const [notes, setNotes] = useState('');
   const [cart, setCart] = useState([]);
-  const [activeCategory, setActiveCategory] = useState('');
+  const [activeCategoryId, setActiveCategoryId] = useState('');
+  const [activeSubcategoryId, setActiveSubcategoryId] = useState('');
 
-  const categories = useMemo(() => groupByCategory(menuProducts), [menuProducts]);
-  const catKeys = Object.keys(categories);
+  const menuHierarchy = useMemo(() => buildMenuHierarchy(menuCategories, menuSubcategories, menuProducts), [menuCategories, menuSubcategories, menuProducts]);
+  
+  const activeCategory = menuHierarchy.find(c => c.id === activeCategoryId);
+  const activeSubcategory = activeCategory?.subcategories.find(s => s.id === activeSubcategoryId);
+  const productsToDisplay = activeSubcategory?.products || [];
 
   const addItem = (product) => {
     setCart(prev => {
       const ex = prev.find(i => i.product_id === product.id);
       if (ex) return prev.map(i => i.product_id === product.id ? { ...i, qty: i.qty + 1, total: (i.qty + 1) * i.unit_price } : i);
-      return [...prev, { product_id: product.id, name: product.name, qty: 1, unit_price: product.default_price, total: product.default_price }];
+      return [...prev, { product_id: product.id, name: product.name, qty: 1, unit_price: product.selling_price, total: product.selling_price }];
     });
   };
 
@@ -92,7 +110,27 @@ export default function NewOrderForm({ branch, drivers, menuProducts, openShifts
     onError: (e) => toast.error(e.message),
   });
 
-  const displayCat = activeCategory || catKeys[0] || '';
+  const firstCategory = menuHierarchy[0];
+  const displayCategory = activeCategoryId ? activeCategory : firstCategory;
+  const firstSubcategory = displayCategory?.subcategories[0];
+  const displaySubcategory = activeSubcategoryId ? activeSubcategory : firstSubcategory;
+
+  if (menuHierarchy.length === 0) {
+    return (
+      <Dialog open onOpenChange={onClose}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-0">
+          <DialogHeader className="px-4 pt-4 pb-2">
+            <DialogTitle className="flex items-center gap-2">
+              <ShoppingBag className="w-5 h-5" /> New Delivery Order
+            </DialogTitle>
+          </DialogHeader>
+          <div className="p-4 text-center text-muted-foreground">
+            <p className="text-sm">No menu categories available. Please create menu items first.</p>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open onOpenChange={onClose}>
@@ -107,27 +145,44 @@ export default function NewOrderForm({ branch, drivers, menuProducts, openShifts
           {/* Left: Menu */}
           <div className="p-4 space-y-3">
             <h3 className="font-semibold text-sm">Menu</h3>
+            
             {/* Category tabs */}
             <div className="flex gap-1 flex-wrap">
-              {catKeys.map(cat => (
-                <button key={cat} onClick={() => setActiveCategory(cat)}
-                  className={`px-2 py-0.5 rounded-full text-xs border transition-colors ${displayCat === cat ? 'bg-primary text-white border-primary' : 'border-border hover:bg-muted'}`}>
-                  {cat}
+              {menuHierarchy.map(cat => (
+                <button key={cat.id} onClick={() => {
+                  setActiveCategoryId(cat.id);
+                  setActiveSubcategoryId(cat.subcategories[0]?.id || '');
+                }}
+                  className={`px-2 py-0.5 rounded-full text-xs border transition-colors ${displayCategory?.id === cat.id ? 'bg-primary text-white border-primary' : 'border-border hover:bg-muted'}`}>
+                  {cat.name}
                 </button>
               ))}
             </div>
+
+            {/* Subcategory tabs */}
+            {displayCategory?.subcategories && displayCategory.subcategories.length > 0 && (
+              <div className="flex gap-1 flex-wrap">
+                {displayCategory.subcategories.map(sub => (
+                  <button key={sub.id} onClick={() => setActiveSubcategoryId(sub.id)}
+                    className={`px-2 py-0.5 rounded-full text-xs border transition-colors ${displaySubcategory?.id === sub.id ? 'bg-blue-500 text-white border-blue-500' : 'border-border hover:bg-muted'}`}>
+                    {sub.name}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {/* Products */}
             <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto">
-              {(categories[displayCat] || []).map(p => (
+              {productsToDisplay.map(p => (
                 <button key={p.id} onClick={() => addItem(p)}
                   className="text-left p-2 border rounded-lg hover:bg-accent/10 transition-colors active:scale-95">
                   <div className="text-sm font-medium leading-tight">{p.name}</div>
-                  <div className="text-xs text-primary font-bold mt-0.5">{p.default_price} SAR</div>
+                  <div className="text-xs text-primary font-bold mt-0.5">{p.selling_price} SAR</div>
                 </button>
               ))}
             </div>
-            {menuProducts.length === 0 && (
-              <p className="text-xs text-muted-foreground text-center py-4">No menu products. Add them in Menu Products page.</p>
+            {productsToDisplay.length === 0 && (
+              <p className="text-xs text-muted-foreground text-center py-4">No products in this category.</p>
             )}
           </div>
 
@@ -137,11 +192,20 @@ export default function NewOrderForm({ branch, drivers, menuProducts, openShifts
             <div>
               <Label className="text-xs">Driver *</Label>
               <Select value={driverId} onValueChange={setDriverId}>
-                <SelectTrigger><SelectValue placeholder="Select driver" /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue placeholder={drivers.length === 0 ? "No drivers available" : "Select driver"} />
+                </SelectTrigger>
                 <SelectContent>
-                  {drivers.filter(d => d.is_active !== false).map(d => (
-                    <SelectItem key={d.id} value={d.id}>{d.full_name}</SelectItem>
-                  ))}
+                  {drivers.length === 0 ? (
+                    <div className="p-2 text-xs text-muted-foreground">No drivers available</div>
+                  ) : (
+                    drivers
+                      .filter(d => d.is_active !== false && d.driver_status !== 'off_duty')
+                      .sort((a, b) => (a.full_name || '').localeCompare(b.full_name || ''))
+                      .map(d => (
+                        <SelectItem key={d.id} value={d.id}>{d.full_name}</SelectItem>
+                      ))
+                  )}
                 </SelectContent>
               </Select>
             </div>

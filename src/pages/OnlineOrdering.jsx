@@ -84,7 +84,7 @@ function ProductCustomizeDialog({ product, modifiers, open, onClose, onAddToCart
     return extra;
   }, [selections, modifiers]);
 
-  const unitPrice = (parseFloat(product?.default_price) || 0) + extraCost;
+  const unitPrice = (parseFloat(product?.selling_price) || 0) + extraCost;
   const totalPrice = unitPrice * qty;
 
   const handleAdd = () => {
@@ -109,8 +109,8 @@ function ProductCustomizeDialog({ product, modifiers, open, onClose, onAddToCart
         </DialogHeader>
         <div className="space-y-4">
           {/* Product image / info */}
-          {product?.image_url && (
-            <img src={product.image_url} alt={productName} className="w-full h-40 object-cover rounded-xl" />
+          {product?.image && (
+            <img src={product.image} alt={productName} className="w-full h-40 object-cover rounded-xl" />
           )}
           {product?.description && (
             <p className="text-xs text-muted-foreground">{product.description}</p>
@@ -206,9 +206,9 @@ function ProductCard({ product, onAdd, isFavorite, onToggleFavorite, lang }) {
   return (
     <Card className="overflow-hidden hover:shadow-md transition-all active:scale-[0.98]">
       <CardContent className="p-0">
-        {product.image_url && (
+        {product.image && (
           <div className="relative">
-            <img src={product.image_url} alt={name} className="w-full h-32 object-cover" />
+            <img src={product.image} alt={name} className="w-full h-32 object-cover" />
             <button onClick={() => onToggleFavorite(product.id)} className="absolute top-2 right-2 w-8 h-8 bg-white/90 rounded-full flex items-center justify-center shadow">
               <Heart className={`w-4 h-4 ${isFavorite ? 'fill-red-500 text-red-500' : 'text-muted-foreground'}`} />
             </button>
@@ -227,21 +227,21 @@ function ProductCard({ product, onAdd, isFavorite, onToggleFavorite, lang }) {
               <p className="text-sm font-semibold leading-tight">{name}</p>
               {product.description && <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">{product.description}</p>}
               <div className="flex items-center gap-2 mt-1 flex-wrap">
-                {!product.image_url && badges.map(b => (
+                {!product.image && badges.map(b => (
                   <span key={b.label} className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${b.color}`}>{b.label}</span>
                 ))}
                 {product.calories && <span className="text-[10px] text-muted-foreground">🔥 {product.calories}kcal</span>}
                 {product.preparation_time && <span className="text-[10px] text-muted-foreground">⏱ {product.preparation_time}m</span>}
               </div>
             </div>
-            {!product.image_url && (
+            {!product.image && (
               <button onClick={() => onToggleFavorite(product.id)} className="shrink-0 p-1">
                 <Heart className={`w-4 h-4 ${isFavorite ? 'fill-red-500 text-red-500' : 'text-muted-foreground'}`} />
               </button>
             )}
           </div>
           <div className="flex items-center justify-between mt-2">
-            <span className="text-sm font-black text-primary">{currency}{parseFloat(product.default_price || 0).toFixed(2)}</span>
+            <span className="text-sm font-black text-primary">{currency}{parseFloat(product.selling_price || 0).toFixed(2)}</span>
             <Button size="sm" className="h-8 px-3 rounded-xl font-bold text-xs" onClick={() => onAdd(product)}>
               <Plus className="w-3.5 h-3.5 mr-1" />{t('add') || 'Add'}
             </Button>
@@ -302,18 +302,29 @@ export default function OnlineOrdering() {
   const [placingOrder, setPlacingOrder] = useState(false);
   const [activeOrderId, setActiveOrderId] = useState(null);
 
-  // Load categories — Online Ordering uses online_order_categories ONLY (isolated from all other category modules)
-  const { data: categories = [] } = useQuery({
-    queryKey: ['online_order_categories', ownerFilter],
-    queryFn: () => base44.entities.OnlineOrderCategory.filter({ ...ownerFilter, is_active: true }, 'sort_order', 200),
-    enabled: !!ownerFilter?.created_by,
+  // Load categories from Menu (not from OnlineOrderCategory)
+  // Categories are now unified in MenuCategory for both Delivery and Online Ordering
+
+  // Load menu categories
+  const { data: menuCategories = [] } = useQuery({
+    queryKey: ['menu_categories', ownerFilter],
+    queryFn: () => base44.entities.MenuCategory.filter({ active: true }, 'sort_order', 200),
+    staleTime: 60000,
   });
 
-  // Load products
+  // Load menu subcategories
+  const { data: menuSubcategories = [] } = useQuery({
+    queryKey: ['menu_subcategories', ownerFilter],
+    queryFn: () => base44.entities.MenuSubcategory.filter({ active: true }, 'sort_order', 200),
+    staleTime: 60000,
+  });
+
+  // Load menu products
   const { data: products = [], isLoading: loadingProducts } = useQuery({
     queryKey: ['menu_products', ownerFilter],
-    queryFn: () => base44.entities.Product.filter({ ...ownerFilter, is_active: true }, 'name', 200),
-    enabled: !!ownerFilter?.created_by,
+    queryFn: () => base44.entities.MenuProduct.filter({ active: true }, 'name', 200),
+    enabled: true,
+    staleTime: 60000,
   });
 
   // Load active order for tracking
@@ -351,14 +362,15 @@ export default function OnlineOrdering() {
   // Filtered products
   const filteredProducts = useMemo(() => {
     let p = products;
-    if (selectedCategory !== 'all') p = p.filter(prod => prod.category_id === selectedCategory || prod.category === selectedCategory);
+    if (selectedCategory !== 'all') p = p.filter(prod => prod.menu_category_id === selectedCategory);
     if (search) p = p.filter(prod => {
-      const n = (prod.name || '') + (prod.name_ar || '') + (prod.description || '');
+      const n = (prod.name || '') + (prod.description || '');
       return n.toLowerCase().includes(search.toLowerCase());
     });
     return p;
   }, [products, selectedCategory, search]);
 
+  // Note: Featured, Popular, New, Best Seller flags should be added to MenuProduct schema if needed
   const featuredProducts = useMemo(() => products.filter(p => p.is_featured), [products]);
   const popularProducts = useMemo(() => products.filter(p => p.is_popular), [products]);
   const newProducts = useMemo(() => products.filter(p => p.is_new), [products]);
@@ -387,7 +399,7 @@ export default function OnlineOrdering() {
       setCustomizeDialog({ open: true, product, modifiers: mods });
     } catch {
       // No modifiers — add directly
-      addToCart({ ...product, qty: 1, notes: '', selectedModifiers: [], unitPrice: parseFloat(product.default_price) || 0, totalPrice: parseFloat(product.default_price) || 0 });
+      addToCart({ ...product, qty: 1, notes: '', selectedModifiers: [], unitPrice: parseFloat(product.selling_price) || 0, totalPrice: parseFloat(product.selling_price) || 0 });
     }
   };
 
@@ -558,7 +570,7 @@ export default function OnlineOrdering() {
             >
               {t('all') || 'All'}
             </button>
-            {categories.map(cat => {
+            {menuCategories.map(cat => {
               const catName = cat[`name_${lang}`] || cat.name_en || cat.name_ar || '';
               return (
                 <button key={cat.id} onClick={() => setSelectedCategory(cat.id)}
