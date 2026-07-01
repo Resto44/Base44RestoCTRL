@@ -88,6 +88,149 @@ const emptyAdditionalCost = () => ({
   amount: 0,
 });
 
+/**
+ * PurchaseInvoiceItemRow
+ * Separated component to handle per-item hooks (Rules of Hooks)
+ */
+function PurchaseInvoiceItemRow({ 
+  item, 
+  idx, 
+  itemsCount,
+  updateItem, 
+  removeItem, 
+  supplierId,
+  categories,
+  categoriesTree
+}) {
+  // Fetch products for this item's category/subcategory and supplier
+  // Calling hook here is safe because it's the top level of this component
+  const { products: categoryProducts = [] } = usePurchaseProductsByCategory(item.category_id, supplierId, item.subcategory_id);
+
+  return (
+    <div className="rounded-lg border border-border p-3 space-y-2 bg-secondary/20">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium text-muted-foreground">Item {idx + 1}</span>
+        {itemsCount > 1 && (
+          <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => removeItem(item._id)}>
+            <Trash2 className="w-3.5 h-3.5" />
+          </Button>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <Label className="text-[10px] text-muted-foreground">Product Category *</Label>
+          <Select value={item.category_id} onValueChange={v => {
+            const cat = categories.find(c => c.id === v);
+            updateItem(item._id, 'category_id', v);
+            updateItem(item._id, 'category', cat?.name || '');
+          }}>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="Select..." />
+            </SelectTrigger>
+            <SelectContent>
+              {categoriesTree.map(rootCat => (
+                <div key={rootCat.id}>
+                  <SelectItem value={rootCat.id}>
+                    {rootCat.icon || '📦'} {rootCat.name}
+                  </SelectItem>
+                  {rootCat.children && rootCat.children.length > 0 && (
+                    rootCat.children.map(childCat => (
+                      <SelectItem key={childCat.id} value={childCat.id} className="pl-6">
+                        └─ {childCat.icon || '📦'} {childCat.name}
+                      </SelectItem>
+                    ))
+                  )}
+                </div>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label className="text-[10px] text-muted-foreground">Sub-category</Label>
+          <Select value={item.subcategory_id} onValueChange={v => {
+            updateItem(item._id, 'subcategory_id', v);
+          }} disabled={!item.category_id}>
+            <SelectTrigger className="h-8 text-xs" disabled={!item.category_id}>
+              <SelectValue placeholder={item.category_id ? "Select..." : "Select category first"} />
+            </SelectTrigger>
+            <SelectContent>
+              {item.category_id && categoriesTree.find(c => c.id === item.category_id)?.children?.map(subCat => (
+                <SelectItem key={subCat.id} value={subCat.id}>
+                  {subCat.icon || '📦'} {subCat.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="col-span-2">
+          <Label className="text-[10px] text-muted-foreground">Product *</Label>
+          <Select value={item.product_id} onValueChange={v => {
+            const prod = categoryProducts.find(p => p.id === v);
+            updateItem(item._id, 'product_id', v);
+            if (prod) {
+              updateItem(item._id, 'product_name', prod.name);
+              updateItem(item._id, 'unit', prod.unit || item.unit);
+              updateItem(item._id, 'unit_cost', prod.default_cost || item.unit_cost);
+            }
+          }} disabled={!item.category_id && !supplierId}>
+            <SelectTrigger className="h-8 text-xs" disabled={!item.category_id && !supplierId}>
+              <SelectValue placeholder={(item.category_id || supplierId) ? (categoryProducts.length === 0 ? 'No matching products.' : 'Select...') : 'Select category or supplier first'} />
+            </SelectTrigger>
+            <SelectContent>
+              {categoryProducts.length === 0 && (item.category_id || supplierId) ? (
+                <div className="px-2 py-1.5 text-xs text-muted-foreground">No matching products found.</div>
+              ) : (
+                categoryProducts.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)
+              )}
+            </SelectContent>
+          </Select>
+          {!item.product_id && (item.category_id || item.subcategory_id) && (
+            <Input value={item.product_name} onChange={e => updateItem(item._id, 'product_name', e.target.value)}
+              placeholder="Or type product name" className="h-8 text-xs mt-1" />
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        <div>
+          <Label className="text-[10px] text-muted-foreground">Unit</Label>
+          <Input value={item.unit} onChange={e => updateItem(item._id, 'unit', e.target.value)} placeholder="kg" className="h-8 text-xs" />
+        </div>
+        <div>
+          <Label className="text-[10px] text-muted-foreground">Quantity</Label>
+          <Input type="number" min="0" step="0.001" value={item.quantity}
+            onChange={e => updateItem(item._id, 'quantity', parseFloat(e.target.value) || 0)} className="h-8 text-xs" />
+        </div>
+        <div>
+          <Label className="text-[10px] text-muted-foreground">Unit Cost</Label>
+          <Input type="number" min="0" step="0.01" value={item.unit_cost}
+            onChange={e => updateItem(item._id, 'unit_cost', parseFloat(e.target.value) || 0)} className="h-8 text-xs" />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        <div>
+          <Label className="text-[10px] text-muted-foreground">Discount</Label>
+          <Input type="number" min="0" step="0.01" value={item.discount}
+            onChange={e => updateItem(item._id, 'discount', parseFloat(e.target.value) || 0)} className="h-8 text-xs" />
+        </div>
+        <div>
+          <Label className="text-[10px] text-muted-foreground">Tax %</Label>
+          <Input type="number" min="0" max="100" step="0.1" value={item.tax}
+            onChange={e => updateItem(item._id, 'tax', parseFloat(e.target.value) || 0)} className="h-8 text-xs" />
+        </div>
+        <div>
+          <Label className="text-[10px] text-muted-foreground">Line Total</Label>
+          <div className="h-8 flex items-center px-2 rounded-md bg-primary/5 border border-border text-xs font-semibold text-primary">
+            {(item.line_total || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function PurchaseInvoiceForm({ invoice = null, onSuccess, onCancel }) {
   const { currency: currencySymbol, lang } = useLanguage();
   const { ownerFilter } = useTenant();
@@ -150,14 +293,6 @@ export default function PurchaseInvoiceForm({ invoice = null, onSuccess, onCance
   const { data: suppliers = [] } = useQuery({
     queryKey: ['suppliers', ownerFilter],
     queryFn: () => base44.entities.Supplier.filter(ownerFilter || {}, 'name', 500),
-    enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
-  });
-
-  // Note: products are now fetched per-category via usePurchaseProductsByCategory hook
-  // This global query is kept for backward compatibility but not used for invoice items
-  const { data: _allProducts = [] } = useQuery({
-    queryKey: ['products', ownerFilter],
-    queryFn: () => base44.entities.Product.filter(ownerFilter || {}, 'name', 1000),
     enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
   });
 
@@ -339,7 +474,12 @@ export default function PurchaseInvoiceForm({ invoice = null, onSuccess, onCance
         <div className="flex items-center gap-2 mb-1">
           <Receipt className="w-4 h-4 text-primary" />
           <span className="text-sm font-semibold">Invoice Header</span>
-          {totals.grandTotal > 0 && (
+          {isEdit && (
+            <Badge className={`ms-auto text-[10px] border ${STATUS_CONFIG[form.status]?.cls}`}>
+              {STATUS_CONFIG[form.status]?.label}
+            </Badge>
+          )}
+          {!isEdit && (
             <Badge className={`ms-auto text-[10px] border ${APPROVAL_CONFIG[approvalStatus]?.cls}`}>
               {APPROVAL_CONFIG[approvalStatus]?.label}
             </Badge>
@@ -412,135 +552,19 @@ export default function PurchaseInvoiceForm({ invoice = null, onSuccess, onCance
         </div>
 
         <div className="space-y-3">
-          {items.map((item, idx) => {
-            // Fetch products for this item's category/subcategory and supplier
-            const { products: categoryProducts = [] } = usePurchaseProductsByCategory(item.category_id, form.supplier_id, item.subcategory_id);
-            
-            return (
-            <div key={item._id} className="rounded-lg border border-border p-3 space-y-2 bg-secondary/20">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-muted-foreground">Item {idx + 1}</span>
-                {items.length > 1 && (
-                  <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => removeItem(item._id)}>
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </Button>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <Label className="text-[10px] text-muted-foreground">Product Category *</Label>
-                  <Select value={item.category_id} onValueChange={v => {
-                    const cat = categories.find(c => c.id === v);
-                    updateItem(item._id, 'category_id', v);
-                    updateItem(item._id, 'category', cat?.name || '');
-                  }}>
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="Select..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {/* Render hierarchical categories */}
-                      {categoriesTree.map(rootCat => (
-                        <div key={rootCat.id}>
-                          <SelectItem value={rootCat.id}>
-                            {rootCat.icon || '📦'} {rootCat.name}
-                          </SelectItem>
-                          {rootCat.children && rootCat.children.length > 0 && (
-                            rootCat.children.map(childCat => (
-                              <SelectItem key={childCat.id} value={childCat.id} className="pl-6">
-                                └─ {childCat.icon || '📦'} {childCat.name}
-                              </SelectItem>
-                            ))
-                          )}
-                        </div>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label className="text-[10px] text-muted-foreground">Sub-category</Label>
-                  <Select value={item.subcategory_id} onValueChange={v => {
-                    updateItem(item._id, 'subcategory_id', v);
-                  }} disabled={!item.category_id}>
-                    <SelectTrigger className="h-8 text-xs" disabled={!item.category_id}>
-                      <SelectValue placeholder={item.category_id ? "Select..." : "Select category first"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {item.category_id && categoriesTree.find(c => c.id === item.category_id)?.children?.map(subCat => (
-                        <SelectItem key={subCat.id} value={subCat.id}>
-                          {subCat.icon || '📦'} {subCat.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label className="text-[10px] text-muted-foreground">Product *</Label>
-                  <Select value={item.product_id} onValueChange={v => {
-                    const prod = categoryProducts.find(p => p.id === v);
-                    updateItem(item._id, 'product_id', v);
-                    if (prod) {
-                      updateItem(item._id, 'product_name', prod.name);
-                      updateItem(item._id, 'unit', prod.unit || item.unit);
-                      updateItem(item._id, 'unit_cost', prod.default_cost || item.unit_cost);
-                    }
-                  }} disabled={!item.category_id && !form.supplier_id}>
-                    <SelectTrigger className="h-8 text-xs" disabled={!item.category_id && !form.supplier_id}>
-                      <SelectValue placeholder={(item.category_id || form.supplier_id) ? (categoryProducts.length === 0 ? 'No matching products.' : 'Select...') : 'Select category or supplier first'} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categoryProducts.length === 0 && (item.purchase_category_id || form.supplier_id) ? (
-                        <div className="px-2 py-1.5 text-xs text-muted-foreground">No matching products found.</div>
-                      ) : (
-                        categoryProducts.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)
-                      )}
-                    </SelectContent>
-                  </Select>
-                  {!item.product_id && (item.category_id || item.subcategory_id) && (
-                    <Input value={item.product_name} onChange={e => updateItem(item._id, 'product_name', e.target.value)}
-                      placeholder="Or type product name" className="h-8 text-xs mt-1" />
-                  )}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <Label className="text-[10px] text-muted-foreground">Unit</Label>
-                  <Input value={item.unit} onChange={e => updateItem(item._id, 'unit', e.target.value)} placeholder="kg" className="h-8 text-xs" />
-                </div>
-                <div>
-                  <Label className="text-[10px] text-muted-foreground">Quantity</Label>
-                  <Input type="number" min="0" step="0.001" value={item.quantity}
-                    onChange={e => updateItem(item._id, 'quantity', parseFloat(e.target.value) || 0)} className="h-8 text-xs" />
-                </div>
-                <div>
-                  <Label className="text-[10px] text-muted-foreground">Unit Cost</Label>
-                  <Input type="number" min="0" step="0.01" value={item.unit_cost}
-                    onChange={e => updateItem(item._id, 'unit_cost', parseFloat(e.target.value) || 0)} className="h-8 text-xs" />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <Label className="text-[10px] text-muted-foreground">Discount</Label>
-                  <Input type="number" min="0" step="0.01" value={item.discount}
-                    onChange={e => updateItem(item._id, 'discount', parseFloat(e.target.value) || 0)} className="h-8 text-xs" />
-                </div>
-                <div>
-                  <Label className="text-[10px] text-muted-foreground">Tax %</Label>
-                  <Input type="number" min="0" max="100" step="0.1" value={item.tax}
-                    onChange={e => updateItem(item._id, 'tax', parseFloat(e.target.value) || 0)} className="h-8 text-xs" />
-                </div>
-                <div>
-                  <Label className="text-[10px] text-muted-foreground">Line Total</Label>
-                  <div className="h-8 flex items-center px-2 rounded-md bg-primary/5 border border-border text-xs font-semibold text-primary">
-                    {(item.line_total || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </div>
-                </div>
-              </div>
-            </div>
-          );
-          })}
+          {items.map((item, idx) => (
+            <PurchaseInvoiceItemRow 
+              key={item._id}
+              item={item}
+              idx={idx}
+              itemsCount={items.length}
+              updateItem={updateItem}
+              removeItem={removeItem}
+              supplierId={form.supplier_id}
+              categories={categories}
+              categoriesTree={categoriesTree}
+            />
+          ))}
         </div>
       </Card>
 
