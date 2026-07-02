@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { CategoryIcon } from '@/components/shared/CategoryIcon';
 
 export default function ProductForm({ initial, onSubmit, onCancel }) {
   const { activeRestaurant } = useTenant();
@@ -25,7 +26,7 @@ export default function ProductForm({ initial, onSubmit, onCancel }) {
     ...initial,
   });
 
-  // ProductForm uses product_categories ONLY (isolated from expense/purchase/sales/online categories)
+  // ProductForm uses product_categories ONLY
   const { data: categories = [] } = useQuery({
     queryKey: ['product_categories', activeRestaurant?.id],
     queryFn: () => base44.entities.ProductCategory.filter(
@@ -37,24 +38,17 @@ export default function ProductForm({ initial, onSubmit, onCancel }) {
     staleTime: 30000,
   });
 
-
-
-  // Level 1: main categories (no parent)
   const mainCategories = useMemo(() => categories.filter(c => !c.parent_id), [categories]);
 
-  // Level 2: sub-categories of selected main category
   const subCategories = useMemo(() => {
     if (!form.category_id) return [];
     return categories.filter(c => c.parent_id === form.category_id);
   }, [categories, form.category_id]);
 
-  // Level 3: child categories of selected sub-category
   const childCategories = useMemo(() => {
     if (!form.subcategory_id) return [];
     return categories.filter(c => c.parent_id === form.subcategory_id);
   }, [categories, form.subcategory_id]);
-
-
 
   const getName = (cat) => cat[`name_${lang}`] || cat.name || cat.name_en || cat.name_ar || '—';
 
@@ -104,7 +98,6 @@ export default function ProductForm({ initial, onSubmit, onCancel }) {
         <Input value={form.description} onChange={e => handleChange('description', e.target.value)} placeholder={t('optional')} />
       </div>
 
-      {/* Category — cascading 3-level dropdowns */}
       <div className="space-y-2">
         <div>
           <Label className="text-xs font-medium">{t('category')} (Level 1)</Label>
@@ -116,7 +109,10 @@ export default function ProductForm({ initial, onSubmit, onCancel }) {
               <SelectItem value="__none__">— None —</SelectItem>
               {mainCategories.map(c => (
                 <SelectItem key={c.id} value={c.id}>
-                  {c.icon ? `${c.icon} ` : ''}{getName(c)}
+                  <div className="flex items-center gap-2">
+                    <CategoryIcon icon={c.icon} color={c.color} className="w-3.5 h-3.5" />
+                    <span>{getName(c)}</span>
+                  </div>
                 </SelectItem>
               ))}
             </SelectContent>
@@ -137,7 +133,10 @@ export default function ProductForm({ initial, onSubmit, onCancel }) {
                 <SelectItem value="__none__">— None —</SelectItem>
                 {subCategories.map(c => (
                   <SelectItem key={c.id} value={c.id}>
-                    {c.icon ? `${c.icon} ` : ''}{getName(c)}
+                    <div className="flex items-center gap-2">
+                      <CategoryIcon icon={c.icon} color={c.color} className="w-3.5 h-3.5" />
+                      <span>{getName(c)}</span>
+                    </div>
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -159,7 +158,10 @@ export default function ProductForm({ initial, onSubmit, onCancel }) {
                 <SelectItem value="__none__">— None —</SelectItem>
                 {childCategories.map(c => (
                   <SelectItem key={c.id} value={c.id}>
-                    {c.icon ? `${c.icon} ` : ''}{getName(c)}
+                    <div className="flex items-center gap-2">
+                      <CategoryIcon icon={c.icon} color={c.color} className="w-3.5 h-3.5" />
+                      <span>{getName(c)}</span>
+                    </div>
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -167,8 +169,6 @@ export default function ProductForm({ initial, onSubmit, onCancel }) {
           </div>
         )}
       </div>
-
-
 
       <div>
         <Label className="text-xs">{t('unit')}</Label>

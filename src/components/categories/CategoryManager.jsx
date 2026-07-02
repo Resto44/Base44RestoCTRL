@@ -32,11 +32,15 @@ import {
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
   AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import * as LucideIcons from 'lucide-react';
 import {
   Plus, Pencil, Trash2, ChevronRight, ChevronDown,
   Search, GripVertical, Image, X, Check, FolderOpen,
   Layers, ShoppingCart, DollarSign, TrendingUp, Globe,
+  HelpCircle,
 } from 'lucide-react';
+import { NewIconPicker } from './NewIconPicker';
+import { CategoryIcon } from '@/components/shared/CategoryIcon';
 import { toast } from 'sonner';
 
 // ── Module config ─────────────────────────────────────────────────────────────
@@ -245,79 +249,6 @@ function ColorPicker({ value, onChange }) {
   );
 }
 
-// ── Icon Picker ───────────────────────────────────────────────────────────────
-function IconPicker({ value, onChange }) {
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState('');
-  const isMobile = useIsMobile();
-
-  const content = (
-    <div className={isMobile ? "p-4" : "p-3 w-72"}>
-      <Input
-        placeholder="Search icons..."
-        value={search}
-        onChange={e => setSearch(e.target.value)}
-        className="h-9 sm:h-7 text-sm sm:text-xs mb-3 sm:mb-2"
-      />
-      <div className={`grid grid-cols-8 sm:grid-cols-10 gap-1 sm:gap-0.5 overflow-y-auto ${isMobile ? 'max-h-[40vh]' : 'max-h-48'}`}>
-        {ICON_PALETTE.filter(i => !search || i.includes(search)).map((ic, idx) => (
-          <button
-            key={idx}
-            type="button"
-            onClick={() => { onChange(ic); setOpen(false); setSearch(''); }}
-            className={`w-9 h-9 sm:w-7 sm:h-7 rounded flex items-center justify-center text-xl sm:text-base hover:bg-accent transition-colors ${value === ic ? 'bg-primary/20 ring-1 ring-primary' : ''}`}
-          >
-            {ic}
-          </button>
-        ))}
-      </div>
-      <Button size="sm" variant="ghost" className="w-full mt-3 sm:mt-2 text-xs" onClick={() => setOpen(false)}>
-        <X className="w-3 h-3 mr-1" /> Close
-      </Button>
-    </div>
-  );
-
-  const trigger = (
-    <button
-      type="button"
-      onClick={() => setOpen(true)}
-      className="w-8 h-8 rounded-lg border border-border bg-muted hover:bg-accent flex items-center justify-center text-lg transition-colors"
-      title="Pick icon"
-    >
-      {value || '📦'}
-    </button>
-  );
-
-  if (isMobile) {
-    return (
-      <>
-        {trigger}
-        <Sheet open={open} onOpenChange={setOpen}>
-          <SheetContent side="bottom" className="rounded-t-xl max-h-[70vh] p-0">
-            <SheetHeader className="p-4 border-b">
-              <SheetTitle className="text-sm">Select Icon</SheetTitle>
-            </SheetHeader>
-            <div className="overflow-y-auto">
-              {content}
-            </div>
-          </SheetContent>
-        </Sheet>
-      </>
-    );
-  }
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        {trigger}
-      </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="center">
-        {content}
-      </PopoverContent>
-    </Popover>
-  );
-}
-
 // ── Category Form ─────────────────────────────────────────────────────────────
 function CategoryForm({ initial, parentOptions, onSubmit, onCancel, mod, isLoading }) {
   const [form, setForm] = useState({
@@ -371,7 +302,7 @@ function CategoryForm({ initial, parentOptions, onSubmit, onCancel, mod, isLoadi
         </div>
         <div className="flex flex-col items-center gap-1">
           <Label className="text-xs font-medium">Icon</Label>
-          <IconPicker value={form.icon} onChange={v => set('icon', v)} />
+          <NewIconPicker value={form.icon} onChange={v => set('icon', v)} color={form.color} />
         </div>
       </div>
 
@@ -518,7 +449,7 @@ function CategoryTreeNode({
         />
 
         {/* Icon */}
-        <span className="text-base leading-none shrink-0">{node.icon || mod.defaultIcon}</span>
+        <CategoryIcon icon={node.icon || mod.defaultIcon} color={node.color || mod.color} className="w-4 h-4 shrink-0" />
 
         {/* Image thumbnail */}
         {node.image_url && (
@@ -616,7 +547,7 @@ function CategoryFlatRow({ node, onEdit, onDelete, dragState, onDragStart, onDra
     >
       <GripVertical className="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 shrink-0" />
       <span className="w-3 h-3 rounded-full shrink-0" style={{ background: node.color || mod.color }} />
-      <span className="text-base leading-none shrink-0">{node.icon || mod.defaultIcon}</span>
+      <CategoryIcon icon={node.icon || mod.defaultIcon} color={node.color || mod.color} className="w-4 h-4 shrink-0" />
       {node.image_url && (
         <img src={node.image_url} alt="" className="w-6 h-6 rounded object-cover shrink-0"
           onError={e => { e.target.style.display = 'none'; }} />
