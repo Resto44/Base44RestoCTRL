@@ -21,6 +21,13 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import {
+  Popover, PopoverContent, PopoverTrigger,
+} from '@/components/ui/popover';
+import {
+  Sheet, SheetContent, SheetHeader, SheetTitle,
+} from '@/components/ui/sheet';
+import { useIsMobile } from '@/hooks/use-mobile';
+import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
   AlertDialogHeader, AlertDialogTitle,
@@ -167,44 +174,74 @@ export function useCategoryModule(moduleKey) {
 // ── Color Picker ──────────────────────────────────────────────────────────────
 function ColorPicker({ value, onChange }) {
   const [open, setOpen] = useState(false);
-  return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="w-8 h-8 rounded-full border-2 border-border shadow-sm hover:scale-110 transition-transform"
-        style={{ background: value || '#3B82F6' }}
-        title="Pick color"
-      />
-      {open && (
-        <div className="absolute z-50 top-10 left-0 bg-card border border-border rounded-xl shadow-xl p-3 w-56">
-          <div className="grid grid-cols-10 gap-1 mb-2">
-            {COLOR_PALETTE.map(c => (
-              <button
-                key={c}
-                type="button"
-                onClick={() => { onChange(c); setOpen(false); }}
-                className="w-4 h-4 rounded-full border border-border hover:scale-125 transition-transform"
-                style={{ background: c }}
-              />
-            ))}
-          </div>
-          <div className="flex items-center gap-2 mt-2">
-            <Label className="text-xs text-muted-foreground">Custom:</Label>
-            <input
-              type="color"
-              value={value || '#3B82F6'}
-              onChange={e => onChange(e.target.value)}
-              className="w-8 h-6 rounded cursor-pointer border-0"
-            />
-            <span className="text-xs font-mono text-muted-foreground">{value}</span>
-          </div>
-          <Button size="sm" variant="ghost" className="w-full mt-1 text-xs" onClick={() => setOpen(false)}>
-            <Check className="w-3 h-3 mr-1" /> Done
-          </Button>
-        </div>
-      )}
+  const isMobile = useIsMobile();
+
+  const content = (
+    <div className={isMobile ? "p-4" : "p-3 w-56"}>
+      <div className="grid grid-cols-10 gap-1 mb-2">
+        {COLOR_PALETTE.map(c => (
+          <button
+            key={c}
+            type="button"
+            onClick={() => { onChange(c); setOpen(false); }}
+            className="w-5 h-5 sm:w-4 sm:h-4 rounded-full border border-border hover:scale-125 transition-transform"
+            style={{ background: c }}
+          />
+        ))}
+      </div>
+      <div className="flex items-center gap-2 mt-2">
+        <Label className="text-xs text-muted-foreground">Custom:</Label>
+        <input
+          type="color"
+          value={value || '#3B82F6'}
+          onChange={e => onChange(e.target.value)}
+          className="w-8 h-6 rounded cursor-pointer border-0"
+        />
+        <span className="text-xs font-mono text-muted-foreground">{value}</span>
+      </div>
+      <Button size="sm" variant="ghost" className="w-full mt-2 text-xs" onClick={() => setOpen(false)}>
+        <Check className="w-3 h-3 mr-1" /> Done
+      </Button>
     </div>
+  );
+
+  const trigger = (
+    <button
+      type="button"
+      onClick={() => setOpen(true)}
+      className="w-8 h-8 rounded-full border-2 border-border shadow-sm hover:scale-110 transition-transform"
+      style={{ background: value || '#3B82F6' }}
+      title="Pick color"
+    />
+  );
+
+  if (isMobile) {
+    return (
+      <>
+        {trigger}
+        <Sheet open={open} onOpenChange={setOpen}>
+          <SheetContent side="bottom" className="rounded-t-xl max-h-[70vh] p-0">
+            <SheetHeader className="p-4 border-b">
+              <SheetTitle className="text-sm">Select Color</SheetTitle>
+            </SheetHeader>
+            <div className="overflow-y-auto">
+              {content}
+            </div>
+          </SheetContent>
+        </Sheet>
+      </>
+    );
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        {trigger}
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="center">
+        {content}
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -212,42 +249,72 @@ function ColorPicker({ value, onChange }) {
 function IconPicker({ value, onChange }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
-  return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="w-8 h-8 rounded-lg border border-border bg-muted hover:bg-accent flex items-center justify-center text-lg transition-colors"
-        title="Pick icon"
-      >
-        {value || '📦'}
-      </button>
-      {open && (
-        <div className="absolute z-50 top-10 left-0 bg-card border border-border rounded-xl shadow-xl p-3 w-72">
-          <Input
-            placeholder="Search icons..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="h-7 text-xs mb-2"
-          />
-          <div className="grid grid-cols-10 gap-0.5 max-h-48 overflow-y-auto">
-            {ICON_PALETTE.filter(i => !search || i.includes(search)).map((ic, idx) => (
-              <button
-                key={idx}
-                type="button"
-                onClick={() => { onChange(ic); setOpen(false); setSearch(''); }}
-                className={`w-7 h-7 rounded flex items-center justify-center text-base hover:bg-accent transition-colors ${value === ic ? 'bg-primary/20 ring-1 ring-primary' : ''}`}
-              >
-                {ic}
-              </button>
-            ))}
-          </div>
-          <Button size="sm" variant="ghost" className="w-full mt-2 text-xs" onClick={() => setOpen(false)}>
-            <X className="w-3 h-3 mr-1" /> Close
-          </Button>
-        </div>
-      )}
+  const isMobile = useIsMobile();
+
+  const content = (
+    <div className={isMobile ? "p-4" : "p-3 w-72"}>
+      <Input
+        placeholder="Search icons..."
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+        className="h-9 sm:h-7 text-sm sm:text-xs mb-3 sm:mb-2"
+      />
+      <div className={`grid grid-cols-8 sm:grid-cols-10 gap-1 sm:gap-0.5 overflow-y-auto ${isMobile ? 'max-h-[40vh]' : 'max-h-48'}`}>
+        {ICON_PALETTE.filter(i => !search || i.includes(search)).map((ic, idx) => (
+          <button
+            key={idx}
+            type="button"
+            onClick={() => { onChange(ic); setOpen(false); setSearch(''); }}
+            className={`w-9 h-9 sm:w-7 sm:h-7 rounded flex items-center justify-center text-xl sm:text-base hover:bg-accent transition-colors ${value === ic ? 'bg-primary/20 ring-1 ring-primary' : ''}`}
+          >
+            {ic}
+          </button>
+        ))}
+      </div>
+      <Button size="sm" variant="ghost" className="w-full mt-3 sm:mt-2 text-xs" onClick={() => setOpen(false)}>
+        <X className="w-3 h-3 mr-1" /> Close
+      </Button>
     </div>
+  );
+
+  const trigger = (
+    <button
+      type="button"
+      onClick={() => setOpen(true)}
+      className="w-8 h-8 rounded-lg border border-border bg-muted hover:bg-accent flex items-center justify-center text-lg transition-colors"
+      title="Pick icon"
+    >
+      {value || '📦'}
+    </button>
+  );
+
+  if (isMobile) {
+    return (
+      <>
+        {trigger}
+        <Sheet open={open} onOpenChange={setOpen}>
+          <SheetContent side="bottom" className="rounded-t-xl max-h-[70vh] p-0">
+            <SheetHeader className="p-4 border-b">
+              <SheetTitle className="text-sm">Select Icon</SheetTitle>
+            </SheetHeader>
+            <div className="overflow-y-auto">
+              {content}
+            </div>
+          </SheetContent>
+        </Sheet>
+      </>
+    );
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        {trigger}
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="center">
+        {content}
+      </PopoverContent>
+    </Popover>
   );
 }
 
