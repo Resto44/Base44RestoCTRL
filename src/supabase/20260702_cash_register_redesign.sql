@@ -112,9 +112,9 @@ CREATE TABLE IF NOT EXISTS public.cash_movements (
   amount            NUMERIC NOT NULL DEFAULT 0,
   movement_type     TEXT NOT NULL CHECK (movement_type IN (
                       'cash_sale','customer_debt_collection','supplier_refund',
-                      'owner_injection','cash_transfer_in',
+                      'owner_injection','cash_transfer_in','cash_deposit',
                       'cash_purchase','cash_expense','supplier_payment',
-                      'customer_refund','cash_transfer_out',
+                      'customer_refund','cash_transfer_out','cash_withdrawal',
                       'salary_advance','shortage_adjustment','overage_adjustment'
                     )),
   source_module     TEXT NOT NULL CHECK (source_module IN (
@@ -171,8 +171,8 @@ END $$;
 -- ── 6. ROW LEVEL SECURITY ────────────────────────────────────────────────────
 ALTER TABLE public.daily_cash_settlements   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cash_shortages           ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.owner_cash_injections    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cash_movements           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.owner_cash_injections    ENABLE ROW LEVEL SECURITY;
 
 -- Owner: full access to own data
 CREATE POLICY "DailyCashSettlement: owner all" ON public.daily_cash_settlements
@@ -193,10 +193,12 @@ CREATE POLICY "CashMovement: owner all" ON public.cash_movements
 
 -- Manager: view and create for own branch
 CREATE POLICY "DailyCashSettlement: manager branch" ON public.daily_cash_settlements
-  FOR ALL USING (branch = (SELECT branch FROM public.profiles WHERE id = auth.uid()));
+  FOR ALL USING (branch = (SELECT branch FROM public.profiles WHERE id = auth.uid()))
+  WITH CHECK (branch = (SELECT branch FROM public.profiles WHERE id = auth.uid()));
 
 CREATE POLICY "CashShortage: manager branch" ON public.cash_shortages
-  FOR ALL USING (branch = (SELECT branch FROM public.profiles WHERE id = auth.uid()));
+  FOR ALL USING (branch = (SELECT branch FROM public.profiles WHERE id = auth.uid()))
+  WITH CHECK (branch = (SELECT branch FROM public.profiles WHERE id = auth.uid()));
 
 CREATE POLICY "OwnerCashInjection: manager view branch" ON public.owner_cash_injections
   FOR SELECT USING (branch = (SELECT branch FROM public.profiles WHERE id = auth.uid()));
@@ -303,356 +305,501 @@ BEGIN
 END;
 $$;
 
--- ── 10. TRIGGER: AUTO-POST CASH SALES FROM DAILY_SALES ───────────────────────
--- When a daily_sales record is inserted/updated with cash > 0,
--- post a CashMovement and update DailyCashSettlement.
-CREATE OR REPLACE FUNCTION public.trg_daily_sales_cash_post()
+-- ── 10. TRIGGER: AUTO-POST CASH MOVEMENTS & RECALCULATE SETTLEMENT ───────────
+CREATE OR REPLACE FUNCTION public.trg_auto_cash_movement_and_recalculate()
 RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE
-  v_cash_amount NUMERIC;
   v_settlement_id UUID;
-  v_old_cash NUMERIC DEFAULT 0;
+  v_movement_type TEXT;
+  v_direction     TEXT;
+  v_amount        NUMERIC;
+  v_source_module TEXT;
+  v_source_record_id TEXT;
+  v_description   TEXT;
+  v_created_by    TEXT;
+  v_restaurant_id UUID;
+  v_branch        TEXT;
+  v_date          DATE;
+  v_old_amount    NUMERIC DEFAULT 0;
+  v_old_movement_id UUID;
 BEGIN
-  -- Only process cash amounts
-  v_cash_amount := COALESCE(NEW.restaurant_cash, 0);
-  v_old_cash    := COALESCE(OLD.restaurant_cash, 0);
+  -- Determine common fields
+  IF TG_TABLE_NAME = 'daily_sales' THEN
+    v_date := NEW.date;
+    v_branch := NEW.branch;
+    v_created_by := NEW.created_by;
+    v_restaurant_id := NEW.restaurant_id;
+    v_source_module := 'Sales';
+    v_source_record_id := NEW.id::TEXT;
+    v_description := 'Cash Sale';
+    v_movement_type := 'cash_sale';
+    v_direction := 'in';
+    v_amount := COALESCE(NEW.restaurant_cash, 0);
+    IF TG_OP = 'UPDATE' THEN v_old_amount := COALESCE(OLD.restaurant_cash, 0); END IF;
+  ELSIF TG_TABLE_NAME = 'purchases' THEN
+    v_date := NEW.purchase_date;
+    v_branch := NEW.branch;
+    v_created_by := NEW.created_by;
+    v_restaurant_id := NEW.restaurant_id;
+    v_source_module := 'Purchases';
+    v_source_record_id := NEW.id::TEXT;
+    v_description := 'Cash Purchase';
+    v_movement_type := 'cash_purchase';
+    v_direction := 'out';
+    v_amount := COALESCE(NEW.cash_amount, 0);
+    IF TG_OP = 'UPDATE' THEN v_old_amount := COALESCE(OLD.cash_amount, 0); END IF;
+  ELSIF TG_TABLE_NAME = 'expenses' THEN
+    v_date := NEW.expense_date;
+    v_branch := NEW.branch;
+    v_created_by := NEW.created_by;
+    v_restaurant_id := NEW.restaurant_id;
+    v_source_module := 'Expenses';
+    v_source_record_id := NEW.id::TEXT;
+    v_description := 'Cash Expense';
+    v_movement_type := 'cash_expense';
+    v_direction := 'out';
+    v_amount := COALESCE(NEW.cash_amount, 0);
+    IF TG_OP = 'UPDATE' THEN v_old_amount := COALESCE(OLD.cash_amount, 0); END IF;
+  ELSIF TG_TABLE_NAME = 'customer_payments' THEN
+    v_date := NEW.payment_date;
+    v_branch := NEW.branch;
+    v_created_by := NEW.created_by;
+    v_restaurant_id := NEW.restaurant_id;
+    v_source_module := 'CustomerPayments';
+    v_source_record_id := NEW.id::TEXT;
+    v_description := 'Customer Debt Collection';
+    v_movement_type := 'customer_debt_collection';
+    v_direction := 'in';
+    v_amount := COALESCE(NEW.cash_amount, 0);
+    IF TG_OP = 'UPDATE' THEN v_old_amount := COALESCE(OLD.cash_amount, 0); END IF;
+  ELSIF TG_TABLE_NAME = 'supplier_payments' THEN
+    v_date := NEW.payment_date;
+    v_branch := NEW.branch;
+    v_created_by := NEW.created_by;
+    v_restaurant_id := NEW.restaurant_id;
+    v_source_module := 'SupplierPayments';
+    v_source_record_id := NEW.id::TEXT;
+    v_description := 'Supplier Payment';
+    v_movement_type := 'supplier_payment';
+    v_direction := 'out';
+    v_amount := COALESCE(NEW.cash_amount, 0);
+    IF TG_OP = 'UPDATE' THEN v_old_amount := COALESCE(OLD.cash_amount, 0); END IF;
+  ELSIF TG_TABLE_NAME = 'wallet_transactions' THEN
+    v_date := NEW.transaction_date;
+    v_branch := NEW.branch;
+    v_created_by := NEW.created_by;
+    v_restaurant_id := NEW.restaurant_id;
+    v_source_module := 'Treasury';
+    v_source_record_id := NEW.id::TEXT;
+    IF NEW.transaction_type = 'deposit' AND NEW.payment_method = 'Cash' THEN
+      v_description := 'Cash Deposit';
+      v_movement_type := 'cash_deposit';
+      v_direction := 'in';
+      v_amount := COALESCE(NEW.amount, 0);
+    ELSIF NEW.transaction_type = 'withdrawal' AND NEW.payment_method = 'Cash' THEN
+      v_description := 'Cash Withdrawal';
+      v_movement_type := 'cash_withdrawal';
+      v_direction := 'out';
+      v_amount := COALESCE(NEW.amount, 0);
+    ELSE
+      RETURN NEW; -- Not a cash deposit/withdrawal
+    END IF;
+    IF TG_OP = 'UPDATE' THEN
+      -- Need to handle old cash amount for wallet transactions carefully
+      -- For simplicity, we'll assume a full reversal if type/method changes
+      -- or if amount changes significantly. More robust logic might be needed.
+      IF OLD.transaction_type = 'deposit' AND OLD.payment_method = 'Cash' THEN
+        v_old_amount := COALESCE(OLD.amount, 0);
+      ELSIF OLD.transaction_type = 'withdrawal' AND OLD.payment_method = 'Cash' THEN
+        v_old_amount := COALESCE(OLD.amount, 0);
+      END IF;
+    END IF;
+  ELSIF TG_TABLE_NAME = 'owner_cash_injections' THEN
+    v_date := NEW.date;
+    v_branch := NEW.branch;
+    v_created_by := NEW.created_by;
+    v_restaurant_id := NEW.restaurant_id;
+    v_source_module := 'OwnerCashInjection';
+    v_source_record_id := NEW.id::TEXT;
+    v_description := 'Owner Cash Injection';
+    v_movement_type := 'owner_injection';
+    v_direction := 'in';
+    v_amount := COALESCE(NEW.amount, 0);
+    IF TG_OP = 'UPDATE' THEN v_old_amount := COALESCE(OLD.amount, 0); END IF;
+  ELSE
+    RETURN NEW; -- Should not happen with proper trigger setup
+  END IF;
 
-  IF v_cash_amount = v_old_cash AND TG_OP = 'UPDATE' THEN
+  -- If amount is 0 or not a cash transaction, do nothing
+  IF v_amount = 0 AND v_old_amount = 0 THEN
     RETURN NEW;
   END IF;
 
-  -- Reverse old movement if update
-  IF TG_OP = 'UPDATE' AND v_old_cash > 0 THEN
-    UPDATE public.cash_movements SET is_reversed = TRUE
-    WHERE source_module = 'Sales' AND source_record_id = OLD.id::TEXT
-      AND movement_type = 'cash_sale' AND is_reversed = FALSE;
+  -- Get or create today's settlement
+  v_settlement_id := public.get_or_create_settlement(v_date, v_branch, v_created_by, v_restaurant_id);
+
+  -- Handle UPDATE operations: reverse old movement and then create new one
+  IF TG_OP = 'UPDATE' AND v_old_amount > 0 THEN
+    -- Find and mark the old movement as reversed
+    SELECT id INTO v_old_movement_id
+    FROM public.cash_movements
+    WHERE source_module = v_source_module
+      AND source_record_id = OLD.id::TEXT
+      AND movement_type = v_movement_type
+      AND is_reversed = FALSE
+    ORDER BY posted_at DESC LIMIT 1;
+
+    IF FOUND THEN
+      UPDATE public.cash_movements SET is_reversed = TRUE, updated_date = NOW()
+      WHERE id = v_old_movement_id;
+
+      -- Update the settlement by subtracting the old amount
+      IF v_direction = 'in' THEN
+        EXECUTE FORMAT('UPDATE public.daily_cash_settlements SET %I = %I - %L WHERE id = %L',
+          v_movement_type, v_movement_type, v_old_amount, v_settlement_id);
+      ELSE
+        EXECUTE FORMAT('UPDATE public.daily_cash_settlements SET %I = %I - %L WHERE id = %L',
+          v_movement_type, v_movement_type, v_old_amount, v_settlement_id);
+      END IF;
+      PERFORM public.recompute_settlement(v_settlement_id);
+    END IF;
   END IF;
 
-  IF v_cash_amount > 0 THEN
-    -- Get/create settlement
-    v_settlement_id := public.get_or_create_settlement(
-      NEW.date::DATE, NEW.branch, NEW.created_by, NEW.restaurant_id
+  -- Create new cash movement if amount > 0
+  IF v_amount > 0 THEN
+    INSERT INTO public.cash_movements (
+      date, branch, restaurant_id, created_by, direction, amount, movement_type,
+      source_module, source_record_id, description, posted_by, posted_by_name, settlement_id
+    ) VALUES (
+      v_date, v_branch, v_restaurant_id, v_created_by, v_direction, v_amount, v_movement_type,
+      v_source_module, v_source_record_id, v_description, v_created_by, v_created_by, v_settlement_id
     );
 
-    -- Insert cash movement
-    INSERT INTO public.cash_movements
-      (date, branch, restaurant_id, created_by, direction, amount,
-       movement_type, source_module, source_record_id, description,
-       posted_by, settlement_id)
-    VALUES
-      (NEW.date::DATE, NEW.branch, NEW.restaurant_id, NEW.created_by,
-       'in', v_cash_amount, 'cash_sale', 'Sales', NEW.id::TEXT,
-       'Cash Sales - ' || NEW.date, NEW.created_by, v_settlement_id);
-
-    -- Update settlement cash_sales total
-    UPDATE public.daily_cash_settlements
-    SET cash_sales = (
-      SELECT COALESCE(SUM(amount), 0)
-      FROM public.cash_movements
-      WHERE settlement_id = v_settlement_id
-        AND movement_type = 'cash_sale'
-        AND is_reversed = FALSE
-    ), updated_date = NOW()
-    WHERE id = v_settlement_id;
-
-    -- Recompute expected closing
+    -- Update the corresponding field in daily_cash_settlements
+    IF v_direction = 'in' THEN
+      EXECUTE FORMAT('UPDATE public.daily_cash_settlements SET %I = %I + %L WHERE id = %L',
+        v_movement_type, v_movement_type, v_amount, v_settlement_id);
+    ELSE
+      EXECUTE FORMAT('UPDATE public.daily_cash_settlements SET %I = %I + %L WHERE id = %L',
+        v_movement_type, v_movement_type, v_amount, v_settlement_id);
+    END IF;
     PERFORM public.recompute_settlement(v_settlement_id);
   END IF;
 
-  RETURN NEW;
-END;
-$$;
+  -- Handle DELETE operations: reverse the movement
+  IF TG_OP = 'DELETE' THEN
+    -- Find and mark the old movement as reversed
+    SELECT id INTO v_old_movement_id
+    FROM public.cash_movements
+    WHERE source_module = v_source_module
+      AND source_record_id = OLD.id::TEXT
+      AND movement_type = v_movement_type
+      AND is_reversed = FALSE
+    ORDER BY posted_at DESC LIMIT 1;
 
-DROP TRIGGER IF EXISTS trg_daily_sales_cash ON public.daily_sales;
-CREATE TRIGGER trg_daily_sales_cash
-  AFTER INSERT OR UPDATE OF restaurant_cash ON public.daily_sales
-  FOR EACH ROW EXECUTE FUNCTION public.trg_daily_sales_cash_post();
+    IF FOUND THEN
+      UPDATE public.cash_movements SET is_reversed = TRUE, updated_date = NOW()
+      WHERE id = v_old_movement_id;
 
--- ── 11. TRIGGER: AUTO-POST CASH EXPENSES ─────────────────────────────────────
-CREATE OR REPLACE FUNCTION public.trg_expenses_cash_post()
-RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER AS $$
-DECLARE
-  v_amount NUMERIC;
-  v_settlement_id UUID;
-BEGIN
-  -- Only cash expenses
-  IF COALESCE(NEW.payment_method, 'cash') != 'cash' THEN RETURN NEW; END IF;
-  v_amount := COALESCE(NEW.amount, 0);
-  IF v_amount <= 0 THEN RETURN NEW; END IF;
-
-  IF TG_OP = 'UPDATE' THEN
-    UPDATE public.cash_movements SET is_reversed = TRUE
-    WHERE source_module = 'Expenses' AND source_record_id = OLD.id::TEXT
-      AND movement_type = 'cash_expense' AND is_reversed = FALSE;
+      -- Update the settlement by subtracting the old amount
+      IF v_direction = 'in' THEN
+        EXECUTE FORMAT('UPDATE public.daily_cash_settlements SET %I = %I - %L WHERE id = %L',
+          v_movement_type, v_movement_type, v_old_amount, v_settlement_id);
+      ELSE
+        EXECUTE FORMAT('UPDATE public.daily_cash_settlements SET %I = %I - %L WHERE id = %L',
+          v_movement_type, v_movement_type, v_old_amount, v_settlement_id);
+      END IF;
+      PERFORM public.recompute_settlement(v_settlement_id);
+    END IF;
   END IF;
 
-  v_settlement_id := public.get_or_create_settlement(
-    NEW.date::DATE, NEW.branch, NEW.created_by, NULL
-  );
-
-  INSERT INTO public.cash_movements
-    (date, branch, created_by, direction, amount, movement_type,
-     source_module, source_record_id, description, posted_by, settlement_id)
-  VALUES
-    (NEW.date::DATE, NEW.branch, NEW.created_by, 'out', v_amount,
-     'cash_expense', 'Expenses', NEW.id::TEXT,
-     COALESCE(NEW.description, NEW.category) || ' (Expense)', NEW.created_by,
-     v_settlement_id);
-
-  UPDATE public.daily_cash_settlements
-  SET cash_expenses = (
-    SELECT COALESCE(SUM(amount), 0)
-    FROM public.cash_movements
-    WHERE settlement_id = v_settlement_id
-      AND movement_type = 'cash_expense'
-      AND is_reversed = FALSE
-  ), updated_date = NOW()
-  WHERE id = v_settlement_id;
-
-  PERFORM public.recompute_settlement(v_settlement_id);
   RETURN NEW;
 END;
 $$;
 
-DROP TRIGGER IF EXISTS trg_expenses_cash ON public.expenses;
-CREATE TRIGGER trg_expenses_cash
-  AFTER INSERT OR UPDATE OF amount, payment_method ON public.expenses
-  FOR EACH ROW EXECUTE FUNCTION public.trg_expenses_cash_post();
-
--- ── 12. TRIGGER: AUTO-POST CASH PURCHASES ────────────────────────────────────
-CREATE OR REPLACE FUNCTION public.trg_purchases_cash_post()
-RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER AS $$
-DECLARE
-  v_amount NUMERIC;
-  v_settlement_id UUID;
-BEGIN
-  v_amount := COALESCE(NEW.used_price, NEW.current_price, 0) * COALESCE(NEW.qty, 0);
-  IF v_amount <= 0 THEN RETURN NEW; END IF;
-
-  IF TG_OP = 'UPDATE' THEN
-    UPDATE public.cash_movements SET is_reversed = TRUE
-    WHERE source_module = 'Purchases' AND source_record_id = OLD.id::TEXT
-      AND movement_type = 'cash_purchase' AND is_reversed = FALSE;
+-- Triggers for auto-posting and recalculation
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_daily_sales_cash_movement') THEN
+    CREATE TRIGGER trg_daily_sales_cash_movement
+      AFTER INSERT OR UPDATE OR DELETE ON public.daily_sales
+      FOR EACH ROW EXECUTE FUNCTION public.trg_auto_cash_movement_and_recalculate();
   END IF;
+END $$;
 
-  v_settlement_id := public.get_or_create_settlement(
-    NEW.date::DATE, NEW.branch, NEW.created_by, NULL
-  );
-
-  INSERT INTO public.cash_movements
-    (date, branch, created_by, direction, amount, movement_type,
-     source_module, source_record_id, description, posted_by, settlement_id)
-  VALUES
-    (NEW.date::DATE, NEW.branch, NEW.created_by, 'out', v_amount,
-     'cash_purchase', 'Purchases', NEW.id::TEXT,
-     COALESCE(NEW.product_name, 'Purchase') || ' x' || NEW.qty, NEW.created_by,
-     v_settlement_id);
-
-  UPDATE public.daily_cash_settlements
-  SET cash_purchases = (
-    SELECT COALESCE(SUM(amount), 0)
-    FROM public.cash_movements
-    WHERE settlement_id = v_settlement_id
-      AND movement_type = 'cash_purchase'
-      AND is_reversed = FALSE
-  ), updated_date = NOW()
-  WHERE id = v_settlement_id;
-
-  PERFORM public.recompute_settlement(v_settlement_id);
-  RETURN NEW;
-END;
-$$;
-
-DROP TRIGGER IF EXISTS trg_purchases_cash ON public.purchases;
-CREATE TRIGGER trg_purchases_cash
-  AFTER INSERT OR UPDATE OF used_price, current_price, qty ON public.purchases
-  FOR EACH ROW EXECUTE FUNCTION public.trg_purchases_cash_post();
-
--- ── 13. TRIGGER: AUTO-POST SUPPLIER PAYMENTS ─────────────────────────────────
-CREATE OR REPLACE FUNCTION public.trg_supplier_payments_cash_post()
-RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER AS $$
-DECLARE
-  v_amount NUMERIC;
-  v_settlement_id UUID;
-BEGIN
-  IF COALESCE(NEW.payment_method, 'cash') != 'cash' THEN RETURN NEW; END IF;
-  v_amount := COALESCE(NEW.amount, 0);
-  IF v_amount <= 0 THEN RETURN NEW; END IF;
-
-  IF TG_OP = 'UPDATE' THEN
-    UPDATE public.cash_movements SET is_reversed = TRUE
-    WHERE source_module = 'SupplierPayments' AND source_record_id = OLD.id::TEXT
-      AND movement_type = 'supplier_payment' AND is_reversed = FALSE;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_purchases_cash_movement') THEN
+    CREATE TRIGGER trg_purchases_cash_movement
+      AFTER INSERT OR UPDATE OR DELETE ON public.purchases
+      FOR EACH ROW EXECUTE FUNCTION public.trg_auto_cash_movement_and_recalculate();
   END IF;
+END $$;
 
-  v_settlement_id := public.get_or_create_settlement(
-    NEW.date::DATE, NEW.branch, NEW.created_by, NULL
-  );
-
-  INSERT INTO public.cash_movements
-    (date, branch, created_by, direction, amount, movement_type,
-     source_module, source_record_id, description, posted_by, settlement_id)
-  VALUES
-    (NEW.date::DATE, NEW.branch, NEW.created_by, 'out', v_amount,
-     'supplier_payment', 'SupplierPayments', NEW.id::TEXT,
-     'Supplier Payment', NEW.created_by, v_settlement_id);
-
-  UPDATE public.daily_cash_settlements
-  SET supplier_payments = (
-    SELECT COALESCE(SUM(amount), 0)
-    FROM public.cash_movements
-    WHERE settlement_id = v_settlement_id
-      AND movement_type = 'supplier_payment'
-      AND is_reversed = FALSE
-  ), updated_date = NOW()
-  WHERE id = v_settlement_id;
-
-  PERFORM public.recompute_settlement(v_settlement_id);
-  RETURN NEW;
-END;
-$$;
-
-DROP TRIGGER IF EXISTS trg_supplier_payments_cash ON public.supplier_payments;
-CREATE TRIGGER trg_supplier_payments_cash
-  AFTER INSERT OR UPDATE OF amount, payment_method ON public.supplier_payments
-  FOR EACH ROW EXECUTE FUNCTION public.trg_supplier_payments_cash_post();
-
--- ── 14. TRIGGER: AUTO-POST CUSTOMER DEBT COLLECTIONS ────────────────────────
-CREATE OR REPLACE FUNCTION public.trg_customer_collections_cash_post()
-RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER AS $$
-DECLARE
-  v_amount NUMERIC;
-  v_settlement_id UUID;
-BEGIN
-  IF COALESCE(NEW.payment_method, 'cash') != 'cash' THEN RETURN NEW; END IF;
-  v_amount := COALESCE(NEW.amount, 0);
-  IF v_amount <= 0 THEN RETURN NEW; END IF;
-
-  IF TG_OP = 'UPDATE' THEN
-    UPDATE public.cash_movements SET is_reversed = TRUE
-    WHERE source_module = 'CustomerPayments' AND source_record_id = OLD.id::TEXT
-      AND movement_type = 'customer_debt_collection' AND is_reversed = FALSE;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_expenses_cash_movement') THEN
+    CREATE TRIGGER trg_expenses_cash_movement
+      AFTER INSERT OR UPDATE OR DELETE ON public.expenses
+      FOR EACH ROW EXECUTE FUNCTION public.trg_auto_cash_movement_and_recalculate();
   END IF;
+END $$;
 
-  v_settlement_id := public.get_or_create_settlement(
-    NEW.date::DATE, NEW.branch, NEW.created_by, NULL
-  );
-
-  INSERT INTO public.cash_movements
-    (date, branch, created_by, direction, amount, movement_type,
-     source_module, source_record_id, description, posted_by, settlement_id)
-  VALUES
-    (NEW.date::DATE, NEW.branch, NEW.created_by, 'in', v_amount,
-     'customer_debt_collection', 'CustomerPayments', NEW.id::TEXT,
-     'Customer Debt Collection (Cash)', NEW.created_by, v_settlement_id);
-
-  UPDATE public.daily_cash_settlements
-  SET customer_debt_collection = (
-    SELECT COALESCE(SUM(amount), 0)
-    FROM public.cash_movements
-    WHERE settlement_id = v_settlement_id
-      AND movement_type = 'customer_debt_collection'
-      AND is_reversed = FALSE
-  ), updated_date = NOW()
-  WHERE id = v_settlement_id;
-
-  PERFORM public.recompute_settlement(v_settlement_id);
-  RETURN NEW;
-END;
-$$;
-
-DROP TRIGGER IF EXISTS trg_customer_collections_cash ON public.customer_collections;
-CREATE TRIGGER trg_customer_collections_cash
-  AFTER INSERT OR UPDATE OF amount, payment_method ON public.customer_collections
-  FOR EACH ROW EXECUTE FUNCTION public.trg_customer_collections_cash_post();
-
--- ── 15. TRIGGER: AUTO-POST OWNER CASH INJECTIONS ────────────────────────────
-CREATE OR REPLACE FUNCTION public.trg_owner_injection_cash_post()
-RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER AS $$
-DECLARE
-  v_settlement_id UUID;
-BEGIN
-  IF NEW.amount <= 0 THEN RETURN NEW; END IF;
-
-  v_settlement_id := public.get_or_create_settlement(
-    NEW.date::DATE, NEW.branch, NEW.created_by, NEW.restaurant_id
-  );
-
-  INSERT INTO public.cash_movements
-    (date, branch, restaurant_id, created_by, direction, amount, movement_type,
-     source_module, source_record_id, description, posted_by, settlement_id)
-  VALUES
-    (NEW.date::DATE, NEW.branch, NEW.restaurant_id, NEW.created_by,
-     'in', NEW.amount, 'owner_injection', 'OwnerCashInjection', NEW.id::TEXT,
-     'Owner Cash Injection: ' || COALESCE(NEW.reason, ''), NEW.created_by,
-     v_settlement_id);
-
-  UPDATE public.daily_cash_settlements
-  SET owner_injection = (
-    SELECT COALESCE(SUM(amount), 0)
-    FROM public.cash_movements
-    WHERE settlement_id = v_settlement_id
-      AND movement_type = 'owner_injection'
-      AND is_reversed = FALSE
-  ), updated_date = NOW()
-  WHERE id = v_settlement_id;
-
-  -- Update injection with settlement reference
-  UPDATE public.owner_cash_injections
-  SET settlement_id = v_settlement_id
-  WHERE id = NEW.id;
-
-  PERFORM public.recompute_settlement(v_settlement_id);
-  RETURN NEW;
-END;
-$$;
-
-DROP TRIGGER IF EXISTS trg_owner_injection_cash ON public.owner_cash_injections;
-CREATE TRIGGER trg_owner_injection_cash
-  AFTER INSERT ON public.owner_cash_injections
-  FOR EACH ROW EXECUTE FUNCTION public.trg_owner_injection_cash_post();
-
--- ── 16. TRIGGER: AUTO-CREATE SHORTAGE RECORD ON SETTLEMENT SUBMIT ────────────
-CREATE OR REPLACE FUNCTION public.trg_settlement_shortage_check()
-RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER AS $$
-DECLARE
-  v_shortage_id UUID;
-BEGIN
-  -- Only trigger when status changes to Submitted
-  IF NEW.status != 'Submitted' OR OLD.status = 'Submitted' THEN
-    RETURN NEW;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_customer_payments_cash_movement') THEN
+    CREATE TRIGGER trg_customer_payments_cash_movement
+      AFTER INSERT OR UPDATE OR DELETE ON public.customer_payments
+      FOR EACH ROW EXECUTE FUNCTION public.trg_auto_cash_movement_and_recalculate();
   END IF;
+END $$;
 
-  -- If there is a discrepancy, create a shortage/overage record
-  IF NEW.difference != 0 THEN
-    INSERT INTO public.cash_shortages
-      (date, branch, restaurant_id, created_by, settlement_id,
-       expected_amount, actual_amount, shortage_amount, overage_amount,
-       type, status, reported_by)
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_supplier_payments_cash_movement') THEN
+    CREATE TRIGGER trg_supplier_payments_cash_movement
+      AFTER INSERT OR UPDATE OR DELETE ON public.supplier_payments
+      FOR EACH ROW EXECUTE FUNCTION public.trg_auto_cash_movement_and_recalculate();
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_wallet_transactions_cash_movement') THEN
+    CREATE TRIGGER trg_wallet_transactions_cash_movement
+      AFTER INSERT OR UPDATE OR DELETE ON public.wallet_transactions
+      FOR EACH ROW EXECUTE FUNCTION public.trg_auto_cash_movement_and_recalculate();
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_owner_cash_injections_post_movement') THEN
+    CREATE TRIGGER trg_owner_cash_injections_post_movement
+      AFTER INSERT OR UPDATE OR DELETE ON public.owner_cash_injections
+      FOR EACH ROW EXECUTE FUNCTION public.trg_auto_cash_movement_and_recalculate();
+  END IF;
+END $$;
+
+-- ── 11. TRIGGER: AUTO-UPDATE OPENING CASH FOR NEXT DAY ───────────────────────
+-- When a daily_cash_settlement is approved, update the next day's opening_cash.
+CREATE OR REPLACE FUNCTION public.trg_update_next_day_opening_cash()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER AS $$
+BEGIN
+  IF NEW.status = 'Approved' AND NEW.expected_closing_cash IS NOT NULL THEN
+    INSERT INTO public.daily_cash_settlements
+      (date, branch, restaurant_id, created_by, opening_cash, status)
     VALUES
-      (NEW.date, NEW.branch, NEW.restaurant_id, NEW.created_by, NEW.id,
-       NEW.expected_closing_cash, NEW.cash_counted,
-       CASE WHEN NEW.difference < 0 THEN ABS(NEW.difference) ELSE 0 END,
-       CASE WHEN NEW.difference > 0 THEN NEW.difference ELSE 0 END,
-       CASE WHEN NEW.difference < 0 THEN 'Shortage' ELSE 'Overage' END,
-       'Pending', NEW.manager)
-    RETURNING id INTO v_shortage_id;
-
-    -- Link shortage back to settlement
-    UPDATE public.daily_cash_settlements
-    SET shortage_record_id = v_shortage_id
-    WHERE id = NEW.id;
+      (NEW.date + INTERVAL '1 day', NEW.branch, NEW.restaurant_id, NEW.created_by, NEW.expected_closing_cash, 'Draft')
+    ON CONFLICT (date, branch, COALESCE(restaurant_id, '00000000-0000-0000-0000-000000000000'::UUID)) DO UPDATE SET
+      opening_cash = EXCLUDED.opening_cash,
+      updated_date = NOW();
   END IF;
-
   RETURN NEW;
 END;
 $$;
 
-DROP TRIGGER IF EXISTS trg_settlement_shortage ON public.daily_cash_settlements;
-CREATE TRIGGER trg_settlement_shortage
-  AFTER UPDATE OF status ON public.daily_cash_settlements
-  FOR EACH ROW EXECUTE FUNCTION public.trg_settlement_shortage_check();
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_daily_cash_settlements_update_next_day') THEN
+    CREATE TRIGGER trg_daily_cash_settlements_update_next_day
+      AFTER UPDATE ON public.daily_cash_settlements
+      FOR EACH ROW
+      WHEN (OLD.status IS DISTINCT FROM NEW.status AND NEW.status = 'Approved')
+      EXECUTE FUNCTION public.trg_update_next_day_opening_cash();
+  END IF;
+END $$;
 
--- ── 17. GRANT EXECUTE ON FUNCTIONS ──────────────────────────────────────────
-GRANT EXECUTE ON FUNCTION public.recompute_settlement(UUID) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.get_or_create_settlement(DATE, TEXT, TEXT, UUID) TO authenticated;
+-- ── 12. INITIAL DATA MIGRATION (BACKFILL) ────────────────────────────────────
+-- This section will be executed once to backfill historical data.
+-- It should be run manually or as part of a controlled migration process.
+
+-- Function to backfill cash movements and settlements for a given date range
+CREATE OR REPLACE FUNCTION public.backfill_cash_register_data(
+  start_date DATE,
+  end_date DATE
+)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+  current_date DATE;
+  r RECORD;
+  v_settlement_id UUID;
+  v_opening_cash NUMERIC;
+BEGIN
+  current_date := start_date;
+
+  WHILE current_date <= end_date LOOP
+    RAISE NOTICE 'Processing date: %', current_date;
+
+    FOR r IN
+      SELECT DISTINCT branch, created_by, restaurant_id
+      FROM (
+        SELECT date, branch, created_by, restaurant_id FROM public.daily_sales WHERE date = current_date
+        UNION ALL
+        SELECT purchase_date AS date, branch, created_by, restaurant_id FROM public.purchases WHERE purchase_date = current_date
+        UNION ALL
+        SELECT expense_date AS date, branch, created_by, restaurant_id FROM public.expenses WHERE expense_date = current_date
+        UNION ALL
+        SELECT payment_date AS date, branch, created_by, restaurant_id FROM public.customer_payments WHERE payment_date = current_date
+        UNION ALL
+        SELECT payment_date AS date, branch, created_by, restaurant_id FROM public.supplier_payments WHERE payment_date = current_date
+        UNION ALL
+        SELECT transaction_date AS date, branch, created_by, restaurant_id FROM public.wallet_transactions WHERE transaction_date = current_date AND payment_method = 'Cash'
+        UNION ALL
+        SELECT date, branch, created_by, restaurant_id FROM public.owner_cash_injections WHERE date = current_date
+      ) AS daily_activity
+    LOOP
+      -- Get or create settlement for the current day and branch
+      v_settlement_id := public.get_or_create_settlement(current_date, r.branch, r.created_by, r.restaurant_id);
+
+      -- Process daily_sales (cash sales)
+      FOR r_sale IN SELECT * FROM public.daily_sales WHERE date = current_date AND branch = r.branch AND created_by = r.created_by AND restaurant_id = r.restaurant_id AND restaurant_cash > 0 LOOP
+        INSERT INTO public.cash_movements (
+          date, branch, restaurant_id, created_by, direction, amount, movement_type,
+          source_module, source_record_id, description, posted_by, posted_by_name, settlement_id
+        ) VALUES (
+          r_sale.date, r_sale.branch, r_sale.restaurant_id, r_sale.created_by, 'in', r_sale.restaurant_cash, 'cash_sale',
+          'Sales', r_sale.id::TEXT, 'Cash Sale', r_sale.created_by, r_sale.created_by, v_settlement_id
+        ) ON CONFLICT DO NOTHING;
+        UPDATE public.daily_cash_settlements SET cash_sales = cash_sales + r_sale.restaurant_cash WHERE id = v_settlement_id;
+      END LOOP;
+
+      -- Process purchases (cash purchases)
+      FOR r_purchase IN SELECT * FROM public.purchases WHERE purchase_date = current_date AND branch = r.branch AND created_by = r.created_by AND restaurant_id = r.restaurant_id AND cash_amount > 0 LOOP
+        INSERT INTO public.cash_movements (
+          date, branch, restaurant_id, created_by, direction, amount, movement_type,
+          source_module, source_record_id, description, posted_by, posted_by_name, settlement_id
+        ) VALUES (
+          r_purchase.purchase_date, r_purchase.branch, r_purchase.restaurant_id, r_purchase.created_by, 'out', r_purchase.cash_amount, 'cash_purchase',
+          'Purchases', r_purchase.id::TEXT, 'Cash Purchase', r_purchase.created_by, r_purchase.created_by, v_settlement_id
+        ) ON CONFLICT DO NOTHING;
+        UPDATE public.daily_cash_settlements SET cash_purchases = cash_purchases + r_purchase.cash_amount WHERE id = v_settlement_id;
+      END LOOP;
+
+      -- Process expenses (cash expenses)
+      FOR r_expense IN SELECT * FROM public.expenses WHERE expense_date = current_date AND branch = r.branch AND created_by = r.created_by AND restaurant_id = r.restaurant_id AND cash_amount > 0 LOOP
+        INSERT INTO public.cash_movements (
+          date, branch, restaurant_id, created_by, direction, amount, movement_type,
+          source_module, source_record_id, description, posted_by, posted_by_name, settlement_id
+        ) VALUES (
+          r_expense.expense_date, r_expense.branch, r_expense.restaurant_id, r_expense.created_by, 'out', r_expense.cash_amount, 'cash_expense',
+          'Expenses', r_expense.id::TEXT, 'Cash Expense', r_expense.created_by, r_expense.created_by, v_settlement_id
+        ) ON CONFLICT DO NOTHING;
+        UPDATE public.daily_cash_settlements SET cash_expenses = cash_expenses + r_expense.cash_amount WHERE id = v_settlement_id;
+      END LOOP;
+
+      -- Process customer_payments (cash payments)
+      FOR r_cust_pay IN SELECT * FROM public.customer_payments WHERE payment_date = current_date AND branch = r.branch AND created_by = r.created_by AND restaurant_id = r.restaurant_id AND cash_amount > 0 LOOP
+        INSERT INTO public.cash_movements (
+          date, branch, restaurant_id, created_by, direction, amount, movement_type,
+          source_module, source_record_id, description, posted_by, posted_by_name, settlement_id
+        ) VALUES (
+          r_cust_pay.payment_date, r_cust_pay.branch, r_cust_pay.restaurant_id, r_cust_pay.created_by, 'in', r_cust_pay.cash_amount, 'customer_debt_collection',
+          'CustomerPayments', r_cust_pay.id::TEXT, 'Customer Debt Collection', r_cust_pay.created_by, r_cust_pay.created_by, v_settlement_id
+        ) ON CONFLICT DO NOTHING;
+        UPDATE public.daily_cash_settlements SET customer_debt_collection = customer_debt_collection + r_cust_pay.cash_amount WHERE id = v_settlement_id;
+      END LOOP;
+
+      -- Process supplier_payments (cash payments)
+      FOR r_supp_pay IN SELECT * FROM public.supplier_payments WHERE payment_date = current_date AND branch = r.branch AND created_by = r.created_by AND restaurant_id = r.restaurant_id AND cash_amount > 0 LOOP
+        INSERT INTO public.cash_movements (
+          date, branch, restaurant_id, created_by, direction, amount, movement_type,
+          source_module, source_record_id, description, posted_by, posted_by_name, settlement_id
+        ) VALUES (
+          r_supp_pay.payment_date, r_supp_pay.branch, r_supp_pay.restaurant_id, r_supp_pay.created_by, 'out', r_supp_pay.cash_amount, 'supplier_payment',
+          'SupplierPayments', r_supp_pay.id::TEXT, 'Supplier Payment', r_supp_pay.created_by, r_supp_pay.created_by, v_settlement_id
+        ) ON CONFLICT DO NOTHING;
+        UPDATE public.daily_cash_settlements SET supplier_payments = supplier_payments + r_supp_pay.cash_amount WHERE id = v_settlement_id;
+      END LOOP;
+
+      -- Process wallet_transactions (cash deposits/withdrawals)
+      FOR r_wallet IN SELECT * FROM public.wallet_transactions WHERE transaction_date = current_date AND branch = r.branch AND created_by = r.created_by AND restaurant_id = r.restaurant_id AND payment_method = 'Cash' AND amount > 0 LOOP
+        IF r_wallet.transaction_type = 'deposit' THEN
+          INSERT INTO public.cash_movements (
+            date, branch, restaurant_id, created_by, direction, amount, movement_type,
+            source_module, source_record_id, description, posted_by, posted_by_name, settlement_id
+          ) VALUES (
+            r_wallet.transaction_date, r_wallet.branch, r_wallet.restaurant_id, r_wallet.created_by, 'in', r_wallet.amount, 'cash_deposit',
+            'Treasury', r_wallet.id::TEXT, 'Cash Deposit', r_wallet.created_by, r_wallet.created_by, v_settlement_id
+          ) ON CONFLICT DO NOTHING;
+          UPDATE public.daily_cash_settlements SET cash_transfer_in = cash_transfer_in + r_wallet.amount WHERE id = v_settlement_id;
+        ELSIF r_wallet.transaction_type = 'withdrawal' THEN
+          INSERT INTO public.cash_movements (
+            date, branch, restaurant_id, created_by, direction, amount, movement_type,
+            source_module, source_record_id, description, posted_by, posted_by_name, settlement_id
+          ) VALUES (
+            r_wallet.transaction_date, r_wallet.branch, r_wallet.restaurant_id, r_wallet.created_by, 'out', r_wallet.amount, 'cash_withdrawal',
+            'Treasury', r_wallet.id::TEXT, 'Cash Withdrawal', r_wallet.created_by, r_wallet.created_by, v_settlement_id
+          ) ON CONFLICT DO NOTHING;
+          UPDATE public.daily_cash_settlements SET cash_transfer_out = cash_transfer_out + r_wallet.amount WHERE id = v_settlement_id;
+        END IF;
+      END LOOP;
+
+      -- Process owner_cash_injections
+      FOR r_injection IN SELECT * FROM public.owner_cash_injections WHERE date = current_date AND branch = r.branch AND created_by = r.created_by AND restaurant_id = r.restaurant_id AND amount > 0 LOOP
+        INSERT INTO public.cash_movements (
+          date, branch, restaurant_id, created_by, direction, amount, movement_type,
+          source_module, source_record_id, description, posted_by, posted_by_name, settlement_id
+        ) VALUES (
+          r_injection.date, r_injection.branch, r_injection.restaurant_id, r_injection.created_by, 'in', r_injection.amount, 'owner_injection',
+          'OwnerCashInjection', r_injection.id::TEXT, 'Owner Cash Injection', r_injection.created_by, r_injection.created_by, v_settlement_id
+        ) ON CONFLICT DO NOTHING;
+        UPDATE public.daily_cash_settlements SET owner_injection = owner_injection + r_injection.amount WHERE id = v_settlement_id;
+      END LOOP;
+
+      -- Recompute settlement after all movements for the day/branch are processed
+      PERFORM public.recompute_settlement(v_settlement_id);
+
+    END LOOP;
+
+    current_date := current_date + INTERVAL '1 day';
+  END LOOP;
+END;
+$$;
+
+-- ── 13. RLS FOR WALLET_TRANSACTIONS (IF NOT ALREADY THERE) ───────────────────
+-- Ensure wallet_transactions has RLS for manager branch access
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policy WHERE polname = 'WalletTransaction: manager branch') THEN
+    ALTER TABLE public.wallet_transactions ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY "WalletTransaction: manager branch" ON public.wallet_transactions
+      FOR SELECT USING (branch = (SELECT branch FROM public.profiles WHERE id = auth.uid()));
+  END IF;
+END $$;
+
+-- ── 14. RLS FOR CUSTOMER_PAYMENTS (IF NOT ALREADY THERE) ───────────────────
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policy WHERE polname = 'CustomerPayment: manager branch') THEN
+    ALTER TABLE public.customer_payments ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY "CustomerPayment: manager branch" ON public.customer_payments
+      FOR SELECT USING (branch = (SELECT branch FROM public.profiles WHERE id = auth.uid()));
+  END IF;
+END $$;
+
+-- ── 15. RLS FOR SUPPLIER_PAYMENTS (IF NOT ALREADY THERE) ───────────────────
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policy WHERE polname = 'SupplierPayment: manager branch') THEN
+    ALTER TABLE public.supplier_payments ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY "SupplierPayment: manager branch" ON public.supplier_payments
+      FOR SELECT USING (branch = (SELECT branch FROM public.profiles WHERE id = auth.uid()));
+  END IF;
+END $$;
+
+-- ── 16. RLS FOR PURCHASES (IF NOT ALREADY THERE) ───────────────────────────
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policy WHERE polname = 'Purchase: manager branch') THEN
+    ALTER TABLE public.purchases ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY "Purchase: manager branch" ON public.purchases
+      FOR SELECT USING (branch = (SELECT branch FROM public.profiles WHERE id = auth.uid()));
+  END IF;
+END $$;
+
+-- ── 17. RLS FOR EXPENSES (IF NOT ALREADY THERE) ───────────────────────────
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policy WHERE polname = 'Expense: manager branch') THEN
+    ALTER TABLE public.expenses ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY "Expense: manager branch" ON public.expenses
+      FOR SELECT USING (branch = (SELECT branch FROM public.profiles WHERE id = auth.uid()));
+  END IF;
+END $$;
+
+-- ── 18. RLS FOR DAILY_SALES (IF NOT ALREADY THERE) ───────────────────────────
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policy WHERE polname = 'DailySale: manager branch') THEN
+    ALTER TABLE public.daily_sales ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY "DailySale: manager branch" ON public.daily_sales
+      FOR SELECT USING (branch = (SELECT branch FROM public.profiles WHERE id = auth.uid()));
+  END IF;
+END $$;

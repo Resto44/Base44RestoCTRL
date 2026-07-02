@@ -27,7 +27,7 @@ const PRIMARY_NAV_OWNER_RESTAURANT = [
   { path: '/owner-command-center', icon: LayoutDashboard, labelKey: 'dashboard' },
   { path: '/sales',                icon: Receipt,          labelKey: 'sales' },
   { path: '/menu-products',        icon: BookOpen,         labelKey: 'menu' },
-  { path: '/kitchen-dashboard',    icon: ChefHat,          labelKey: 'kitchen' },
+  { path: '/cash-register',        icon: CreditCard,       labelKey: 'cash_register' },
   { path: '/more',                 icon: Grid3x3,          labelKey: 'more', isMore: true },
 ];
 
@@ -42,7 +42,7 @@ const PRIMARY_NAV_OWNER_RETAIL = [
 const PRIMARY_NAV_MANAGER_RESTAURANT = [
   { path: '/manager-dashboard',    icon: LayoutDashboard, labelKey: 'dashboard' },
   { path: '/sales',                icon: Receipt,         labelKey: 'sales' },
-  { path: '/kitchen-dashboard',    icon: ChefHat,         labelKey: 'kitchen' },
+  { path: '/cash-register',        icon: CreditCard,       labelKey: 'cash_register' },
   { path: '/employees',            icon: Users,           labelKey: 'employees' },
   { path: '/more',                 icon: Grid3x3,         labelKey: 'more', isMore: true },
 ];
@@ -92,6 +92,7 @@ const MORE_SECTIONS_OWNER_RESTAURANT = [
       { path: '/recipe-food-costing',       icon: TrendingUp,  labelKey: 'food_cost' },
       { path: '/reservation-table-management', icon: Utensils, labelKey: 'tables' },
       { path: '/order-management',          icon: ClipboardList, labelKey: 'orders' },
+      { path: '/kitchen-dashboard',         icon: ChefHat,     labelKey: 'kitchen' },
       { path: '/kds',                       icon: ChefHat,     labelKey: 'kds' },
       { path: '/delivery',                  icon: Truck,       labelKey: 'delivery' },
       { path: '/online-ordering',           icon: ShoppingCart, labelKey: 'online_ordering' },
@@ -198,6 +199,7 @@ const MORE_SECTIONS_MANAGER_RESTAURANT = [
     title: 'Restaurant',
     items: [
       { path: '/menu-products',     icon: BookOpen,    labelKey: 'menu' },
+      { path: '/kitchen-dashboard', icon: ChefHat,     labelKey: 'kitchen' },
       { path: '/kds',               icon: ChefHat,     labelKey: 'kds' },
       { path: '/reservations',      icon: Calendar,    labelKey: 'reservations' },
       { path: '/delivery',          icon: Truck,       labelKey: 'delivery' },
