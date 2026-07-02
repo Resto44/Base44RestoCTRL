@@ -52,7 +52,7 @@ export function computeDashboardMetrics(sales, purchases, expenses = [], rangeTy
   const totalCredit  = sales.reduce((s, r) => s + (Number(r.credit) || 0), 0);
   const totalCash    = sales.reduce((s, r) => s + getSaleCash(r), 0);
   const totalNetwork = sales.reduce((s, r) => s + getSaleNetwork(r), 0);
-  const totalPurchaseCost = purchases.reduce((s, r) => s + ((r.qty || 0) * (r.used_price || r.current_price || 0)), 0);
+  const totalPurchaseCost = purchases.reduce((s, r) => s + (Number(r.total_amount) || (r.qty || 0) * (r.used_price || r.current_price || 0)), 0);
 
   // Separate fixed vs variable expenses
   const isShortRange = rangeType === 'day' || rangeType === 'week';

@@ -1,4 +1,5 @@
 import { base44 } from '@/api/base44Client';
+import { supabase } from '@/api/supabaseClient';
 import { computeDashboardMetrics } from '@/lib/helpers';
 
 /**
@@ -10,13 +11,22 @@ import { computeDashboardMetrics } from '@/lib/helpers';
  * @returns {Promise<{sales: Array, purchases: Array, expenses: Array}>} Raw data.
  */
 async function fetchPnlData(ownerFilter, fromDate, toDate, branchKey = 'all') {
-  const salesQuery = base44.entities.DailySales.filter(ownerFilter || {}, '-date', 1000);
-  const purchasesQuery = base44.entities.Purchase.filter(ownerFilter || {}, '-date', 1000);
-  const expensesQuery = base44.entities.Expense.filter(ownerFilter || {}, '-date', 1000);
+  const [allSales, allPurchases, allExpenses] = await Promise.all([
+    base44.entities.DailySales.filter(ownerFilter || {}, '-date', 1000),
+    supabase
+      .from('supplier_invoices')
+      .select('*')
+      .eq('created_by', ownerFilter?.created_by)
+      .in('approval_status', ['approved', 'auto_approved'])
+      .order('date', { ascending: false })
+      .limit(1000)
+      .then(({ data }) => data || []),
+    base44.entities.Expense.filter(ownerFilter || {}, '-date', 1000),
+  ]);
 
-  let filteredSales = salesQuery.filter(s => s.date >= fromDate && s.date <= toDate);
-  let filteredPurchases = purchasesQuery.filter(p => p.date >= fromDate && p.date <= toDate);
-  let filteredExpenses = expensesQuery.filter(e => e.date >= fromDate && e.date <= toDate);
+  let filteredSales = allSales.filter(s => s.date >= fromDate && s.date <= toDate);
+  let filteredPurchases = allPurchases.filter(p => p.date >= fromDate && p.date <= toDate);
+  let filteredExpenses = allExpenses.filter(e => e.date >= fromDate && e.date <= toDate);
 
   if (branchKey !== 'all') {
     filteredSales = filteredSales.filter(s => s.branch === branchKey);
@@ -24,13 +34,7 @@ async function fetchPnlData(ownerFilter, fromDate, toDate, branchKey = 'all') {
     filteredExpenses = filteredExpenses.filter(e => e.branch === branchKey || e.branch === 'all');
   }
 
-  const [sales, purchases, expenses] = await Promise.all([
-    filteredSales,
-    filteredPurchases,
-    filteredExpenses,
-  ]);
-
-  return { sales, purchases, expenses };
+  return { sales: filteredSales, purchases: filteredPurchases, expenses: filteredExpenses };
 }
 
 /**

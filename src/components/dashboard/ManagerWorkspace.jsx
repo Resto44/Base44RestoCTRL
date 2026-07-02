@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
+import { supabase } from '@/api/supabaseClient';
 import { useTenant } from '@/lib/TenantContext';
 import { useLanguage } from '@/lib/LanguageContext';
 import { formatCurrency } from '@/lib/helpers';
@@ -104,9 +105,20 @@ export default function ManagerWorkspace() {
   });
   const { data: purchases = [] } = useQuery({
     queryKey: ['mgr_purchases', ownerFilter],
-    queryFn: () => base44.entities.Purchase.filter(ownerFilter, '-date', 200),
+    queryFn: async () => {
+      if (!ownerFilter?.created_by) return [];
+      const { data, error } = await supabase
+        .from('supplier_invoices')
+        .select('*')
+        .eq('created_by', ownerFilter.created_by)
+        .in('approval_status', ['approved', 'auto_approved'])
+        .order('date', { ascending: false })
+        .limit(500);
+      if (error) return [];
+      return data || [];
+    },
     staleTime: 60000,
-    enabled: !!(ownerFilter?.branch),
+    enabled: !!(ownerFilter?.created_by),
   });
   const { data: employees = [] } = useQuery({
     queryKey: ['mgr_employees', ownerFilter],
@@ -118,7 +130,7 @@ export default function ManagerWorkspace() {
   const recentSales = sales.filter(s => s.date >= thirtyDaysAgo);
   const totalSales = recentSales.reduce((s, r) => s + (r.cash || 0) + (r.network || 0) + (r.credit || 0), 0);
   const totalExpenses = expenses.filter(e => e.date >= thirtyDaysAgo).reduce((s, e) => s + (e.amount || 0), 0);
-  const totalPurchases = purchases.filter(p => p.date >= thirtyDaysAgo).reduce((s, p) => s + ((p.used_price || p.current_price || 0) * (p.qty || 1)), 0);
+  const totalPurchases = purchases.filter(p => p.date >= thirtyDaysAgo && (ownerFilter?.branch ? p.branch === ownerFilter.branch : true)).reduce((s, p) => s + (Number(p.total_amount) || (p.qty || 0) * (p.used_price || p.current_price || 0)), 0);
   const profit = totalSales - totalExpenses - totalPurchases;
 
   // Build daily trend for past 14 days

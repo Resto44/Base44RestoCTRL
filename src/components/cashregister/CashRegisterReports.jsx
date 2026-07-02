@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/AuthContext';
 import { useTenant } from '@/lib/TenantContext';
 import { useLanguage } from '@/lib/LanguageContext';
 import { base44 } from '@/api/base44Client';
+import { supabase } from '@/api/supabaseClient';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -81,7 +82,27 @@ export default function CashRegisterReports({ selectedBranch = 'all' }) {
     staleTime: 60000,
   });
 
-  const isLoading = loadingS || loadingSh || loadingI || loadingM;
+  // Load approved supplier invoices for unified purchase reporting
+  const { data: allInvoicesInRange = [], isLoading: loadingInv } = useQuery({
+    queryKey: ['supplier_invoices_report', user?.email, dateFrom, dateTo],
+    queryFn: async () => {
+      if (!user?.email) return [];
+      const { data, error } = await supabase
+        .from('supplier_invoices')
+        .select('*')
+        .eq('created_by', user.email)
+        .in('approval_status', ['approved', 'auto_approved'])
+        .gte('date', dateFrom)
+        .lte('date', dateTo)
+        .order('date', { ascending: false });
+      if (error) return [];
+      return data || [];
+    },
+    enabled: !!user?.email,
+    staleTime: 60000,
+  });
+
+  const isLoading = loadingS || loadingSh || loadingI || loadingM || loadingInv;
 
   // Filter by date range and branch
   const filterRange = (arr) => arr.filter(r =>
@@ -146,15 +167,25 @@ export default function CashRegisterReports({ selectedBranch = 'all' }) {
       const byMonth = {};
       filteredSettlements.forEach(s => {
         const m = s.date.slice(0, 7);
-        if (!byMonth[m]) byMonth[m] = { month: m, sales: 0, expenses: 0, shortage: 0, overage: 0, count: 0 };
+        if (!byMonth[m]) byMonth[m] = { month: m, sales: 0, expenses: 0, shortage: 0, overage: 0, count: 0, purchases: 0 };
         byMonth[m].sales += Number(s.cash_sales || 0);
-        byMonth[m].expenses += Number(s.cash_expenses || 0) + Number(s.cash_purchases || 0);
+        byMonth[m].expenses += Number(s.cash_expenses || 0);
         byMonth[m].shortage += Number(s.shortage || 0);
         byMonth[m].overage += Number(s.overage || 0);
         byMonth[m].count++;
       });
+
+      // Overlay unified purchase data (supplier invoices)
+      allInvoicesInRange.forEach(inv => {
+        if (selectedBranch !== 'all' && inv.branch !== selectedBranch) return;
+        const m = inv.date.slice(0, 7);
+        if (byMonth[m]) {
+          byMonth[m].purchases += Number(inv.total_amount || 0);
+        }
+      });
+
       return Object.values(byMonth).sort((a, b) => a.month.localeCompare(b.month));
-    }, [filteredSettlements]);
+    }, [filteredSettlements, allInvoicesInRange, selectedBranch]);
 
     return (
       <div className="space-y-3">
@@ -167,7 +198,8 @@ export default function CashRegisterReports({ selectedBranch = 'all' }) {
                 <YAxis tick={{ fontSize: 10 }} width={50} tickFormatter={v => `${currency}${(v/1000).toFixed(0)}k`} />
                 <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8 }} formatter={v => [`${currency}${v.toLocaleString()}`, '']} />
                 <Bar dataKey="sales" fill="#10b981" radius={[4,4,0,0]} name="Cash Sales" />
-                <Bar dataKey="expenses" fill="#ef4444" radius={[4,4,0,0]} name="Cash Out" />
+                <Bar dataKey="expenses" fill="#ef4444" radius={[4,4,0,0]} name="Cash Expenses" />
+                <Bar dataKey="purchases" fill="#f59e0b" radius={[4,4,0,0]} name="Approved Purchases" />
                 <Bar dataKey="shortage" fill="#f59e0b" radius={[4,4,0,0]} name="Shortage" />
               </BarChart>
             </ResponsiveContainer>
@@ -183,7 +215,8 @@ export default function CashRegisterReports({ selectedBranch = 'all' }) {
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div>Sales: <span className="font-semibold text-emerald-600">{fmt(m.sales)}</span></div>
-                  <div>Cash Out: <span className="font-semibold text-red-600">{fmt(m.expenses)}</span></div>
+                  <div>Expenses: <span className="font-semibold text-red-600">{fmt(m.expenses)}</span></div>
+                  <div>Purchases: <span className="font-semibold text-amber-600">{fmt(m.purchases)}</span></div>
                   <div>Shortage: <span className="font-semibold text-amber-600">{fmt(m.shortage)}</span></div>
                   <div>Overage: <span className="font-semibold text-blue-600">{fmt(m.overage)}</span></div>
                 </div>

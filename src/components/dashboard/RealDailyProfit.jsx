@@ -82,7 +82,7 @@ export default function RealDailyProfit({
   const purchases = useMemo(() =>
     allPurchases
       .filter(p => p.date === today && (branch === 'all' || p.branch === branch))
-      .reduce((s, p) => s + ((p.qty || 0) * (p.used_price || p.current_price || 0)), 0),
+      .reduce((s, p) => s + (Number(p.total_amount) || (p.qty || 0) * (p.used_price || p.current_price || 0)), 0),
     [allPurchases, today, branch]
   );
 

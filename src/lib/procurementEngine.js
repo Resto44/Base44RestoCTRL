@@ -447,11 +447,13 @@ export function computeProcurementKPIs(invoices = [], payments = []) {
   const today = new Date().toISOString().split('T')[0];
   const thisMonthStart = today.substring(0, 7) + '-01';
 
-  const purchasesToday = invoices
+  const approvedInvoices = invoices.filter(i => ['approved', 'auto_approved'].includes(i.approval_status));
+
+  const purchasesToday = approvedInvoices
     .filter(i => i.date === today)
     .reduce((s, i) => s + (i.total_amount || 0), 0);
 
-  const purchasesThisMonth = invoices
+  const purchasesThisMonth = approvedInvoices
     .filter(i => i.date >= thisMonthStart)
     .reduce((s, i) => s + (i.total_amount || 0), 0);
 

@@ -1,4 +1,5 @@
 import { base44 } from '@/api/base44Client';
+import { supabase } from '@/api/supabaseClient';
 import { computeBranchMetrics } from '@/lib/helpers';
 
 /**
@@ -9,21 +10,28 @@ import { computeBranchMetrics } from '@/lib/helpers';
  * @returns {Promise<{sales: Array, purchases: Array, expenses: Array, waste: Array, debtRecords: Array, creditCollections: Array}>} Raw data.
  */
 async function fetchBranchPerformanceData(ownerFilter, fromDate, toDate) {
-  const salesQuery = base44.entities.DailySales.filter(ownerFilter || {}, '-date', 1000);
-  const purchasesQuery = base44.entities.Purchase.filter(ownerFilter || {}, '-date', 1000);
-  const expensesQuery = base44.entities.Expense.filter(ownerFilter || {}, '-date', 1000);
-  const wasteQuery = base44.entities.InventoryWaste.filter(ownerFilter || {}, '-date', 500);
-  const debtRecordsQuery = base44.entities.DebtRecord.filter(ownerFilter || {}, '-date', 1000);
-  const creditCollectionsQuery = base44.entities.CreditCollection.filter(ownerFilter || {}, '-date', 1000);
-
-  const [sales, purchases, expenses, waste, debtRecords, creditCollections] = await Promise.all([
-    salesQuery.filter(s => s.date >= fromDate && s.date <= toDate),
-    purchasesQuery.filter(p => p.date >= fromDate && p.date <= toDate),
-    expensesQuery.filter(e => e.date >= fromDate && e.date <= toDate),
-    wasteQuery.filter(w => w.date >= fromDate && w.date <= toDate),
-    debtRecordsQuery.filter(d => d.date >= fromDate && d.date <= toDate),
-    creditCollectionsQuery.filter(c => c.date >= fromDate && c.date <= toDate),
+  const [allSales, allPurchases, allExpenses, allWaste, allDebtRecords, allCreditCollections] = await Promise.all([
+    base44.entities.DailySales.filter(ownerFilter || {}, '-date', 1000),
+    supabase
+      .from('supplier_invoices')
+      .select('*')
+      .eq('created_by', ownerFilter?.created_by)
+      .in('approval_status', ['approved', 'auto_approved'])
+      .order('date', { ascending: false })
+      .limit(1000)
+      .then(({ data }) => data || []),
+    base44.entities.Expense.filter(ownerFilter || {}, '-date', 1000),
+    base44.entities.InventoryWaste.filter(ownerFilter || {}, '-date', 500),
+    base44.entities.DebtRecord.filter(ownerFilter || {}, '-date', 1000),
+    base44.entities.CreditCollection.filter(ownerFilter || {}, '-date', 1000),
   ]);
+
+  const sales = allSales.filter(s => s.date >= fromDate && s.date <= toDate);
+  const purchases = allPurchases.filter(p => p.date >= fromDate && p.date <= toDate);
+  const expenses = allExpenses.filter(e => e.date >= fromDate && e.date <= toDate);
+  const waste = allWaste.filter(w => w.date >= fromDate && w.date <= toDate);
+  const debtRecords = allDebtRecords.filter(d => d.date >= fromDate && d.date <= toDate);
+  const creditCollections = allCreditCollections.filter(c => c.date >= fromDate && c.date <= toDate);
 
   return { sales, purchases, expenses, waste, debtRecords, creditCollections };
 }
