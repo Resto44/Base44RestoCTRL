@@ -1,0 +1,82 @@
+{
+  "name": "OwnerCashInjection",
+  "type": "object",
+  "description": "Owner cash injection into a branch — increases Cash Register, Owner Capital, and creates a Treasury record. Appears in Daily Settlement.",
+  "properties": {
+    "date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date of injection"
+    },
+    "branch": {
+      "type": "string",
+      "description": "Branch key receiving the injection"
+    },
+    "restaurant_id": {
+      "type": "string",
+      "description": "Reference to Restaurant"
+    },
+    "amount": {
+      "type": "number",
+      "default": 0,
+      "description": "Amount injected"
+    },
+    "reason": {
+      "type": "string",
+      "enum": [
+        "Cash Shortage Coverage",
+        "Operational Funding",
+        "Supplier Payment",
+        "Emergency Fund",
+        "Salary Coverage",
+        "Other"
+      ],
+      "description": "Reason for injection"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Additional notes"
+    },
+    "created_by": {
+      "type": "string",
+      "description": "Owner email"
+    },
+    "created_by_name": {
+      "type": "string",
+      "description": "Owner display name"
+    },
+    "approval_status": {
+      "type": "string",
+      "enum": ["Pending", "Approved", "Rejected"],
+      "default": "Approved",
+      "description": "Approval status (owner injections are auto-approved)"
+    },
+    "approved_by": {
+      "type": "string",
+      "description": "Email of approver"
+    },
+    "approved_at": {
+      "type": "string",
+      "description": "ISO timestamp of approval"
+    },
+    "wallet_transaction_id": {
+      "type": "string",
+      "description": "Reference to WalletTransaction created"
+    },
+    "settlement_id": {
+      "type": "string",
+      "description": "Reference to DailyCashSettlement this was posted to"
+    },
+    "shortage_id": {
+      "type": "string",
+      "description": "Reference to CashShortage if this injection resolves a shortage"
+    }
+  },
+  "required": ["date", "branch", "amount"],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

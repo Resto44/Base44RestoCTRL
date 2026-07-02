@@ -1,0 +1,104 @@
+{
+  "name": "CashMovement",
+  "type": "object",
+  "description": "Unified cash movement ledger. Every cash transaction across all modules posts here automatically. No manual entry — prevents duplicate posting.",
+  "properties": {
+    "date": {
+      "type": "string",
+      "format": "date",
+      "description": "Transaction date"
+    },
+    "branch": {
+      "type": "string",
+      "description": "Branch key"
+    },
+    "restaurant_id": {
+      "type": "string",
+      "description": "Reference to Restaurant"
+    },
+    "direction": {
+      "type": "string",
+      "enum": ["in", "out"],
+      "description": "in = cash received, out = cash paid"
+    },
+    "amount": {
+      "type": "number",
+      "default": 0,
+      "description": "Amount of the movement"
+    },
+    "movement_type": {
+      "type": "string",
+      "enum": [
+        "cash_sale",
+        "customer_debt_collection",
+        "supplier_refund",
+        "owner_injection",
+        "cash_transfer_in",
+        "cash_purchase",
+        "cash_expense",
+        "supplier_payment",
+        "customer_refund",
+        "cash_transfer_out",
+        "salary_advance",
+        "shortage_adjustment",
+        "overage_adjustment"
+      ],
+      "description": "Type of cash movement"
+    },
+    "source_module": {
+      "type": "string",
+      "enum": [
+        "Sales",
+        "Purchases",
+        "Expenses",
+        "Treasury",
+        "SupplierPayments",
+        "CustomerPayments",
+        "OwnerCashInjection",
+        "DailyCashSettlement",
+        "Payroll"
+      ],
+      "description": "Which module created this movement"
+    },
+    "source_record_id": {
+      "type": "string",
+      "description": "ID of the source record in the originating module"
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable description"
+    },
+    "posted_by": {
+      "type": "string",
+      "description": "User email who triggered the transaction"
+    },
+    "posted_by_name": {
+      "type": "string",
+      "description": "User display name"
+    },
+    "posted_at": {
+      "type": "string",
+      "description": "ISO timestamp of posting"
+    },
+    "settlement_id": {
+      "type": "string",
+      "description": "Reference to DailyCashSettlement this was included in"
+    },
+    "is_reversed": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether this movement has been reversed (e.g., deleted sale)"
+    },
+    "reversal_of": {
+      "type": "string",
+      "description": "ID of the original CashMovement this reverses"
+    }
+  },
+  "required": ["date", "branch", "direction", "amount", "movement_type", "source_module"],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

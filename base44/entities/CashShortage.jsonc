@@ -1,0 +1,91 @@
+{
+  "name": "CashShortage",
+  "type": "object",
+  "description": "Auto-created when a Daily Cash Settlement shows a discrepancy between expected and counted cash.",
+  "properties": {
+    "date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date of the shortage"
+    },
+    "branch": {
+      "type": "string",
+      "description": "Branch key"
+    },
+    "restaurant_id": {
+      "type": "string",
+      "description": "Reference to Restaurant"
+    },
+    "settlement_id": {
+      "type": "string",
+      "description": "Reference to DailyCashSettlement record"
+    },
+    "expected_amount": {
+      "type": "number",
+      "default": 0,
+      "description": "Expected closing cash from settlement"
+    },
+    "actual_amount": {
+      "type": "number",
+      "default": 0,
+      "description": "Actual cash counted"
+    },
+    "shortage_amount": {
+      "type": "number",
+      "default": 0,
+      "description": "Absolute shortage amount (expected - actual)"
+    },
+    "overage_amount": {
+      "type": "number",
+      "default": 0,
+      "description": "Absolute overage amount (actual - expected)"
+    },
+    "type": {
+      "type": "string",
+      "enum": ["Shortage", "Overage"],
+      "description": "Whether this is a shortage or overage"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["Pending", "Investigating", "Approved", "Resolved"],
+      "default": "Pending",
+      "description": "Current status of the shortage investigation"
+    },
+    "manager_notes": {
+      "type": "string",
+      "description": "Manager's explanation of the discrepancy"
+    },
+    "owner_notes": {
+      "type": "string",
+      "description": "Owner's notes on the resolution"
+    },
+    "reported_by": {
+      "type": "string",
+      "description": "Email of manager who submitted the settlement"
+    },
+    "reviewed_by": {
+      "type": "string",
+      "description": "Owner email who reviewed"
+    },
+    "reviewed_at": {
+      "type": "string",
+      "description": "ISO timestamp of review"
+    },
+    "resolution": {
+      "type": "string",
+      "enum": ["Owner Injection", "Salary Deduction", "Write Off", "Recovered", "Other"],
+      "description": "How the shortage was resolved"
+    },
+    "injection_id": {
+      "type": "string",
+      "description": "Reference to OwnerCashInjection if resolved via injection"
+    }
+  },
+  "required": ["date", "branch", "shortage_amount", "type"],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

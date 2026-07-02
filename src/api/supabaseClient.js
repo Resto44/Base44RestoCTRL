@@ -412,6 +412,11 @@ const entities = {
   // ── Cash Register & Alerts ──
   CashRegisterEntry: createEntity('cash_register_entries'),
   Alert: createEntity('notifications'), // remapped: no separate alerts table; use notifications
+  // ── Cash Register Redesign (2026-07-02) ──────────────────────────────────
+  DailyCashSettlement: createEntity('daily_cash_settlements'),
+  CashShortage: createEntity('cash_shortages'),
+  OwnerCashInjection: createEntity('owner_cash_injections'),
+  CashMovement: createEntity('cash_movements'),
   // ── Enterprise Category Systems (2026-06-18) ──────────────────────────────
   // FIVE completely isolated tables — never cross-pollinate:
   //   ProductCategory       → product_categories       (Product Management / Inventory ONLY)

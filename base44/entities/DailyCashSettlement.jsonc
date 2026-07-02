@@ -1,0 +1,141 @@
+{
+  "name": "DailyCashSettlement",
+  "type": "object",
+  "description": "Daily cash settlement record for each branch. Auto-populated from Sales, Purchases, Expenses, Payments, and Owner Injections.",
+  "properties": {
+    "date": {
+      "type": "string",
+      "format": "date",
+      "description": "Settlement date"
+    },
+    "branch": {
+      "type": "string",
+      "description": "Branch key"
+    },
+    "restaurant_id": {
+      "type": "string",
+      "description": "Reference to Restaurant"
+    },
+    "opening_cash": {
+      "type": "number",
+      "default": 0,
+      "description": "Opening cash balance for the day (carried from previous day closing)"
+    },
+    "cash_sales": {
+      "type": "number",
+      "default": 0,
+      "description": "Total cash sales for the day (auto-posted from Sales module)"
+    },
+    "customer_debt_collection": {
+      "type": "number",
+      "default": 0,
+      "description": "Cash collected from customers against outstanding debts"
+    },
+    "owner_injection": {
+      "type": "number",
+      "default": 0,
+      "description": "Owner cash injection for the day"
+    },
+    "cash_transfer_in": {
+      "type": "number",
+      "default": 0,
+      "description": "Cash received via inter-branch or owner transfers"
+    },
+    "supplier_refunds": {
+      "type": "number",
+      "default": 0,
+      "description": "Cash refunds received from suppliers"
+    },
+    "cash_purchases": {
+      "type": "number",
+      "default": 0,
+      "description": "Total cash paid for purchases (auto-posted from Purchases module)"
+    },
+    "cash_expenses": {
+      "type": "number",
+      "default": 0,
+      "description": "Total cash paid for expenses (auto-posted from Expenses module)"
+    },
+    "supplier_payments": {
+      "type": "number",
+      "default": 0,
+      "description": "Cash paid to suppliers (auto-posted from Supplier Payments)"
+    },
+    "cash_refunds_out": {
+      "type": "number",
+      "default": 0,
+      "description": "Cash refunds given to customers"
+    },
+    "cash_transfer_out": {
+      "type": "number",
+      "default": 0,
+      "description": "Cash transferred out to owner or other branches"
+    },
+    "expected_closing_cash": {
+      "type": "number",
+      "default": 0,
+      "description": "Computed: opening + all cash_in - all cash_out"
+    },
+    "cash_counted": {
+      "type": "number",
+      "default": 0,
+      "description": "Actual cash counted by the cashier at end of day"
+    },
+    "difference": {
+      "type": "number",
+      "default": 0,
+      "description": "cash_counted - expected_closing_cash (positive = overage, negative = shortage)"
+    },
+    "shortage": {
+      "type": "number",
+      "default": 0,
+      "description": "Absolute shortage amount (if difference < 0)"
+    },
+    "overage": {
+      "type": "number",
+      "default": 0,
+      "description": "Absolute overage amount (if difference > 0)"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["Draft", "Submitted", "Approved", "Rejected"],
+      "default": "Draft",
+      "description": "Settlement status"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Manager notes"
+    },
+    "manager": {
+      "type": "string",
+      "description": "Manager email who submitted"
+    },
+    "manager_name": {
+      "type": "string",
+      "description": "Manager display name"
+    },
+    "approved_by": {
+      "type": "string",
+      "description": "Owner email who approved"
+    },
+    "approved_at": {
+      "type": "string",
+      "description": "ISO timestamp of approval"
+    },
+    "submitted_at": {
+      "type": "string",
+      "description": "ISO timestamp of submission"
+    },
+    "shortage_record_id": {
+      "type": "string",
+      "description": "Reference to CashShortage record if shortage was detected"
+    }
+  },
+  "required": ["date", "branch"],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}
