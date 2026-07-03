@@ -310,27 +310,27 @@ export default function Sales() {
   // Auto-generate invoice after sale save
   const autoGenerateInvoice = async (saleData, saleId) => {
     try {
+      // The invoice is now auto-created by the DB trigger (AFTER INSERT/UPDATE).
+      // We just need to wait a moment and fetch it to show the dialog/PDF.
       const restaurantId = activeRestaurant?.id;
-      const invNum = saleData.invoice_number || await generateSalesInvoiceNumber(restaurantId, saleData.date);
+      
+      // Give the DB a moment to process the trigger
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
-      // Update daily_sales with invoice_number
-      if (!saleData.invoice_number) {
-        await base44.entities.DailySales.update(saleId, { invoice_number: invNum });
+      // Fetch the generated invoice from the DB
+      const { data: invoices } = await base44.entities.SalesInvoice.filter({ sale_id: saleId });
+      const invoice = invoices && invoices[0];
+
+      if (!invoice) {
+        console.warn('[Sales] Invoice not found in DB after trigger');
+        return;
       }
-
-      const invoice = await createSalesInvoice({
-        invoiceNumber: invNum,
-        saleId,
-        saleData,
-        restaurantId,
-        createdBy: user?.email || '',
-      });
 
       // Phase 8: Generate and store permanent PDF
       try {
         await generateAndUploadPDF(invoice, 'RestoCTRL', currency);
         // Re-fetch to get the pdf_url
-        const { data: updatedInv } = await base44.entities.SalesInvoice.filter({ invoice_number: invNum });
+        const { data: updatedInv } = await base44.entities.SalesInvoice.filter({ id: invoice.id });
         if (updatedInv && updatedInv[0]) {
           setSavedInvoice(updatedInv[0]);
         } else {
