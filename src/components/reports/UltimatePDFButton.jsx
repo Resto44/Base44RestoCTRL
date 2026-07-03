@@ -31,7 +31,7 @@ export default function UltimatePDFButton({ sales, purchases, expenses, rangeTyp
   });
   const { data: walletTransactions = [] } = useQuery({
     queryKey: ['wallet_transactions'],
-    queryFn: () => base44.entities.WalletTransaction.list('-date', 2000),
+    queryFn: () => base44.entities.WalletTransaction.list('-transaction_date', 2000),
   });
 
   const brandSettings = brandSettingsList[0] || null;

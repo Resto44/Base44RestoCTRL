@@ -90,7 +90,7 @@ export default function Treasury() {
 
   const { data: transactions = [], isLoading } = useQuery({
     queryKey: ['wallet_transactions', ownerFilter],
-    queryFn: () => base44.entities.WalletTransaction.filter(ownerFilter || {}, '-date', 2000),
+    queryFn: () => base44.entities.WalletTransaction.filter(ownerFilter || {}, '-transaction_date', 2000),
     staleTime: 60000,
     enabled: !!ownerFilter?.created_by,
   });

@@ -87,7 +87,7 @@ export default function Dashboard() {
   });
   const { data: walletTx = [] } = useQuery({
     queryKey: ['wallet_transactions', ownerFilter],
-    queryFn: () => base44.entities.WalletTransaction.filter(ownerFilter || {}, '-date', 500),
+    queryFn: () => base44.entities.WalletTransaction.filter(ownerFilter || {}, '-transaction_date', 500),
     staleTime: 120000,
     enabled: !!ownerFilter?.created_by,
   });

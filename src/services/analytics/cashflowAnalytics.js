@@ -10,7 +10,7 @@ import { computeBranchSettlements } from '@/components/treasury/BranchSettlement
  * @returns {Promise<{walletTransactions: Array, cashRegisterEntries: Array}>} Raw data.
  */
 async function fetchCashflowData(ownerFilter, fromDate, toDate, branchKey = 'all') {
-  let walletTxQuery = base44.entities.WalletTransaction.filter(ownerFilter || {}, '-date', 1000);
+  let walletTxQuery = base44.entities.WalletTransaction.filter(ownerFilter || {}, '-transaction_date', 1000);
   let cashRegisterQuery = base44.entities.CashRegisterEntry.filter(ownerFilter || {}, '-date', 1000);
 
   walletTxQuery = walletTxQuery.filter(tx => tx.created_date >= fromDate && tx.created_date <= toDate);
