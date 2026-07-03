@@ -447,8 +447,15 @@ export function computeProcurementKPIs(invoices = [], payments = []) {
   const today = new Date().toISOString().split('T')[0];
   const thisMonthStart = today.substring(0, 7) + '-01';
 
-  const approvedInvoices = invoices.filter(i => ['approved', 'auto_approved'].includes(i.approval_status));
+  // KPI must include Approved supplier invoices only
+  const approvedInvoices = invoices.filter(i => 
+    ['approved', 'auto_approved'].includes(i.approval_status) || 
+    i.status === 'approved' || 
+    i.status === 'paid' || 
+    i.status === 'partial'
+  );
 
+  // Use invoice transaction date (purchase date), never created_at
   const purchasesToday = approvedInvoices
     .filter(i => i.date === today)
     .reduce((s, i) => s + (i.total_amount || 0), 0);
@@ -457,28 +464,29 @@ export function computeProcurementKPIs(invoices = [], payments = []) {
     .filter(i => i.date >= thisMonthStart)
     .reduce((s, i) => s + (i.total_amount || 0), 0);
 
-  const outstandingPayables = invoices
+  // Payables usually consider all non-cancelled invoices that are approved or at least not draft
+  const outstandingPayables = approvedInvoices
     .filter(i => i.status !== 'paid' && i.status !== 'cancelled')
     .reduce((s, i) => s + ((i.total_amount || 0) - (i.paid_amount || 0)), 0);
 
-  const overduePayables = invoices
+  const overduePayables = approvedInvoices
     .filter(i => {
       const { isOverdue } = getOverdueInfo(i);
       return isOverdue;
     })
     .reduce((s, i) => s + ((i.total_amount || 0) - (i.paid_amount || 0)), 0);
 
-  // Top supplier by total spend
+  // Top supplier by total spend (Approved only)
   const supplierSpend = {};
-  invoices.forEach(i => {
+  approvedInvoices.forEach(i => {
     const name = i.supplier_name || 'Unknown';
     supplierSpend[name] = (supplierSpend[name] || 0) + (i.total_amount || 0);
   });
   const topSupplier = Object.entries(supplierSpend).sort((a, b) => b[1] - a[1])[0]?.[0] || '—';
 
-  // Most purchased product
+  // Most purchased product (Approved only)
   const productQty = {};
-  invoices.forEach(i => {
+  approvedInvoices.forEach(i => {
     (i.items || []).forEach(item => {
       const name = item.product_name || 'Unknown';
       productQty[name] = (productQty[name] || 0) + (item.quantity || 0);
@@ -486,12 +494,11 @@ export function computeProcurementKPIs(invoices = [], payments = []) {
   });
   const mostPurchasedProduct = Object.entries(productQty).sort((a, b) => b[1] - a[1])[0]?.[0] || '—';
 
-  const avgPurchaseCost = invoices.length > 0
-    ? invoices.reduce((s, i) => s + (i.total_amount || 0), 0) / invoices.length
+  const avgPurchaseCost = approvedInvoices.length > 0
+    ? approvedInvoices.reduce((s, i) => s + (i.total_amount || 0), 0) / approvedInvoices.length
     : 0;
 
-  const inventoryValueAdded = invoices
-    .filter(i => i.status === 'approved' || i.status === 'paid' || i.status === 'partial')
+  const inventoryValueAdded = approvedInvoices
     .reduce((s, i) => s + (i.subtotal || i.total_amount || 0), 0);
 
   return {

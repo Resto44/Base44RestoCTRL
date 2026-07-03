@@ -524,8 +524,8 @@ export default function OwnerDashboard() {
 
     // Today's Purchases = approved supplier invoices for today
     const purchasesToday = supplierInvoices
-      .filter(inv => inv.date === today && (inv.status === 'approved' || inv.approval_status === 'approved' || inv.approval_status === 'auto_approved'))
-      .reduce((s, inv) => s + (Number(inv.total_amount) || Number(inv.amount) || 0), 0);
+      .filter(inv => inv.date === today && (['approved', 'auto_approved'].includes(inv.approval_status) || ['approved', 'paid', 'partial'].includes(inv.status)))
+      .reduce((s, inv) => s + (Number(inv.total_amount) || 0), 0);
 
     const expensesToday =  (todayExpenses || []).reduce((s, e) => s + (Number(e.amount) || 0), 0);
     const grossProfit = salesToday - purchasesToday;
@@ -549,8 +549,8 @@ export default function OwnerDashboard() {
       s + ((item.quantity || 0) * (item.unit_cost || item.avg_cost || item.cost_price || 0)), 0);
 
     const supplierPayables = supplierInvoices
-      .filter(inv => inv.status !== 'paid')
-      .reduce((s, inv) => s + Math.max(0, (inv.amount || 0) - (inv.paid_amount || 0)), 0);
+      .filter(inv => (['approved', 'auto_approved'].includes(inv.approval_status) || ['approved', 'paid', 'partial'].includes(inv.status)) && inv.status !== 'paid' && inv.status !== 'cancelled')
+      .reduce((s, inv) => s + Math.max(0, (inv.total_amount || 0) - (inv.paid_amount || 0)), 0);
 
     const ownerCapitalToday =  (todaySales || []).reduce((s, r) => s + (Number(r.owner_cash_injection) || 0), 0);
 
@@ -626,24 +626,39 @@ export default function OwnerDashboard() {
   // ── Section 5: Purchase Analytics ────────────────────────────────────────────
   const purchaseAnalytics = useMemo(() => {
     const todayAmt = execSummary.purchasesToday;
-    const weekAmt  = sumPurchaseCost(weekPurchases);
-    const monthAmt = sumPurchaseCost(monthPurchases);
+    
+    const approvedInvoices = supplierInvoices.filter(inv => 
+      ['approved', 'auto_approved'].includes(inv.approval_status) || 
+      ['approved', 'paid', 'partial'].includes(inv.status)
+    );
+
+    const today = format(new Date(), 'yyyy-MM-dd');
+    const startOfW = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
+    const startOfM = format(startOfMonth(new Date()), 'yyyy-MM-dd');
+
+    const weekAmt = approvedInvoices
+      .filter(inv => inv.date >= startOfW && inv.date <= today)
+      .reduce((s, inv) => s + (Number(inv.total_amount) || 0), 0);
+      
+    const monthAmt = approvedInvoices
+      .filter(inv => inv.date >= startOfM && inv.date <= today)
+      .reduce((s, inv) => s + (Number(inv.total_amount) || 0), 0);
 
     const supplierMap = {};
-    supplierInvoices.forEach(inv => {
+    approvedInvoices.forEach(inv => {
       const name = inv.supplier_name || 'Unknown';
-      supplierMap[name] = (supplierMap[name] || 0) + (Number(inv.amount) || 0);
+      supplierMap[name] = (supplierMap[name] || 0) + (Number(inv.total_amount) || 0);
     });
     const supplierRanking = Object.entries(supplierMap)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 3);
 
-    const allAmounts =  (supplierInvoices || []).map(inv => Number(inv.amount) || 0);
+    const allAmounts = approvedInvoices.map(inv => Number(inv.total_amount) || 0);
     const largestPurchase = allAmounts.length > 0 ? Math.max(...allAmounts) : 0;
-    const avgPurchase     = allAmounts.length > 0 ?  (allAmounts || []).reduce((s, v) => s + v, 0) / allAmounts.length : 0;
+    const avgPurchase     = allAmounts.length > 0 ? allAmounts.reduce((s, v) => s + v, 0) / allAmounts.length : 0;
 
     return { todayAmt, weekAmt, monthAmt, supplierRanking, largestPurchase, avgPurchase };
-  }, [execSummary, weekPurchases, monthPurchases, supplierInvoices, sumPurchaseCost]);
+  }, [execSummary, supplierInvoices]);
 
   // ── Section 6: Inventory Analytics ───────────────────────────────────────────
   const inventoryAnalytics = useMemo(() => {

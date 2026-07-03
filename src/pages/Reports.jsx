@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
+import { supabase } from '@/api/supabaseClient';
 import { useLanguage } from '@/lib/LanguageContext';
 import PageHeader from '@/components/shared/PageHeader';
 import { Card } from '@/components/ui/card';
@@ -23,7 +24,23 @@ export default function Reports() {
   const hasFilter = !!(ownerFilter?.created_by || ownerFilter?.branch);
 
   const { data: sales = [], isLoading: loadingSales, isError: errorSales } = useQuery({ queryKey: ['sales', ownerFilter], queryFn: () => base44.entities.DailySales.filter(ownerFilter || {}, '-date', 2000), staleTime: 120000, enabled: hasFilter });
-  const { data: purchases = [], isLoading: loadingPurchases } = useQuery({ queryKey: ['purchases', ownerFilter], queryFn: () => base44.entities.Purchase.filter(ownerFilter || {}, '-date', 2000), staleTime: 120000, enabled: hasFilter });
+  const { data: purchases = [], isLoading: loadingPurchases } = useQuery({ 
+    queryKey: ['purchases', ownerFilter], 
+    queryFn: async () => {
+      if (!ownerFilter?.created_by) return [];
+      const { data, error } = await supabase
+        .from('supplier_invoices')
+        .select('*')
+        .eq('created_by', ownerFilter.created_by)
+        .in('approval_status', ['approved', 'auto_approved'])
+        .order('date', { ascending: false })
+        .limit(2000);
+      if (error) return [];
+      return data || [];
+    }, 
+    staleTime: 120000, 
+    enabled: hasFilter 
+  });
   const { data: expenses = [], isLoading: loadingExpenses } = useQuery({ queryKey: ['expenses', ownerFilter], queryFn: () => base44.entities.Expense.filter(ownerFilter || {}, '-date', 2000), staleTime: 120000, enabled: hasFilter });
 
   const isLoading = loadingSales || loadingPurchases || loadingExpenses;
