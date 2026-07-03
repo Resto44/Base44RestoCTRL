@@ -100,6 +100,7 @@ const RestaurantManager   = lazy(() => import('@/pages/RestaurantManager'));
 
 const EnterpriseCategoryManager = lazy(() => import('@/components/categories/CategoryManager'));
 const ApprovalPolicy      = lazy(() => import('@/pages/ApprovalPolicy'));
+const SalesSources        = lazy(() => import('@/pages/SalesSources'));
 const TelegramSettings    = lazy(() => import('@/pages/TelegramSettings'));
 const Billing             = lazy(() => import('@/pages/Billing'));
 const Support             = lazy(() => import('@/pages/Support'));
@@ -305,6 +306,7 @@ const SubscribedRoutes = () => {
         <Route path="/branch-management" element={<RoleGuard permission="viewBrandSettings"><BranchManagement /></RoleGuard>} />
 
         <Route path="/approval-policy" element={<RoleGuard permission="viewBrandSettings"><ApprovalPolicy /></RoleGuard>} />
+        <Route path="/sales-sources" element={<RoleGuard permission="viewBrandSettings"><SalesSources /></RoleGuard>} />
         <Route path="/telegram-settings" element={<RoleGuard permission="viewBrandSettings"><TelegramSettings /></RoleGuard>} />
         <Route path="/billing" element={<RoleGuard permission="viewBilling"><Billing /></RoleGuard>} />
         <Route path="/notifications" element={<RoleGuard permission="viewAlerts"><NotificationCenter /></RoleGuard>} />

@@ -427,6 +427,8 @@ const entities = {
   ProductCategory: createEntity('product_categories'),
   SalesCategory: createEntity('sales_categories'),
   OnlineOrderCategory: createEntity('online_order_categories'),
+  // ── Sales Sources (Configurable Sale Types — 2026-07-03) ────────────────
+  SalesSource: createEntity('sales_sources'),
 };
 
 

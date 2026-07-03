@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { useLanguage } from '@/lib/LanguageContext';
+import { useSalesSources } from '@/hooks/useSalesSources';
 import PageHeader from '@/components/shared/PageHeader';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -16,7 +17,7 @@ import {
   format, subDays, parseISO, getWeek
 } from 'date-fns';
 
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#06b6d4', '#84cc16'];
 
 function KPICard({ label, value, prev, currency }) {
   const change = prev > 0 ? ((value - prev) / prev) * 100 : null;
@@ -50,10 +51,59 @@ function CustomTooltip({ active, payload, label, currency }) {
   );
 }
 
+/**
+ * Compute total revenue from a daily_sales record, respecting Sales Source configuration.
+ * Falls back to legacy cash+network+credit for backward compatibility.
+ */
+function computeRecordRevenue(record, revenueSources) {
+  // Legacy columns always included (backward compat)
+  let total = 0;
+
+  // Check if cash source is configured to be included in revenue
+  const cashSrc = revenueSources.find(s => s.system_key === 'cash');
+  if (!cashSrc || cashSrc.included_in_revenue) {
+    total += Number(record.restaurant_cash) || Number(record.cash) || 0;
+  }
+
+  // Network/POS
+  const networkSrc = revenueSources.find(s => s.system_key === 'network');
+  if (!networkSrc || networkSrc.included_in_revenue) {
+    total += Number(record.restaurant_network) || Number(record.network) || 0;
+  }
+
+  // Credit
+  const creditSrc = revenueSources.find(s => s.system_key === 'credit');
+  if (!creditSrc || creditSrc.included_in_revenue) {
+    total += Number(record.credit) || 0;
+  }
+
+  // Custom sources from sales_sources_json
+  if (record.sales_sources_json) {
+    try {
+      const customEntries = JSON.parse(record.sales_sources_json);
+      customEntries.forEach(entry => {
+        const src = revenueSources.find(s => s.id === entry.source_id || s.system_key === entry.source_key);
+        if (!src || src.included_in_revenue) {
+          total += Number(entry.amount) || 0;
+        }
+      });
+    } catch { /* ignore */ }
+  }
+
+  // Also add custom_sources_total if no JSON breakdown available
+  if (!record.sales_sources_json && record.custom_sources_total) {
+    total += Number(record.custom_sources_total) || 0;
+  }
+
+  return total;
+}
+
 export default function SalesDashboard() {
   const { t, currency, branches } = useLanguage();
   const [period, setPeriod] = useState('30d');
   const [branchFilter, setBranchFilter] = useState('all');
+
+  const { sources: salesSources, revenueSources, kpiSources, isLoading: sourcesLoading } = useSalesSources();
 
   const { data: sales = [], isLoading } = useQuery({
     queryKey: ['sales'],
@@ -64,7 +114,10 @@ export default function SalesDashboard() {
   // Date range
   const { from, fromPrev } = useMemo(() => {
     const days = period === '7d' ? 7 : period === '30d' ? 30 : 90;
-    return { from: format(subDays(new Date(), days), 'yyyy-MM-dd'), fromPrev: format(subDays(new Date(), days * 2), 'yyyy-MM-dd') };
+    return {
+      from: format(subDays(new Date(), days), 'yyyy-MM-dd'),
+      fromPrev: format(subDays(new Date(), days * 2), 'yyyy-MM-dd'),
+    };
   }, [period]);
 
   const filtered = useMemo(() =>
@@ -77,29 +130,69 @@ export default function SalesDashboard() {
     [sales, from, fromPrev, branchFilter]
   );
 
-  const total = (arr) => arr.reduce((s, r) => s + (r.cash || 0) + (r.network || 0), 0);
-  const totalCurrent = total(filtered);
-  const totalPrev = total(prevPeriod);
+  // Revenue-aware totals (respects included_in_revenue flag)
+  const totalCurrent = useMemo(() =>
+    filtered.reduce((s, r) => s + computeRecordRevenue(r, revenueSources), 0),
+    [filtered, revenueSources]
+  );
+  const totalPrev = useMemo(() =>
+    prevPeriod.reduce((s, r) => s + computeRecordRevenue(r, revenueSources), 0),
+    [prevPeriod, revenueSources]
+  );
 
-  const cashTotal = filtered.reduce((s, r) => s + (r.cash || 0), 0);
-  const networkTotal = filtered.reduce((s, r) => s + (r.network || 0), 0);
-  const creditTotal = filtered.reduce((s, r) => s + (r.credit || 0), 0);
+  // Legacy breakdown totals (for KPI cards)
+  const cashTotal    = filtered.reduce((s, r) => s + (Number(r.restaurant_cash) || Number(r.cash) || 0), 0);
+  const networkTotal = filtered.reduce((s, r) => s + (Number(r.restaurant_network) || Number(r.network) || 0), 0);
+  const creditTotal  = filtered.reduce((s, r) => s + (Number(r.credit) || 0), 0);
 
-  // Daily trend
+  // Custom source totals from sales_sources_json
+  const customSourceTotals = useMemo(() => {
+    const map = {};
+    filtered.forEach(record => {
+      if (record.sales_sources_json) {
+        try {
+          const entries = JSON.parse(record.sales_sources_json);
+          entries.forEach(e => {
+            const key = e.source_id || e.source_key;
+            map[key] = (map[key] || 0) + (Number(e.amount) || 0);
+          });
+        } catch { /* ignore */ }
+      }
+    });
+    return map;
+  }, [filtered]);
+
+  // Daily trend — includes custom sources
   const dailyData = useMemo(() => {
     const map = {};
     filtered.forEach(s => {
       const d = s.date;
       if (!map[d]) map[d] = { date: d, Total: 0, Cash: 0, Network: 0, Credit: 0 };
-      map[d].Total += (s.cash || 0) + (s.network || 0);
-      map[d].Cash += (s.cash || 0);
-      map[d].Network += (s.network || 0);
+      const rev = computeRecordRevenue(s, revenueSources);
+      map[d].Total += rev;
+      map[d].Cash += Number(s.restaurant_cash) || Number(s.cash) || 0;
+      map[d].Network += Number(s.restaurant_network) || Number(s.network) || 0;
+      map[d].Credit += Number(s.credit) || 0;
+
+      // Add custom source columns
+      if (s.sales_sources_json) {
+        try {
+          const entries = JSON.parse(s.sales_sources_json);
+          entries.forEach(e => {
+            const src = salesSources.find(ss => ss.id === e.source_id || ss.system_key === e.source_key);
+            if (src && src.included_in_dashboard_kpi) {
+              const colName = src.name_en;
+              map[d][colName] = (map[d][colName] || 0) + (Number(e.amount) || 0);
+            }
+          });
+        } catch { /* ignore */ }
+      }
     });
     return Object.values(map).sort((a, b) => a.date.localeCompare(b.date)).map(d => ({
       ...d,
       label: format(parseISO(d.date), period === '7d' ? 'EEE' : 'MMM d'),
     }));
-  }, [filtered, period]);
+  }, [filtered, period, revenueSources, salesSources]);
 
   // Weekly aggregated
   const weeklyData = useMemo(() => {
@@ -107,10 +200,10 @@ export default function SalesDashboard() {
     filtered.forEach(s => {
       const wk = `W${getWeek(parseISO(s.date))}-${parseISO(s.date).getFullYear()}`;
       if (!map[wk]) map[wk] = { week: wk, Total: 0 };
-      map[wk].Total += (s.cash || 0) + (s.network || 0);
+      map[wk].Total += computeRecordRevenue(s, revenueSources);
     });
     return Object.values(map).sort((a, b) => a.week.localeCompare(b.week));
-  }, [filtered]);
+  }, [filtered, revenueSources]);
 
   // Monthly aggregated
   const monthlyData = useMemo(() => {
@@ -118,10 +211,10 @@ export default function SalesDashboard() {
     filtered.forEach(s => {
       const mo = format(parseISO(s.date), 'MMM yyyy');
       if (!map[mo]) map[mo] = { month: mo, Total: 0 };
-      map[mo].Total += (s.cash || 0) + (s.network || 0);
+      map[mo].Total += computeRecordRevenue(s, revenueSources);
     });
     return Object.values(map);
-  }, [filtered]);
+  }, [filtered, revenueSources]);
 
   // Branch comparison
   const branchData = useMemo(() => {
@@ -129,23 +222,49 @@ export default function SalesDashboard() {
     filtered.forEach(s => {
       const bl = branches.find(b => b.key === s.branch)?.label || s.branch;
       if (!map[bl]) map[bl] = { branch: bl, Total: 0, Cash: 0, Network: 0 };
-      map[bl].Total += (s.cash || 0) + (s.network || 0);
-      map[bl].Cash += (s.cash || 0);
-      map[bl].Network += (s.network || 0);
+      map[bl].Total += computeRecordRevenue(s, revenueSources);
+      map[bl].Cash += Number(s.restaurant_cash) || Number(s.cash) || 0;
+      map[bl].Network += Number(s.restaurant_network) || Number(s.network) || 0;
     });
     return Object.values(map).sort((a, b) => b.Total - a.Total);
-  }, [filtered, branches]);
+  }, [filtered, branches, revenueSources]);
 
-  // Payment mix for pie
-  const paymentMix = [
-    { name: 'Cash', value: cashTotal },
-    { name: 'Network', value: networkTotal },
-  ].filter(x => x.value > 0);
+  // Payment mix for pie — dynamic based on kpiSources
+  const paymentMix = useMemo(() => {
+    const mix = [];
+    // Legacy sources
+    if (cashTotal > 0) mix.push({ name: 'Cash', value: cashTotal });
+    if (networkTotal > 0) mix.push({ name: 'Network / POS', value: networkTotal });
+    if (creditTotal > 0) mix.push({ name: 'Customer Credit', value: creditTotal });
+    // Custom sources
+    Object.entries(customSourceTotals).forEach(([key, val]) => {
+      if (val > 0) {
+        const src = salesSources.find(s => s.id === key || s.system_key === key);
+        if (src && src.included_in_dashboard_kpi) {
+          mix.push({ name: src.name_en, value: val });
+        }
+      }
+    });
+    return mix.filter(x => x.value > 0);
+  }, [cashTotal, networkTotal, creditTotal, customSourceTotals, salesSources]);
 
   // Top performing day
   const topDay = dailyData.reduce((best, d) => (!best || d.Total > best.Total) ? d : best, null);
 
-  if (isLoading) return (
+  // Dynamic bar chart keys for custom sources
+  const customBarKeys = useMemo(() => {
+    const keys = new Set();
+    dailyData.forEach(d => {
+      Object.keys(d).forEach(k => {
+        if (!['date', 'label', 'Total', 'Cash', 'Network', 'Credit'].includes(k)) {
+          keys.add(k);
+        }
+      });
+    });
+    return Array.from(keys);
+  }, [dailyData]);
+
+  if (isLoading || sourcesLoading) return (
     <div className="flex items-center justify-center py-20 gap-2 text-muted-foreground">
       <Loader2 className="w-5 h-5 animate-spin" /> Loading sales data...
     </div>
@@ -154,7 +273,6 @@ export default function SalesDashboard() {
   return (
     <div>
       <PageHeader title="Sales Dashboard" />
-
       {/* Controls */}
       <div className="flex gap-2 mb-4">
         <Select value={period} onValueChange={setPeriod}>
@@ -178,12 +296,29 @@ export default function SalesDashboard() {
         </Select>
       </div>
 
-      {/* KPI Cards */}
+      {/* KPI Cards — dynamic based on Sales Sources */}
       <div className="grid grid-cols-2 gap-2 mb-4">
         <KPICard label="Total Revenue" value={totalCurrent} prev={totalPrev} currency={currency} />
-        <KPICard label="Cash Sales" value={cashTotal} currency={currency} />
-        <KPICard label="Network Sales" value={networkTotal} currency={currency} />
-
+        {/* Legacy system sources */}
+        {revenueSources.find(s => s.system_key === 'cash')?.included_in_dashboard_kpi !== false && (
+          <KPICard label="Cash Sales" value={cashTotal} currency={currency} />
+        )}
+        {revenueSources.find(s => s.system_key === 'network')?.included_in_dashboard_kpi !== false && (
+          <KPICard label="Network / POS" value={networkTotal} currency={currency} />
+        )}
+        {creditTotal > 0 && revenueSources.find(s => s.system_key === 'credit')?.included_in_dashboard_kpi !== false && (
+          <KPICard label="Customer Credit" value={creditTotal} currency={currency} />
+        )}
+        {/* Dynamic custom source KPI cards */}
+        {salesSources
+          .filter(s => !s.is_system && s.included_in_dashboard_kpi)
+          .map(src => {
+            const amt = customSourceTotals[src.id] || customSourceTotals[src.system_key] || 0;
+            if (amt === 0) return null;
+            return (
+              <KPICard key={src.id} label={src.name_en} value={amt} currency={currency} />
+            );
+          })}
       </div>
 
       {topDay && (
@@ -237,7 +372,11 @@ export default function SalesDashboard() {
                   <Legend wrapperStyle={{ fontSize: 11 }} />
                   <Bar dataKey="Cash" stackId="a" fill="#10b981" />
                   <Bar dataKey="Network" stackId="a" fill="#3b82f6" />
-
+                  <Bar dataKey="Credit" stackId="a" fill="#8b5cf6" />
+                  {/* Dynamic custom source bars */}
+                  {customBarKeys.map((key, i) => (
+                    <Bar key={key} dataKey={key} stackId="a" fill={COLORS[(i + 4) % COLORS.length]} />
+                  ))}
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -313,16 +452,23 @@ export default function SalesDashboard() {
               <>
                 <ResponsiveContainer width="100%" height={200}>
                   <PieChart>
-                    <Pie data={paymentMix} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
+                    <Pie
+                      data={paymentMix}
+                      cx="50%" cy="50%"
+                      outerRadius={80}
+                      dataKey="value"
+                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      labelLine={false}
+                    >
                       {paymentMix.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                     </Pie>
                     <Tooltip formatter={(v) => formatCurrency(v, currency)} />
                   </PieChart>
                 </ResponsiveContainer>
-                <div className="flex justify-center gap-4 mt-2">
+                <div className="flex flex-wrap justify-center gap-3 mt-2">
                   {paymentMix.map((p, i) => (
                     <div key={p.name} className="flex items-center gap-1.5 text-xs">
-                      <span className="w-2.5 h-2.5 rounded-full" style={{ background: COLORS[i] }} />
+                      <span className="w-2.5 h-2.5 rounded-full" style={{ background: COLORS[i % COLORS.length] }} />
                       <span className="text-muted-foreground">{p.name}:</span>
                       <span className="font-semibold">{formatCurrency(p.value, currency)}</span>
                     </div>

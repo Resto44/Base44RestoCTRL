@@ -48,6 +48,22 @@ import {
 } from 'lucide-react';
 import BranchSelect from '@/components/shared/BranchSelect';
 import { toast } from 'sonner';
+import { useSalesSources } from '@/hooks/useSalesSources';
+import { Banknote as BanknoteIcon, CreditCard as CreditCardIcon, UserCheck, PlusCircle, ShoppingBag, Truck, Star, Globe, Smartphone, UtensilsCrossed, Package as PackageIcon, DollarSign as DollarSignIcon, Gift, Users as UsersIcon, Building2 as Building2Icon, Zap as ZapIcon, Activity as ActivityIcon, BarChart3 as BarChart3Icon, Shield } from 'lucide-react';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DYNAMIC ICON REGISTRY (for Sales Sources)
+// ─────────────────────────────────────────────────────────────────────────────
+const SOURCE_ICON_MAP = {
+  Banknote: BanknoteIcon, CreditCard: CreditCardIcon, UserCheck, PlusCircle,
+  ShoppingBag, Truck, Star, Globe, Smartphone, UtensilsCrossed,
+  Package: PackageIcon, DollarSign: DollarSignIcon, Gift,
+  Users: UsersIcon, Building2: Building2Icon, Zap: ZapIcon,
+  Activity: ActivityIcon, BarChart3: BarChart3Icon, Shield,
+};
+function getSourceIcon(iconName) {
+  return SOURCE_ICON_MAP[iconName] || BanknoteIcon;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DESIGN TOKENS — Material 3 / ERP
@@ -438,6 +454,26 @@ export default function ERPSalesWorkspace({ initial, onSubmit, onCancel }) {
   const removeCredit = (id) => setCreditEntries(prev => prev.filter(e => e.id !== id));
   const updateCredit = (id, field, value) => setCreditEntries(prev => prev.map(e => e.id === id ? { ...e, [field]: value } : e));
 
+  // ── Dynamic Sales Sources ───────────────────────────────────────────────────────────────
+  const { customSources, isLoading: sourcesLoading } = useSalesSources({ branchKey: form.branch });
+  // Amounts keyed by source.id
+  const [customSourceAmounts, setCustomSourceAmounts] = useState(() => {
+    if (initial?.sales_sources_json) {
+      try {
+        const parsed = JSON.parse(initial.sales_sources_json);
+        const map = {};
+        parsed.forEach(e => { map[e.source_id] = String(e.amount || ''); });
+        return map;
+      } catch { /* ignore */ }
+    }
+    return {};
+  });
+  const setCustomAmount = (sourceId, val) => setCustomSourceAmounts(prev => ({ ...prev, [sourceId]: val }));
+  const customTotal = useMemo(() =>
+    customSources.reduce((s, src) => s + (Number(customSourceAmounts[src.id]) || 0), 0),
+    [customSources, customSourceAmounts]
+  );
+
   // ── Employees ─────────────────────────────────────────────────────────────
   const { data: employees = [], isLoading: empLoading } = useQuery({
     queryKey: ['employees_cashiers', ownerFilter?.created_by, ownerFilter?.branch, form.branch],
@@ -595,7 +631,8 @@ export default function ERPSalesWorkspace({ initial, onSubmit, onCancel }) {
   const cashSales    = useMemo(() => Math.max(0, Number(cashSalesInput) || 0), [cashSalesInput]);
   const networkTotal = useMemo(() => posEntries.reduce((s, e) => s + (Number(e.amount) || 0), 0), [posEntries]);
   const creditTotal  = useMemo(() => creditEntries.reduce((s, e) => s + (Number(e.amount) || 0), 0), [creditEntries]);
-  const totalSales   = useMemo(() => cashSales + networkTotal + creditTotal, [cashSales, networkTotal, creditTotal]);
+  // totalSales now includes dynamic custom sources (Rule 1 extended)
+  const totalSales   = useMemo(() => cashSales + networkTotal + creditTotal + customTotal, [cashSales, networkTotal, creditTotal, customTotal]);
 
   const opening      = useMemo(() => Number(openingCash) || 0, [openingCash]);
   const actualCount  = useMemo(() => actualCashCount !== '' ? Number(actualCashCount) : null, [actualCashCount]);
@@ -808,6 +845,20 @@ export default function ERPSalesWorkspace({ initial, onSubmit, onCancel }) {
         total_sales: totalSales,
         pos_entries_json: JSON.stringify(posEntries.map(({ id, ...rest }) => rest)),
         credit_entries_json: JSON.stringify(creditEntries.map(({ id, ...rest }) => rest)),
+        // Dynamic Sales Sources — full snapshot for reporting
+        sales_sources_json: JSON.stringify(
+          customSources
+            .filter(src => Number(customSourceAmounts[src.id]) > 0)
+            .map(src => ({
+              source_id: src.id,
+              source_key: src.system_key || src.id,
+              name_en: src.name_en,
+              name_ar: src.name_ar,
+              amount: Number(customSourceAmounts[src.id]) || 0,
+              included_in_revenue: src.included_in_revenue,
+            }))
+        ),
+        custom_sources_total: customTotal,
 
         opening_cash: opening,
         closing_cash: closingCash,
@@ -1009,8 +1060,24 @@ export default function ERPSalesWorkspace({ initial, onSubmit, onCancel }) {
                 icon={DollarSign}
                 colorClass="text-indigo-600"
                 bgClass="bg-indigo-100"
-                sublabel="Cash + POS + Credit"
+                sublabel={customTotal > 0 ? `Cash + POS + Credit + Custom` : `Cash + POS + Credit`}
               />
+              {/* Dynamic custom source KPI cards */}
+              {customSources.filter(s => s.included_in_dashboard_kpi).map(src => {
+                const SrcIcon = getSourceIcon(src.icon);
+                const amt = Number(customSourceAmounts[src.id]) || 0;
+                return (
+                  <KPICard
+                    key={src.id}
+                    label={src.name_en}
+                    value={`${currency}${amt.toLocaleString()}`}
+                    icon={SrcIcon}
+                    colorClass={`text-${src.color || 'slate'}-600`}
+                    bgClass={`bg-${src.color || 'slate'}-100`}
+                    sublabel={src.name_ar || src.description || ''}
+                  />
+                );
+              })}
               <KPICard
                 label="Average Ticket"
                 value={avgTicket > 0 ? `${currency}${avgTicket.toFixed(0)}` : '—'}
@@ -1211,6 +1278,52 @@ export default function ERPSalesWorkspace({ initial, onSubmit, onCancel }) {
               )}
             </div>
           </div>
+
+          {/* ═══════════════════════════════════════════════════════════════
+              SECTION 4.5 — CUSTOM SALES SOURCES (Dynamic)
+          ═══════════════════════════════════════════════════════════════ */}
+          {!sourcesLoading && customSources.length > 0 && (
+            <div className="rounded-2xl border-2 border-teal-200 overflow-hidden bg-background shadow-sm">
+              <div className="flex items-center justify-between px-4 py-3 bg-teal-100/60 border-b border-border/60">
+                <div className="flex items-center gap-2.5">
+                  <span className="flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold bg-white/70 border border-border/50 text-teal-600">4½</span>
+                  <ZapIcon className="w-4 h-4 text-teal-600" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-foreground/80">Additional Sales Sources</span>
+                </div>
+                <Badge variant="outline" className="text-teal-700 border-teal-300 text-[10px] font-bold">
+                  {currency}{customTotal.toLocaleString()}
+                </Badge>
+              </div>
+              <div className="p-4 space-y-3">
+                {customSources.map(src => {
+                  const SrcIcon = getSourceIcon(src.icon);
+                  return (
+                    <div key={src.id} className="rounded-xl border border-border bg-muted/20 p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center bg-${src.color || 'slate'}-100`}>
+                          <SrcIcon className={`w-4 h-4 text-${src.color || 'slate'}-600`} />
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-foreground">{src.name_en}</p>
+                          {src.name_ar && <p className="text-[10px] text-muted-foreground" dir="rtl">{src.name_ar}</p>}
+                        </div>
+                        {src.requires_reference && (
+                          <span className="ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">Ref Required</span>
+                        )}
+                      </div>
+                      <NumInput
+                        label={`${src.name_en} Amount`}
+                        value={customSourceAmounts[src.id] || ''}
+                        onChange={v => setCustomAmount(src.id, v)}
+                        prefix={currency}
+                        helpText={src.description || undefined}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* ═══════════════════════════════════════════════════════════════
               SECTION 5 — PURCHASE SUMMARY (Auto-loaded)

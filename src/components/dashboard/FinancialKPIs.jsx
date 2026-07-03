@@ -16,6 +16,7 @@ import { base44 } from '@/api/base44Client';
 import { supabase } from '@/api/supabaseClient';
 import { useLanguage } from '@/lib/LanguageContext';
 import { useTenant } from '@/lib/TenantContext';
+import { useSalesSources } from '@/hooks/useSalesSources';
 import { format } from 'date-fns';
 import {
   TrendingUp, DollarSign, Banknote, Users, Truck, Package,
@@ -209,6 +210,7 @@ export default function FinancialKPIs({ branch }) {
   const { language, currency } = useLanguage();
   const lbl = LABELS[language] || LABELS.en;
   const { ownerFilter } = useTenant();
+  const { revenueSources, kpiSources, sources: allSalesSources } = useSalesSources({ branchKey: branch });
   const todayStr      = format(new Date(), 'yyyy-MM-dd');
   const yesterdayStr  = format(new Date(Date.now() - 86400000), 'yyyy-MM-dd');
 
@@ -278,13 +280,35 @@ export default function FinancialKPIs({ branch }) {
     const daySales  = filterBranch(todaySales);
     const prevSales = filterBranch(yesterdaySales);
 
-    // ── Card A: Sales Summary ─────────────────────────────────────────────────
-    // Total Sales = Cash + Network + Credit.  NEVER affected by reconciliation.
+        // ── Card A: Sales Summary ─────────────────────────────────────────────────
+    // Total Sales = Cash + Network + Credit + Custom Sources.
+    // NEVER affected by reconciliation.
     const cashSalesToday    = daySales.reduce((s, r) => s + (Number(r.restaurant_cash) || Number(r.cash) || 0), 0);
     const networkSalesToday = daySales.reduce((s, r) => s + (Number(r.restaurant_network) || Number(r.network) || 0), 0);
     const creditSalesToday  = daySales.reduce((s, r) => s + (Number(r.credit) || 0), 0);
-    const totalSalesToday   = cashSalesToday + networkSalesToday + creditSalesToday;
-
+    // Custom sources from sales_sources_json (dynamic)
+    const customSourcesMap = {};
+    daySales.forEach(r => {
+      if (r.sales_sources_json) {
+        try {
+          const entries = JSON.parse(r.sales_sources_json);
+          entries.forEach(e => {
+            const key = e.source_id || e.source_key;
+            customSourcesMap[key] = (customSourcesMap[key] || 0) + (Number(e.amount) || 0);
+          });
+        } catch { /* ignore */ }
+      }
+    });
+    const customSalesToday = Object.values(customSourcesMap).reduce((s, v) => s + v, 0);
+    // Revenue-aware total (respects included_in_revenue flag)
+    const cashIncluded = !revenueSources.length || revenueSources.find(s => s.system_key === 'cash')?.included_in_revenue !== false;
+    const netIncluded  = !revenueSources.length || revenueSources.find(s => s.system_key === 'network')?.included_in_revenue !== false;
+    const credIncluded = !revenueSources.length || revenueSources.find(s => s.system_key === 'credit')?.included_in_revenue !== false;
+    const totalSalesToday =
+      (cashIncluded ? cashSalesToday : 0) +
+      (netIncluded  ? networkSalesToday : 0) +
+      (credIncluded ? creditSalesToday : 0) +
+      customSalesToday;
     const totalSalesYesterday = prevSales.reduce((s, r) =>
       s + (Number(r.restaurant_cash) || Number(r.cash) || 0)
         + (Number(r.restaurant_network) || Number(r.network) || 0)
@@ -357,7 +381,7 @@ export default function FinancialKPIs({ branch }) {
 
     return {
       // Card A
-      cashSalesToday, networkSalesToday, creditSalesToday, totalSalesToday, salesTrend,
+      cashSalesToday, networkSalesToday, creditSalesToday, customSalesToday, customSourcesMap, totalSalesToday, salesTrend,
       // Card B
       openingCash, expectedCash, actualCash, cashShortage, cashOverage,
       ownerCashContrib, reconcStatus, cashDiff,
@@ -400,6 +424,14 @@ export default function FinancialKPIs({ branch }) {
         <Row label={lbl.cash_sales}    value={fmt(metrics.cashSalesToday)}    indent />
         <Row label={lbl.network_sales} value={fmt(metrics.networkSalesToday)} indent />
         <Row label={lbl.credit_sales}  value={fmt(metrics.creditSalesToday)}  indent />
+        {/* Dynamic custom source rows */}
+        {allSalesSources
+          .filter(s => !s.is_system && s.included_in_dashboard_kpi)
+          .map(src => {
+            const amt = metrics.customSourcesMap?.[src.id] || metrics.customSourcesMap?.[src.system_key] || 0;
+            if (amt === 0) return null;
+            return <Row key={src.id} label={src.name_en} value={fmt(amt)} indent />;
+          })}
         <Separator className="my-1" />
         <Row label={lbl.total_sales} value={fmt(metrics.totalSalesToday)} highlight valueColor="text-blue-700" />
       </SectionCard>
