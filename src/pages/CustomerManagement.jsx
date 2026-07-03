@@ -425,6 +425,7 @@ export default function CustomerManagement() {
     onSuccess: () => {
       toast.success(t('customer_saved'));
       qc.invalidateQueries({ queryKey: ['customers'] });
+      qc.invalidateQueries({ queryKey: ['customers_form'] });
       setShowCustomerForm(false); setEditingCustomer(null); setCustomerForm(emptyCustomerForm);
     },
     onError: (e) => toast.error(e.message),

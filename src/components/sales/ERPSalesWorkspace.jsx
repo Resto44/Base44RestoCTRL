@@ -507,18 +507,27 @@ export default function ERPSalesWorkspace({ initial, onSubmit, onCancel }) {
 
   // ── Customers ─────────────────────────────────────────────────────────────
   const { data: customers = [], isLoading: custLoading } = useQuery({
-    queryKey: ['v_customer_summary_form', ownerFilter?.created_by],
+    queryKey: ['customers_form', ownerFilter?.created_by, activeRestaurant?.id],
     queryFn: async () => {
       if (!ownerFilter?.created_by) return [];
-      const { data, error } = await supabase
-        .from('v_customer_summary')
-        .select('*')
+      let query = supabase
+        .from('customers')
+        .select('id, name, customer_name:name, phone, branch, branch_id, credit_limit, outstanding_balance, is_active, restaurant_id')
         .eq('created_by', ownerFilter.created_by)
-        .order('customer_name');
-      if (error) return [];
+        .eq('is_active', true);
+      
+      if (activeRestaurant?.id) {
+        query = query.eq('restaurant_id', activeRestaurant.id);
+      }
+
+      const { data, error } = await query.order('name');
+      if (error) {
+        console.error('[ERPSalesWorkspace] Customer fetch error:', error);
+        return [];
+      }
       return data || [];
     },
-    staleTime: 30000,
+    staleTime: 0, // Always fresh
     enabled: !!ownerFilter?.created_by,
   });
 
