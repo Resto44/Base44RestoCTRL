@@ -27,7 +27,7 @@ import { useLanguage } from '@/lib/LanguageContext';
 import { useTenant } from '@/lib/TenantContext';
 import { useRole } from '@/lib/RoleContext';
 import { toast } from 'sonner';
-import { format, parseISO, differenceInDays } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 
 // UI Components
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -50,10 +50,10 @@ import PageHeader from '@/components/shared/PageHeader';
 
 // Icons
 import {
-  Plus, Search, User, Phone, Crown, CreditCard, Wallet,
-  TrendingUp, AlertTriangle, CheckCircle2, FileText, BarChart3,
+  Plus, Search, Crown, CreditCard, Wallet,
+  TrendingUp, AlertTriangle, CheckCircle2,
   Pencil, Trash2, ArrowLeft, RefreshCw, Calendar, DollarSign,
-  Users, Activity, Shield, Award, BookOpen, Printer
+  Users, Activity, Shield, Award, Printer
 } from 'lucide-react';
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -1068,7 +1068,7 @@ export default function CustomerManagement() {
             {collectionForm.customer_name && (
               <div>
                 <Label className="text-xs">{t('credit_sales')} (link)</Label>
-                <Select value={collectionForm.debt_id || "__none__"} onValueChange={v => setCollectionForm(f => ({ ...f, debt_id: v === "__none__" ? "" : v }})}>
+                <Select value={collectionForm.debt_id || "__none__"} onValueChange={v => setCollectionForm(f => ({ ...f, debt_id: v === "__none__" ? "" : v }))}>
                   <SelectTrigger className="h-9 mt-1 text-xs"><SelectValue placeholder="Select open debt (optional)" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">— {t('filter_all')} —</SelectItem>
