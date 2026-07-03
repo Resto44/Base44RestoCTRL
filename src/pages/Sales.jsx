@@ -351,16 +351,40 @@ export default function Sales() {
 
   const createMut = useMutation({
     mutationFn: async ({ data, proofUrl, ocr }) => {
+      // ── TRANSACTION-LIKE WORKFLOW (Requirement 5) ──
+      // 1. Insert parent Sale record first (Requirement 2)
       const sale = await base44.entities.DailySales.create(data);
-      await autoWalletTx(data, sale.id);
-      // FIX 5: Create treasury transaction for approved shortage/overage
-      await autoShortageOveageTx(data, sale.id);
-      // Rule 6: Create Owner Capital Contribution treasury entry if purchases > sales
-      await autoOwnerCapitalTx(data, sale.id);
-      try { await autoSettle(data, sale.id, proofUrl || null, ocr || null, null); } catch (e) { console.warn('autoSettle skipped:', e.message); }
-      // Save customer credit entries to Debt Management (single source of truth)
-      await autoSaveCreditDebts(data, sale.id);
-      await autoGenerateInvoice(data, sale.id);
+      if (!sale?.id) throw new Error('Failed to create sale record');
+
+      // 2. Wait for the returned Sale ID (Requirement 3)
+      const saleId = sale.id;
+
+      // 3. Create sales_invoices using exactly that Sale ID (Requirement 4)
+      // Note: A DB trigger fn_daily_sales_sync_invoice already exists, 
+      // but it might be failing or racing. We ensure the invoice exists here.
+      try {
+        const invoiceNum = data.invoice_number || await generateSalesInvoiceNumber(data.restaurant_id, data.date);
+        await createSalesInvoice({
+          invoiceNumber: invoiceNum,
+          saleId: saleId,
+          saleData: data,
+          restaurantId: data.restaurant_id,
+          createdBy: user?.email
+        });
+      } catch (invErr) {
+        console.warn('[Sales] Manual invoice creation failed (might already exist via trigger):', invErr.message);
+      }
+
+      // 4. Run secondary side-effects
+      await autoWalletTx(data, saleId);
+      await autoShortageOveageTx(data, saleId);
+      await autoOwnerCapitalTx(data, saleId);
+      try { await autoSettle(data, saleId, proofUrl || null, ocr || null, null); } catch (e) { console.warn('autoSettle skipped:', e.message); }
+      await autoSaveCreditDebts(data, saleId);
+      
+      // 5. Finalize invoice (PDF generation etc)
+      await autoGenerateInvoice(data, saleId);
+      
       const total = (data.restaurant_cash || 0) + (data.restaurant_network || 0) + (data.credit || 0);
       await notif.sale({ branch: data.branch, amount: total, action: 'create' });
       return sale;

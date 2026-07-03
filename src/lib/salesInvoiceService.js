@@ -62,6 +62,8 @@ export async function createSalesInvoice({ invoiceNumber, saleId, saleData, rest
     created_by:      createdBy || ''
   };
 
+  // Requirement 5: Use a single transaction-like call if possible.
+  // Requirement 4: Insert sales_invoices using exactly that Sale ID.
   const { data, error } = await supabase
     .from('sales_invoices')
     .upsert(payload, { onConflict: 'invoice_number' })
