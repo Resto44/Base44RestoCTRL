@@ -28,7 +28,7 @@ export default function CashflowProjection() {
   const { data: expenses = [] } = useQuery({ queryKey: ['expenses', ownerFilter], queryFn: () => base44.entities.Expense.filter(ownerFilter, '-date', 500), staleTime: 120000, enabled: !!ownerFilter.created_by });
   const { data: employees = [] } = useQuery({ queryKey: ['employees', ownerFilter], queryFn: () => base44.entities.Employee.filter(ownerFilter, 'full_name', 500), staleTime: 300000, enabled: !!ownerFilter.created_by });
   const { data: purchases = [] } = useQuery({ queryKey: ['purchases', ownerFilter], queryFn: () => base44.entities.Purchase.filter(ownerFilter, '-date', 500), staleTime: 120000, enabled: !!ownerFilter.created_by });
-  const { data: walletTx = [] } = useQuery({ queryKey: ['wallet_transactions', ownerFilter], queryFn: () => base44.entities.WalletTransaction.filter(ownerFilter, '-date', 200), staleTime: 120000, enabled: !!ownerFilter.created_by });
+  const { data: walletTx = [] } = useQuery({ queryKey: ['wallet_transactions', ownerFilter], queryFn: () => base44.entities.WalletTransaction.filter(ownerFilter, '-transaction_date', 200), staleTime: 120000, enabled: !!ownerFilter.created_by });
   const { data: invoices = [] } = useQuery({ queryKey: ['supplier_invoices', ownerFilter], queryFn: () => base44.entities.SupplierInvoice.filter(ownerFilter, '-date', 200), staleTime: 120000, enabled: !!ownerFilter.created_by });
 
   const projection = useMemo(() => {

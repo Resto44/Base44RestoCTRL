@@ -512,11 +512,7 @@ export default function OwnerDashboard() {
 
   // ── Section 1: Executive Summary ──────────────────────────────────────────────
   const execSummary = useMemo(() => {
-    const cashSalesToday =  (todaySales || []).reduce((s, r) => {
-      const closing = Number(r.closing_cash) || Number(r.restaurant_cash) || Number(r.cash) || 0;
-      const opening = Number(r.opening_cash) || 0;
-      return s + (r.opening_cash != null ? Math.max(0, closing - opening) : closing);
-    }, 0);
+    const cashSalesToday =  (todaySales || []).reduce((s, r) => s + (Number(r.restaurant_cash) || Number(r.cash) || 0), 0);
     const networkSalesToday =  (todaySales || []).reduce((s, r) =>
       s + (Number(r.restaurant_network) || Number(r.network) || 0), 0);
     const creditSalesToday =  (todaySales || []).reduce((s, r) => s + (Number(r.credit) || 0), 0);
@@ -528,6 +524,7 @@ export default function OwnerDashboard() {
       .reduce((s, inv) => s + (Number(inv.total_amount) || 0), 0);
 
     const expensesToday =  (todayExpenses || []).reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    // KPI FIX: Net Profit = (Cash + Network + Credit) - Purchases - Expenses
     const grossProfit = salesToday - purchasesToday;
     const netProfit   = salesToday - purchasesToday - expensesToday;
 
@@ -803,7 +800,7 @@ export default function OwnerDashboard() {
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3">
-              <MetricCard title="Today's Sales"      value={fmt(execSummary.salesToday)}       subtitle={`Cash ${fmt(execSummary.cashSalesToday)} · Net ${fmt(execSummary.networkSalesToday)}`} icon={DollarSign}   color="green"  large onClick={() => navigate('/sales')} />
+              <MetricCard title="Today's Sales"      value={fmt(execSummary.salesToday)}       subtitle={`Cash ${fmt(execSummary.cashSalesToday)} · Net ${fmt(execSummary.networkSalesToday)} · Credit ${fmt(execSummary.creditSalesToday)}`} icon={DollarSign}   color="green"  large onClick={() => navigate('/sales')} />
               <MetricCard title="Today's Purchases"  value={fmt(execSummary.purchasesToday)}   subtitle="Approved invoices"          icon={ShoppingCart}  color="amber"  large onClick={() => navigate('/enterprise-purchases')} />
               <MetricCard title="Gross Profit"       value={fmt(execSummary.grossProfit)}      subtitle="Sales − Purchases"          icon={execSummary.grossProfit >= 0 ? TrendingUp : TrendingDown} color={execSummary.grossProfit >= 0 ? 'green' : 'red'} onClick={() => navigate('/profit-loss')} />
               <MetricCard title="Net Profit"         value={fmt(execSummary.netProfit)}        subtitle="Sales − Purchases − Expenses" icon={execSummary.netProfit >= 0 ? TrendingUp : TrendingDown} color={execSummary.netProfit >= 0 ? 'green' : 'red'} onClick={() => navigate('/profit-loss')} />

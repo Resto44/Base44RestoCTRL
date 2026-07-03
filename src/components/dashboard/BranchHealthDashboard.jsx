@@ -72,7 +72,7 @@ export default function BranchHealthDashboard() {
   const { data: sales = [] } = useQuery({ queryKey: ['sales', ownerFilter], queryFn: () => base44.entities.DailySales.filter(ownerFilter, '-date', 1000), staleTime: 120000, enabled: !!ownerFilter.created_by });
   const { data: expenses = [] } = useQuery({ queryKey: ['expenses', ownerFilter], queryFn: () => base44.entities.Expense.filter(ownerFilter, '-date', 500), staleTime: 120000, enabled: !!ownerFilter.created_by });
   const { data: waste = [] } = useQuery({ queryKey: ['inventory_waste', ownerFilter], queryFn: () => base44.entities.InventoryWaste.filter(ownerFilter, '-date', 200), staleTime: 120000, enabled: !!ownerFilter.created_by });
-  const { data: walletTx = [] } = useQuery({ queryKey: ['wallet_transactions', ownerFilter], queryFn: () => base44.entities.WalletTransaction.filter(ownerFilter, '-date', 500), staleTime: 120000, enabled: !!ownerFilter.created_by });
+  const { data: walletTx = [] } = useQuery({ queryKey: ['wallet_transactions', ownerFilter], queryFn: () => base44.entities.WalletTransaction.filter(ownerFilter, '-transaction_date', 500), staleTime: 120000, enabled: !!ownerFilter.created_by });
   const { data: inventory = [] } = useQuery({ queryKey: ['inventory_dashboard', ownerFilter], queryFn: () => base44.entities.Inventory.filter(ownerFilter, 'product_name', 500), staleTime: 300000, enabled: !!ownerFilter.created_by });
 
   const branchMetrics = useMemo(() => {
