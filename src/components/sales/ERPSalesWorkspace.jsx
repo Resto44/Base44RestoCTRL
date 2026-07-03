@@ -271,6 +271,7 @@ function CustomerCreditEntry({ entry, idx, onRemove, onUpdate, customers, curren
                 className="w-full text-left px-3 py-2.5 hover:bg-muted/60 text-sm border-b border-border/50 last:border-0 transition-colors"
                 onMouseDown={() => {
                   onUpdate(entry.id, 'customer', c.customer_name);
+                  onUpdate(entry.id, 'customer_id', c.id);
                   onUpdate(entry.id, 'customer_phone', c.phone || '');
                   onUpdate(entry.id, 'current_debt', c.outstanding_balance || 0);
                   onUpdate(entry.id, 'credit_limit', c.credit_limit || 0);

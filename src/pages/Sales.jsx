@@ -63,37 +63,55 @@ export default function Sales() {
 
   // Only create wallet transactions for COUNTER (restaurant) sales.
   const autoWalletTx = async (saleData, saleId, prevSale = null) => {
-    const promises = [];
-    const base = { transaction_date: saleData.date, branch: saleData.branch, auto_generated: true, reference_id: saleId };
+    try {
+      const promises = [];
+      const base = { 
+        transaction_date: saleData.date, 
+        branch: saleData.branch, 
+        auto_generated: true, 
+        reference_id: saleId,
+        restaurant_id: saleData.restaurant_id || activeRestaurant?.id
+      };
 
-    if (prevSale) {
-      const existing = await base44.entities.WalletTransaction.filter({ reference_id: prevSale.id, auto_generated: true });
-      await Promise.all(existing.map(tx => base44.entities.WalletTransaction.delete(tx.id)));
+      if (prevSale) {
+        const existing = await base44.entities.WalletTransaction.filter({ reference_id: prevSale.id, auto_generated: true });
+        await Promise.all(existing.map(tx => base44.entities.WalletTransaction.delete(tx.id)));
+      }
+
+      const rNet = Number(saleData.restaurant_network) || 0;
+      const rCash = Number(saleData.restaurant_cash) || 0;
+
+      if (rNet > 0) {
+        promises.push(base44.entities.WalletTransaction.create({
+          ...base,
+          transaction_type: 'network_sales_auto', 
+          flow_type: 'network_sales_auto',
+          wallet: 'owner_network', 
+          direction: 'in',
+          amount: rNet, 
+          payment_method: 'network',
+          description: `Counter network — ${saleData.branch} — ${saleData.date}`,
+        }));
+      }
+
+      if (rCash > 0) {
+        promises.push(base44.entities.WalletTransaction.create({
+          ...base,
+          transaction_type: 'cash_sales_branch', 
+          flow_type: 'cash_sales_branch',
+          wallet: 'branch_cash', 
+          direction: 'in',
+          amount: rCash, 
+          payment_method: 'cash',
+          description: `Counter cash — ${saleData.branch} — ${saleData.date}`,
+        }));
+      }
+
+      await Promise.all(promises);
+      qc.invalidateQueries({ queryKey: ['wallet_transactions'] });
+    } catch (e) {
+      console.warn('[autoWalletTx] optional wallet update failed:', e.message);
     }
-
-    const rNet = Number(saleData.restaurant_network) || 0;
-    const rCash = Number(saleData.restaurant_cash) || 0;
-
-    if (rNet > 0) {
-      promises.push(base44.entities.WalletTransaction.create({
-        ...base,
-        type: 'network_sales_auto', wallet: 'owner_network', direction: 'in',
-        amount: rNet, payment_method: 'network',
-        description: `Counter network — ${saleData.branch} — ${saleData.date}`,
-      }));
-    }
-
-    if (rCash > 0) {
-      promises.push(base44.entities.WalletTransaction.create({
-        ...base,
-        type: 'cash_sales_branch', wallet: 'branch_cash', direction: 'in',
-        amount: rCash, payment_method: 'cash',
-        description: `Counter cash — ${saleData.branch} — ${saleData.date}`,
-      }));
-    }
-
-    await Promise.all(promises);
-    qc.invalidateQueries({ queryKey: ['wallet_transactions'] });
   };
 
   // Rule 6: Auto-create Owner Capital Contribution treasury entries.
@@ -123,7 +141,8 @@ export default function Sales() {
       if (cashContrib > 0) {
         creates.push(base44.entities.WalletTransaction.create({
           transaction_date: saleData.date,
-          type: 'owner_capital_contribution',
+          transaction_type: 'owner_capital_contribution',
+          flow_type: 'owner_capital_contribution',
           wallet: 'owner_cash',
           direction: 'in',
           amount: cashContrib,
@@ -132,16 +151,17 @@ export default function Sales() {
           description: `Owner Capital Contribution — Cash Register Shortage — ${saleData.branch} — ${saleData.date}`,
           reference_id: saleId,
           auto_generated: true,
-          approval_status: 'approved',
           recorded_by: user?.email || '',
           notes: 'Cash reconciliation: owner covered register shortage. Not classified as sales revenue.',
+          restaurant_id: saleData.restaurant_id || activeRestaurant?.id
         }));
       }
 
       if (purchasesContrib > 0) {
         creates.push(base44.entities.WalletTransaction.create({
           transaction_date: saleData.date,
-          type: 'owner_capital_contribution',
+          transaction_type: 'owner_capital_contribution',
+          flow_type: 'owner_capital_contribution',
           wallet: 'owner_cash',
           direction: 'in',
           amount: purchasesContrib,
@@ -150,9 +170,9 @@ export default function Sales() {
           description: `Owner Capital Contribution — Purchases Exceed Sales — ${saleData.branch} — ${saleData.date}`,
           reference_id: saleId,
           auto_generated: true,
-          approval_status: 'approved',
           recorded_by: user?.email || '',
           notes: `Operating loss covered by owner. Sales=${saleData.total_sales || 0}, Purchases=${saleData.approved_purchases_total || 0}. Not classified as sales revenue.`,
+          restaurant_id: saleData.restaurant_id || activeRestaurant?.id
         }));
       }
 
@@ -189,7 +209,8 @@ export default function Sales() {
         // Shortage: audit record — does NOT reduce sales
         await base44.entities.WalletTransaction.create({
           transaction_date: saleData.date,
-          type: 'cash_reconciliation_shortage',
+          transaction_type: 'cash_reconciliation_shortage',
+          flow_type: 'cash_reconciliation_shortage',
           wallet: 'branch_cash',
           direction: 'out',
           amount: shortageAmt,
@@ -200,6 +221,7 @@ export default function Sales() {
           auto_generated: true,
           recorded_by: saleData.manager_approved_by || '',
           notes: 'Reconciliation audit entry. Sales Total is unchanged.',
+          restaurant_id: saleData.restaurant_id || activeRestaurant?.id
         });
       }
 
@@ -207,7 +229,8 @@ export default function Sales() {
         // Overage: audit record — does NOT increase sales
         await base44.entities.WalletTransaction.create({
           transaction_date: saleData.date,
-          type: 'cash_reconciliation_overage',
+          transaction_type: 'cash_reconciliation_overage',
+          flow_type: 'cash_reconciliation_overage',
           wallet: 'branch_cash',
           direction: 'in',
           amount: overageAmt,
@@ -218,6 +241,7 @@ export default function Sales() {
           auto_generated: true,
           recorded_by: saleData.manager_approved_by || '',
           notes: 'Reconciliation audit entry. Sales Total is unchanged.',
+          restaurant_id: saleData.restaurant_id || activeRestaurant?.id
         });
       }
 
@@ -242,37 +266,47 @@ export default function Sales() {
       const customerName = entry.customer || 'Unknown Customer';
       const customerId = entry.customer_id;
 
-      // If we have a customer_id, update their existing DebtRecord
-      if (customerId) {
-        try {
-          // Fetch the current debt record
+      try {
+        // Fetch or create DebtRecord for this customer
+        let debtRecord = null;
+        if (customerId) {
           const existing = await base44.entities.DebtRecord.filter({ id: customerId });
-          const debtRecord = existing[0];
-          if (debtRecord) {
-            const newTotal = (debtRecord.total_amount || 0) + amt;
-            const newRemaining = (debtRecord.remaining_amount || 0) + amt;
-            const newStatus = newRemaining > 0 ? (debtRecord.paid_amount > 0 ? 'partial' : 'open') : 'paid';
-            await base44.entities.DebtRecord.update(debtRecord.id, {
-              total_amount: newTotal,
-              remaining_amount: newRemaining,
-              status: newStatus,
-            });
-            // Record the transaction in DebtPayment
-            await base44.entities.DebtPayment.create({
-              debt_id: debtRecord.id,
-              party_name: debtRecord.party_name,
-              date: saleData.date,
-              amount: -amt, // negative = new debt added (not a payment)
-              payment_method: 'credit',
-              notes: `Credit sale from daily sales — ${saleData.date} — Branch: ${saleData.branch}`,
-              recorded_by: user?.email || '',
-              recorded_by_name: user?.full_name || user?.email || '',
-            });
-          }
-        } catch (e) { console.warn('[autoSaveCreditDebts] update failed:', e.message); }
-      } else {
-        // Create a new DebtRecord for this customer
-        try {
+          debtRecord = existing[0];
+        } else {
+          // Look up by name + branch + type=receivable to avoid duplicates
+          const existing = await base44.entities.DebtRecord.filter({ 
+            party_name: customerName, 
+            branch: saleData.branch, 
+            type: 'receivable' 
+          });
+          debtRecord = existing[0];
+        }
+
+        if (debtRecord) {
+          // Update existing DebtRecord
+          const newTotal = (debtRecord.total_amount || 0) + amt;
+          const newRemaining = (debtRecord.remaining_amount || 0) + amt;
+          const newStatus = newRemaining > 0 ? (debtRecord.paid_amount > 0 ? 'partial' : 'open') : 'paid';
+          await base44.entities.DebtRecord.update(debtRecord.id, {
+            total_amount: newTotal,
+            remaining_amount: newRemaining,
+            status: newStatus,
+          });
+          
+          // Record the transaction in DebtPayment
+          await base44.entities.DebtPayment.create({
+            debt_id: debtRecord.id,
+            party_name: debtRecord.party_name,
+            date: saleData.date,
+            amount: -amt, // negative = new debt added
+            payment_method: 'credit',
+            notes: `Credit sale — ${saleData.date} — Branch: ${saleData.branch}`,
+            recorded_by: user?.email || '',
+            recorded_by_name: user?.full_name || user?.email || '',
+            restaurant_id: saleData.restaurant_id || activeRestaurant?.id
+          });
+        } else {
+          // Create new DebtRecord
           const newDebt = await base44.entities.DebtRecord.create({
             type: 'receivable',
             party_type: 'customer',
@@ -286,25 +320,51 @@ export default function Sales() {
             status: 'open',
             description: `Credit sale — ${saleData.date}`,
             notes: entry.notes || '',
+            restaurant_id: saleData.restaurant_id || activeRestaurant?.id
           });
-          // Record the transaction
+          
           await base44.entities.DebtPayment.create({
             debt_id: newDebt.id,
             party_name: customerName,
             date: saleData.date,
             amount: -amt,
             payment_method: 'credit',
-            notes: `Credit sale from daily sales — ${saleData.date}`,
+            notes: `Credit sale — ${saleData.date}`,
             recorded_by: user?.email || '',
+            restaurant_id: saleData.restaurant_id || activeRestaurant?.id
           });
-        } catch (e) { console.warn('[autoSaveCreditDebts] create failed:', e.message); }
+        }
+
+        // UPDATE CUSTOMER OUTSTANDING BALANCE (BUG 2)
+        // We look up the customer by name or ID and increment their balance
+        try {
+          const customers = await base44.entities.Customer.filter(
+            customerId ? { id: customerId } : { customer_name: customerName }
+          );
+          if (customers[0]) {
+            const c = customers[0];
+            await base44.entities.Customer.update(c.id, {
+              outstanding_balance: (Number(c.outstanding_balance) || 0) + amt
+            });
+          }
+        } catch (custErr) {
+          console.warn('[autoSaveCreditDebts] customer balance update failed:', custErr.message);
+        }
+
+      } catch (e) { 
+        console.warn('[autoSaveCreditDebts] failed:', e.message); 
       }
     }
 
-    // Invalidate debt queries so dashboard updates instantly
+    // Invalidate ALL relevant queries for Debts & Receivables and Customer Credit KPI
     qc.invalidateQueries({ queryKey: ['debts_customer'] });
     qc.invalidateQueries({ queryKey: ['debts_customer_dash'] });
     qc.invalidateQueries({ queryKey: ['debt_customers_form'] });
+    qc.invalidateQueries({ queryKey: ['debt_records'] });
+    qc.invalidateQueries({ queryKey: ['debt_payments'] });
+    qc.invalidateQueries({ queryKey: ['customers'] });
+    qc.invalidateQueries({ queryKey: ['v_customer_summary'] });
+    qc.invalidateQueries({ queryKey: ['debt_records_customers'] });
   };
 
   // Auto-generate invoice after sale save
