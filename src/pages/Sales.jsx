@@ -64,7 +64,7 @@ export default function Sales() {
   // Only create wallet transactions for COUNTER (restaurant) sales.
   const autoWalletTx = async (saleData, saleId, prevSale = null) => {
     const promises = [];
-    const base = { date: saleData.date, branch: saleData.branch, auto_generated: true, reference_id: saleId };
+    const base = { transaction_date: saleData.date, branch: saleData.branch, auto_generated: true, reference_id: saleId };
 
     if (prevSale) {
       const existing = await base44.entities.WalletTransaction.filter({ reference_id: prevSale.id, auto_generated: true });
@@ -122,7 +122,7 @@ export default function Sales() {
 
       if (cashContrib > 0) {
         creates.push(base44.entities.WalletTransaction.create({
-          date: saleData.date,
+          transaction_date: saleData.date,
           type: 'owner_capital_contribution',
           wallet: 'owner_cash',
           direction: 'in',
@@ -140,7 +140,7 @@ export default function Sales() {
 
       if (purchasesContrib > 0) {
         creates.push(base44.entities.WalletTransaction.create({
-          date: saleData.date,
+          transaction_date: saleData.date,
           type: 'owner_capital_contribution',
           wallet: 'owner_cash',
           direction: 'in',
@@ -188,7 +188,7 @@ export default function Sales() {
       if (isApprovedShortage) {
         // Shortage: audit record — does NOT reduce sales
         await base44.entities.WalletTransaction.create({
-          date: saleData.date,
+          transaction_date: saleData.date,
           type: 'cash_reconciliation_shortage',
           wallet: 'branch_cash',
           direction: 'out',
@@ -206,7 +206,7 @@ export default function Sales() {
       if (isOverage) {
         // Overage: audit record — does NOT increase sales
         await base44.entities.WalletTransaction.create({
-          date: saleData.date,
+          transaction_date: saleData.date,
           type: 'cash_reconciliation_overage',
           wallet: 'branch_cash',
           direction: 'in',
