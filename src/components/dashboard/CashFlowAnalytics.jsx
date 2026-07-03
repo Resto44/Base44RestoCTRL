@@ -19,7 +19,7 @@ export default function CashFlowAnalytics({ branchKey = 'all' }) {
   const { data: cashBalances = {} } = useQuery({
     queryKey: ['cash_balances', ownerFilter],
     queryFn: async () => {
-      const walletTx = await base44.entities.WalletTransaction.filter(ownerFilter || {}, '-date', 1000);
+      const walletTx = await base44.entities.WalletTransaction.filter(ownerFilter || {}, '-transaction_date', 1000);
       return calculateCashBalances(walletTx, branches);
     },
     enabled: !!ownerFilter?.created_by,
