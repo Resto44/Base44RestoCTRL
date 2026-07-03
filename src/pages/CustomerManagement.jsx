@@ -20,7 +20,7 @@
  *           v_customer_summary, v_customer_aging, v_collection_dashboard
  */
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/api/supabaseClient';
 import { useLanguage } from '@/lib/LanguageContext';
@@ -1007,7 +1007,13 @@ export default function CustomerManagement() {
                 <Label className="text-xs">{t('vip_tier')}</Label>
                 <Select value={customerForm.vip_tier} onValueChange={v => setCustomerForm(f => ({ ...f, vip_tier: v }))}>
                   <SelectTrigger className="h-9 mt-1 text-xs"><SelectValue /></SelectTrigger>
-                  <SelectContent>{VIP_TIERS.map(tier => <SelectItem key={tier} value={tier}>{tier.toUpperCase()}</SelectItem>)}</SelectContent>
+                  <SelectContent>
+  {VIP_TIERS.map(tier => (
+    <SelectItem key={tier} value={tier}>
+      {tier.toUpperCase()}
+    </SelectItem>
+  ))}
+</SelectContent>
                 </Select>
               </div>
               <div><Label className="text-xs">{t('credit_limit')}</Label><Input type="number" value={customerForm.credit_limit} onChange={e => setCustomerForm(f => ({ ...f, credit_limit: e.target.value }))} className="h-9 mt-1" placeholder="0" /></div>
