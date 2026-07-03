@@ -207,16 +207,6 @@ export default function CustomerManagement() {
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [detailTab, setDetailTab] = useState('ledger');
   
-  // Auto-set default branch for managers
-  useEffect(() => {
-    if (isManager && managerBranch && !showCustomerForm) {
-      const defaultBranch = branches.find(b => b.key === managerBranch);
-      if (defaultBranch) {
-        setFilterBranch(defaultBranch.key);
-      }
-    }
-  }, [isManager, managerBranch, branches, showCustomerForm]);
-
   // Modals
   const [showCustomerForm, setShowCustomerForm] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(null);
@@ -228,6 +218,16 @@ export default function CustomerManagement() {
   const [collectionForm, setCollectionForm] = useState(emptyCollectionForm);
   const [showNoteForm, setShowNoteForm] = useState(false);
   const [noteForm, setNoteForm] = useState(emptyNoteForm);
+
+  // Auto-set default branch for managers
+  useEffect(() => {
+    if (isManager && managerBranch && !showCustomerForm) {
+      const defaultBranch = (branches || []).find(b => b.key === managerBranch);
+      if (defaultBranch) {
+        setFilterBranch(defaultBranch.key);
+      }
+    }
+  }, [isManager, managerBranch, branches, showCustomerForm]);
 
   const createdBy = ownerFilter?.created_by;
   const enabled = !!createdBy;
