@@ -86,6 +86,7 @@ const NOTE_COLORS = {
 const emptyCustomerForm = {
   name: '', phone: '', email: '', address: '',
   vip_tier: 'standard', credit_limit: '', notes: '', is_active: true,
+  branch_id: '', branch: '',
 };
 const emptyCreditSaleForm = {
   party_name: '', party_phone: '', invoice_number: '',
@@ -194,7 +195,7 @@ function CustomerCard({ customer, onSelect, onEdit, onDelete, currency, t }) {
 // ── Main Component ─────────────────────────────────────────────────────────
 export default function CustomerManagement() {
   const { t, currency } = useLanguage();
-  const { ownerFilter } = useTenant();
+  const { ownerFilter, activeRestaurantId, branches, isManager, managerBranch } = useTenant();
   const { role } = useRole();
   const qc = useQueryClient();
 
@@ -205,6 +206,16 @@ export default function CustomerManagement() {
   const [filterStatus, setFilterStatus] = useState('all');
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [detailTab, setDetailTab] = useState('ledger');
+  
+  // Auto-set default branch for managers
+  useEffect(() => {
+    if (isManager && managerBranch && !showCustomerForm) {
+      const defaultBranch = branches.find(b => b.key === managerBranch);
+      if (defaultBranch) {
+        setFilterBranch(defaultBranch.key);
+      }
+    }
+  }, [isManager, managerBranch, branches, showCustomerForm]);
 
   // Modals
   const [showCustomerForm, setShowCustomerForm] = useState(false);
@@ -318,8 +329,17 @@ export default function CustomerManagement() {
   // ── Merged customer list ───────────────────────────────────────────────
   const mergedCustomers = useMemo(() => {
     const map = new Map();
-    customerSummary.forEach(c => map.set(c.customer_name, { ...c, source: 'summary' }));
-    registeredCustomers.forEach(rc => {
+    // Filter customers by current restaurant and active status only
+    const activeCustomers = registeredCustomers.filter(c => 
+      c.is_active !== false && 
+      (!activeRestaurantId || c.restaurant_id === activeRestaurantId)
+    );
+    customerSummary.forEach(c => {
+      if (c.is_active !== false && (!activeRestaurantId || c.restaurant_id === activeRestaurantId)) {
+        map.set(c.customer_name, { ...c, source: 'summary' });
+      }
+    });
+    activeCustomers.forEach(rc => {
       const key = rc.name;
       if (map.has(key)) {
         map.set(key, { ...map.get(key), ...rc, customer_name: rc.name, source: 'both' });
@@ -334,17 +354,20 @@ export default function CustomerManagement() {
       }
     });
     return Array.from(map.values());
-  }, [customerSummary, registeredCustomers]);
+  }, [customerSummary, registeredCustomers, activeRestaurantId]);
 
   // ── Filtered customers ────────────────────────────────────────────────
   const filteredCustomers = useMemo(() => {
     let list = mergedCustomers;
+    // Filter by selected branch (from UI filter, not form)
     if (filterBranch !== 'all') list = list.filter(c => c.branch === filterBranch);
+    // Apply status filters
     if (filterStatus === 'vip') list = list.filter(c => c.vip_tier && c.vip_tier !== 'standard');
     else if (filterStatus === 'outstanding') list = list.filter(c => Number(c.outstanding_balance) > 0);
     else if (filterStatus === 'overdue') list = list.filter(c => c.overdue_count > 0);
     else if (filterStatus === 'active') list = list.filter(c => c.is_active !== false);
     else if (filterStatus === 'inactive') list = list.filter(c => c.is_active === false);
+    // Search filter
     if (search) {
       const q = search.toLowerCase();
       list = list.filter(c =>
@@ -404,16 +427,24 @@ export default function CustomerManagement() {
 
   const saveCustomerMutation = useMutation({
     mutationFn: async (form) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      const selectedBranchId = form.branch_id || (branches.find(b => b.key === form.branch)?.id);
+      
       if (editingCustomer?.id) {
         const { data, error } = await supabase.from('customers')
-          .update({ ...form, updated_date: new Date().toISOString() })
+          .update({ 
+            ...form, 
+            branch_id: selectedBranchId,
+            updated_date: new Date().toISOString() 
+          })
           .eq('id', editingCustomer.id).select().single();
         if (error) throw error;
         return data;
       } else {
-        const { data: { user } } = await supabase.auth.getUser();
         const { data, error } = await supabase.from('customers').insert({
           ...form,
+          restaurant_id: activeRestaurantId,
+          branch_id: selectedBranchId,
           created_by: user?.email || '',
           created_date: new Date().toISOString(),
           updated_date: new Date().toISOString(),
@@ -425,8 +456,11 @@ export default function CustomerManagement() {
     onSuccess: () => {
       toast.success(t('customer_saved'));
       qc.invalidateQueries({ queryKey: ['customers'] });
+      qc.invalidateQueries({ queryKey: ['v_customer_summary'] });
       qc.invalidateQueries({ queryKey: ['customers_form'] });
       setShowCustomerForm(false); setEditingCustomer(null); setCustomerForm(emptyCustomerForm);
+      refetchCustomers();
+      refetchSummary();
     },
     onError: (e) => toast.error(e.message),
   });
@@ -542,6 +576,7 @@ export default function CustomerManagement() {
       email: c.email || '', address: c.address || '',
       vip_tier: c.vip_tier || 'standard', credit_limit: c.credit_limit || '',
       notes: c.notes || '', is_active: c.is_active !== false,
+      branch_id: c.branch_id || '', branch: c.branch || '',
     });
     setShowCustomerForm(true);
   }, []);
@@ -958,10 +993,19 @@ export default function CustomerManagement() {
             <div><Label className="text-xs">{t('phone')}</Label><Input value={customerForm.phone} onChange={e => setCustomerForm(f => ({ ...f, phone: e.target.value }))} className="h-9 mt-1" /></div>
             <div><Label className="text-xs">{t('email')}</Label><Input type="email" value={customerForm.email} onChange={e => setCustomerForm(f => ({ ...f, email: e.target.value }))} className="h-9 mt-1" /></div>
             <div><Label className="text-xs">{t('address')}</Label><Input value={customerForm.address} onChange={e => setCustomerForm(f => ({ ...f, address: e.target.value }))} className="h-9 mt-1" /></div>
+            <div>
+              <Label className="text-xs">{t('branch')} *</Label>
+              <Select value={customerForm.branch} onValueChange={v => setCustomerForm(f => ({ ...f, branch: v }))}>
+                <SelectTrigger className="h-9 mt-1 text-xs"><SelectValue placeholder={t('branch')} /></SelectTrigger>
+                <SelectContent>
+                  {branches.map(b => <SelectItem key={b.key} value={b.key}>{b.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <Label className="text-xs">{t('vip_tier')}</Label>
-                <Select value={customerForm.vip_tier} onValueChange={v => setCustomerForm(f => ({ ...f, vip_tier: v }))}>
+                <Select value={customerForm.vip_tier} onValueChange={v => setCustomerForm(f => ({ ...f, vip_tier: v }})}>
                   <SelectTrigger className="h-9 mt-1 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>{VIP_TIERS.map(tier => <SelectItem key={tier} value={tier}>{tier.toUpperCase()}</SelectItem>)}</SelectContent>
                 </Select>
@@ -971,7 +1015,7 @@ export default function CustomerManagement() {
             <div><Label className="text-xs">{t('notes')}</Label><Textarea value={customerForm.notes} onChange={e => setCustomerForm(f => ({ ...f, notes: e.target.value }))} className="mt-1 text-sm" rows={2} /></div>
             <div className="flex gap-2 pt-2">
               <Button variant="outline" className="flex-1" onClick={() => setShowCustomerForm(false)}>{t('cancel')}</Button>
-              <Button className="flex-1" onClick={() => saveCustomerMutation.mutate(customerForm)} disabled={!customerForm.name || saveCustomerMutation.isPending}>
+              <Button className="flex-1" onClick={() => saveCustomerMutation.mutate(customerForm)} disabled={!customerForm.name || !customerForm.branch || saveCustomerMutation.isPending}>
                 {saveCustomerMutation.isPending ? t('loading') : t('save')}
               </Button>
             </div>
@@ -987,7 +1031,7 @@ export default function CustomerManagement() {
             <div>
               <Label className="text-xs">{t('customer_name')} *</Label>
               <Input value={creditSaleForm.party_name} onChange={e => setCreditSaleForm(f => ({ ...f, party_name: e.target.value }))} className="h-9 mt-1" list="cs-names" />
-              <datalist id="cs-names">{mergedCustomers.map((c, i) => <option key={i} value={c.customer_name || c.name} />)}</datalist>
+              <datalist id="cs-names">{mergedCustomers.filter(c => !creditSaleForm.branch || c.branch === creditSaleForm.branch).map((c, i) => <option key={i} value={c.customer_name || c.name} />)}</datalist>
             </div>
             <div><Label className="text-xs">{t('phone')}</Label><Input value={creditSaleForm.party_phone} onChange={e => setCreditSaleForm(f => ({ ...f, party_phone: e.target.value }))} className="h-9 mt-1" /></div>
             <div className="grid grid-cols-2 gap-2">
@@ -1019,16 +1063,21 @@ export default function CustomerManagement() {
             <div>
               <Label className="text-xs">{t('customer_name')} *</Label>
               <Input value={collectionForm.customer_name} onChange={e => setCollectionForm(f => ({ ...f, customer_name: e.target.value }))} className="h-9 mt-1" list="coll-names" />
-              <datalist id="coll-names">{mergedCustomers.map((c, i) => <option key={i} value={c.customer_name || c.name} />)}</datalist>
+              <datalist id="coll-names">{mergedCustomers.filter(c => !collectionForm.branch || c.branch === collectionForm.branch).map((c, i) => <option key={i} value={c.customer_name || c.name} />)}</datalist>
             </div>
             {collectionForm.customer_name && (
               <div>
                 <Label className="text-xs">{t('credit_sales')} (link)</Label>
-                <Select value={collectionForm.debt_id || "__none__"} onValueChange={v => setCollectionForm(f => ({ ...f, debt_id: v === "__none__" ? "" : v }))}>
+                <Select value={collectionForm.debt_id || "__none__"} onValueChange={v => setCollectionForm(f => ({ ...f, debt_id: v === "__none__" ? "" : v }})}>
                   <SelectTrigger className="h-9 mt-1 text-xs"><SelectValue placeholder="Select open debt (optional)" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">— {t('filter_all')} —</SelectItem>
-                    {debtRecords.filter(d => d.party_name === collectionForm.customer_name && ['open','partial','overdue'].includes(d.status)).map(d => (
+                    {debtRecords.filter(d => 
+                      d.party_name === collectionForm.customer_name && 
+                      ['open','partial','overdue'].includes(d.status) &&
+                      (!activeRestaurantId || d.restaurant_id === activeRestaurantId) &&
+                      (!collectionForm.branch || d.branch === collectionForm.branch)
+                    ).map(d => (
                       <SelectItem key={d.id} value={d.id}>{d.invoice_number || d.date} — {fmt(d.remaining_amount, currency)} due</SelectItem>
                     ))}
                   </SelectContent>
