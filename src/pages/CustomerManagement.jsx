@@ -1005,7 +1005,7 @@ export default function CustomerManagement() {
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <Label className="text-xs">{t('vip_tier')}</Label>
-                <Select value={customerForm.vip_tier} onValueChange={v => setCustomerForm(f => ({ ...f, vip_tier: v }})}>
+                <Select value={customerForm.vip_tier} onValueChange={v => setCustomerForm(f => ({ ...f, vip_tier: v }))}>
                   <SelectTrigger className="h-9 mt-1 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>{VIP_TIERS.map(tier => <SelectItem key={tier} value={tier}>{tier.toUpperCase()}</SelectItem>)}</SelectContent>
                 </Select>
