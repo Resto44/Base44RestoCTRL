@@ -184,7 +184,7 @@ function createEntity(tableName) {
       const GENERATED_COLS = tableName === 'daily_sales'
         ? ['total', 'actual_cash_count', 'expected_cash', 'remaining_difference',
            'cash_shortage_amount', 'cash_overage_amount', 'total_sales',
-           'approved_purchases_total', 'daily_operating_result', 'owner_capital_contribution']
+           'daily_operating_result', 'owner_capital_contribution']
         : ['total'];
       const safe = Object.fromEntries(
         Object.entries(record).filter(([k]) => !GENERATED_COLS.includes(k))
@@ -253,7 +253,7 @@ function createEntity(tableName) {
       const GENERATED_COLS = tableName === 'daily_sales'
         ? ['total', 'actual_cash_count', 'expected_cash', 'remaining_difference',
            'cash_shortage_amount', 'cash_overage_amount', 'total_sales',
-           'approved_purchases_total', 'daily_operating_result', 'owner_capital_contribution']
+           'daily_operating_result', 'owner_capital_contribution']
         : ['total'];
       const safe = Object.fromEntries(
         Object.entries(changes).filter(([k]) => !GENERATED_COLS.includes(k))
