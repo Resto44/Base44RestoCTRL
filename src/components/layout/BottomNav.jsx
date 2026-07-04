@@ -2,7 +2,7 @@
  * BottomNav — Business Mode Aware Navigation
  *
  * The bottom navigation adapts to the active business mode.
- * Restaurant Mode shows: Dashboard, Sales, Kitchen, Menu, More
+ * Restaurant Mode shows: Dashboard, Sales, Kitchen, Product Management, Debt Management, More
  * Retail Mode shows:     Dashboard, Sales, Inventory, Barcode, More
  *
  * The "More" menu also filters items by business mode.
@@ -26,8 +26,8 @@ import { useBusinessMode } from '@/lib/BusinessModeContext';
 const PRIMARY_NAV_OWNER_RESTAURANT = [
   { path: '/owner-command-center', icon: LayoutDashboard, labelKey: 'dashboard' },
   { path: '/sales',                icon: Receipt,          labelKey: 'sales' },
-  { path: '/menu-products',        icon: BookOpen,         labelKey: 'menu' },
-  { path: '/cash-register',        icon: CreditCard,       labelKey: 'cash_register' },
+  { path: '/product-management',    icon: Package,          labelKey: 'product_management' },
+  { path: '/debt-management',       icon: CreditCard,       labelKey: 'debt_management' },
   { path: '/more',                 icon: Grid3x3,          labelKey: 'more', isMore: true },
 ];
 
@@ -42,8 +42,8 @@ const PRIMARY_NAV_OWNER_RETAIL = [
 const PRIMARY_NAV_MANAGER_RESTAURANT = [
   { path: '/manager-dashboard',    icon: LayoutDashboard, labelKey: 'dashboard' },
   { path: '/sales',                icon: Receipt,         labelKey: 'sales' },
-  { path: '/cash-register',        icon: CreditCard,       labelKey: 'cash_register' },
-  { path: '/employees',            icon: Users,           labelKey: 'employees' },
+  { path: '/product-management',    icon: Package,         labelKey: 'product_management' },
+  { path: '/debt-management',       icon: CreditCard,      labelKey: 'debt_management' },
   { path: '/more',                 icon: Grid3x3,         labelKey: 'more', isMore: true },
 ];
 
