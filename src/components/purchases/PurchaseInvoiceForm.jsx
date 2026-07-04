@@ -440,6 +440,7 @@ export default function PurchaseInvoiceForm({ invoice = null, onSuccess, onCance
       }
 
       qc.invalidateQueries({ queryKey: ['supplier_invoices'] });
+      qc.invalidateQueries({ queryKey: ['supplier_invoices_dash'] });
       qc.invalidateQueries({ queryKey: ['inventory'] });
       qc.invalidateQueries({ queryKey: ['debt_records'] });
       qc.invalidateQueries({ queryKey: ['purchases'] });

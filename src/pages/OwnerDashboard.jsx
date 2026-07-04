@@ -443,9 +443,9 @@ export default function OwnerDashboard() {
   });
 
   const { data: supplierInvoices = [] } = useQuery({
-    queryKey: ['supplier_invoices_dash', branchFilter, selectedBranch],
+    queryKey: ['supplier_invoices_dash', branchFilter, selectedBranch, today],
     queryFn: () => base44.entities.SupplierInvoice.filter(branchFilter || {}, '-date', 500),
-    staleTime: 30000,
+    staleTime: 15000,
     enabled,
   });
 
@@ -525,9 +525,14 @@ export default function OwnerDashboard() {
     const creditSalesToday =  (todaySales || []).reduce((s, r) => s + (Number(r.credit) || 0), 0);
     const salesToday = cashSalesToday + networkSalesToday + creditSalesToday;
 
-    // Today's Purchases = approved supplier invoices for today
+    // Today's Purchases = approved supplier invoices for today (filtered by branch)
     const purchasesToday = supplierInvoices
-      .filter(inv => inv.date === today && (['approved', 'auto_approved'].includes(inv.approval_status) || ['approved', 'paid', 'partial'].includes(inv.status)))
+      .filter(inv => {
+        const isApproved = ['approved', 'auto_approved'].includes(inv.approval_status) || ['approved', 'paid', 'partial'].includes(inv.status);
+        const isToday = inv.date === today;
+        const isBranchMatch = selectedBranch === 'all' || inv.branch === selectedBranch;
+        return isApproved && isToday && isBranchMatch;
+      })
       .reduce((s, inv) => s + (Number(inv.total_amount) || 0), 0);
 
     const expensesToday =  (todayExpenses || []).reduce((s, e) => s + (Number(e.amount) || 0), 0);
@@ -590,7 +595,7 @@ export default function OwnerDashboard() {
       inventoryValue, supplierPayables,
       ownerCapitalToday, cashShortageToday, cashOverageToday,
     };
-  }, [todaySales, todayExpenses, supplierInvoices, customerDebts, inventory, today, monthSales, walletTransactions, monthStart]);
+  }, [todaySales, todayExpenses, supplierInvoices, customerDebts, inventory, today, monthSales, walletTransactions, monthStart, selectedBranch]);
 
   // ── Section 2: Operating Result (NEVER REMOVE) ───────────────────────────────
   const operatingResult = useMemo(() => {
@@ -647,27 +652,27 @@ export default function OwnerDashboard() {
 
   // ── Section 5: Purchase Analytics ────────────────────────────────────────────
   const purchaseAnalytics = useMemo(() => {
+    // Filter approved invoices for analytics (respecting branch selection)
+    const approvedInvoicesForBranch = supplierInvoices.filter(inv => {
+      const isApproved = ['approved', 'auto_approved'].includes(inv.approval_status) || ['approved', 'paid', 'partial'].includes(inv.status);
+      const isBranchMatch = selectedBranch === 'all' || inv.branch === selectedBranch;
+      return isApproved && isBranchMatch;
+    });
     const todayAmt = execSummary.purchasesToday;
     
-    const approvedInvoices = supplierInvoices.filter(inv => 
-      ['approved', 'auto_approved'].includes(inv.approval_status) || 
-      ['approved', 'paid', 'partial'].includes(inv.status)
-    );
-
-    const today = format(new Date(), 'yyyy-MM-dd');
     const startOfW = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
     const startOfM = format(startOfMonth(new Date()), 'yyyy-MM-dd');
 
-    const weekAmt = approvedInvoices
+    const weekAmt = approvedInvoicesForBranch
       .filter(inv => inv.date >= startOfW && inv.date <= today)
       .reduce((s, inv) => s + (Number(inv.total_amount) || 0), 0);
       
-    const monthAmt = approvedInvoices
+    const monthAmt = approvedInvoicesForBranch
       .filter(inv => inv.date >= startOfM && inv.date <= today)
       .reduce((s, inv) => s + (Number(inv.total_amount) || 0), 0);
 
     const supplierMap = {};
-    approvedInvoices.forEach(inv => {
+    approvedInvoicesForBranch.forEach(inv => {
       const name = inv.supplier_name || 'Unknown';
       supplierMap[name] = (supplierMap[name] || 0) + (Number(inv.total_amount) || 0);
     });
@@ -675,12 +680,12 @@ export default function OwnerDashboard() {
       .sort((a, b) => b[1] - a[1])
       .slice(0, 3);
 
-    const allAmounts = approvedInvoices.map(inv => Number(inv.total_amount) || 0);
+    const allAmounts = approvedInvoicesForBranch.map(inv => Number(inv.total_amount) || 0);
     const largestPurchase = allAmounts.length > 0 ? Math.max(...allAmounts) : 0;
     const avgPurchase     = allAmounts.length > 0 ? allAmounts.reduce((s, v) => s + v, 0) / allAmounts.length : 0;
 
     return { todayAmt, weekAmt, monthAmt, supplierRanking, largestPurchase, avgPurchase };
-  }, [execSummary, supplierInvoices]);
+  }, [execSummary, supplierInvoices, selectedBranch, today]);
 
   // ── Section 6: Inventory Analytics ───────────────────────────────────────────
   const inventoryAnalytics = useMemo(() => {

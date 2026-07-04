@@ -68,6 +68,7 @@ export default function Purchases() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['supplier_invoices'] });
+      qc.invalidateQueries({ queryKey: ['supplier_invoices_dash'] });
       setDeleting(null);
     },
   });
@@ -96,6 +97,7 @@ export default function Purchases() {
     setShowForm(false);
     setEditing(null);
     qc.invalidateQueries({ queryKey: ['supplier_invoices'] });
+    qc.invalidateQueries({ queryKey: ['supplier_invoices_dash'] });
   };
 
   return (
