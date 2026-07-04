@@ -37,7 +37,7 @@ export default function SalesListItem({ sale, onEdit, onDelete }) {
   const badge = settlement ? SETTLE_BADGE[settlement.status] || SETTLE_BADGE.pending : null;
 
   return (
-    <Card className="p-3 mb-2 bg-card">
+    <Card className="p-3 mb-2 bg-card w-full max-w-full overflow-hidden">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <span className="text-xs font-medium text-muted-foreground">{sale.date}</span>
@@ -53,13 +53,26 @@ export default function SalesListItem({ sale, onEdit, onDelete }) {
         </div>
       </div>
 
-      <div className="flex items-center gap-1.5 bg-secondary/40 rounded-lg px-2 py-1.5 mb-2">
-        <Store className="w-3.5 h-3.5 text-primary shrink-0" />
-        <span className="text-[10px] text-muted-foreground flex-1">{t('cash')}: <span className="font-semibold text-foreground">{currency}{rCash.toLocaleString()}</span></span>
-        <span className="text-[10px] text-muted-foreground">Net: <span className="font-semibold text-foreground">{currency}{rNet.toLocaleString()}</span></span>
-        {credit > 0 && <span className="text-[10px] text-muted-foreground">Cred: <span className="font-semibold text-foreground">{currency}{credit.toLocaleString()}</span></span>}
-
-        <span className="text-xs font-bold text-primary ms-2">{currency}{total.toLocaleString()}</span>
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 bg-secondary/40 rounded-lg px-2 py-1.5 mb-2">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <Store className="w-3.5 h-3.5 text-primary shrink-0" />
+          <span className="text-[10px] text-muted-foreground truncate">
+            {t('cash')}: <span className="font-semibold text-foreground">{currency}{rCash.toLocaleString()}</span>
+          </span>
+        </div>
+        <span className="text-[10px] text-muted-foreground">
+          Net: <span className="font-semibold text-foreground">{currency}{rNet.toLocaleString()}</span>
+        </span>
+        {credit > 0 && (
+          <span className="text-[10px] text-muted-foreground">
+            Cred: <span className="font-semibold text-foreground">{currency}{credit.toLocaleString()}</span>
+          </span>
+        )}
+        <div className="flex-1 flex justify-end">
+          <span className="text-xs font-bold text-primary whitespace-nowrap">
+            {currency}{total.toLocaleString()}
+          </span>
+        </div>
       </div>
 
       <div className="mt-2 flex items-center justify-between">

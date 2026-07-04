@@ -555,22 +555,23 @@ export default function Sales() {
   ].filter(Boolean).length;
 
   return (
-    <div>
+    <div className="max-w-full overflow-x-hidden">
       <PageHeader
         title={t('daily_sales')}
         action={
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" onClick={() => setShowExport(true)}>
+          <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+            <Button size="sm" variant="outline" onClick={() => setShowExport(true)} className="flex-1 sm:flex-none">
               <Download className="w-4 h-4 mr-1" /> Export
             </Button>
             <Button
               size="sm"
               variant={showFinancialPanel ? 'default' : 'outline'}
               onClick={() => setShowFinancialPanel(v => !v)}
+              className="flex-1 sm:flex-none"
             >
               <BarChart3 className="w-4 h-4 mr-1" /> Summary
             </Button>
-            <Button size="sm" variant="outline" onClick={() => setShowFilters(v => !v)} className="relative">
+            <Button size="sm" variant="outline" onClick={() => setShowFilters(v => !v)} className="relative flex-none">
               <SlidersHorizontal className="w-4 h-4" />
               {activeFilterCount > 0 && (
                 <span className="absolute -top-1.5 -right-1.5 bg-primary text-primary-foreground text-[10px] rounded-full w-4 h-4 flex items-center justify-center font-bold">
@@ -578,7 +579,7 @@ export default function Sales() {
                 </span>
               )}
             </Button>
-            <Button size="sm" onClick={() => { setShowForm(true); setEditing(null); }}>
+            <Button size="sm" onClick={() => { setShowForm(true); setEditing(null); }} className="w-full sm:w-auto">
               <Plus className="w-4 h-4 mr-1" />{t('add_sales')}
             </Button>
           </div>
@@ -595,14 +596,14 @@ export default function Sales() {
         </div>
       )}
 
-      <div className="flex gap-4">
+      <div className="flex flex-col md:flex-row gap-4">
         {showFilters && (
-          <div className="w-56 flex-shrink-0">
+          <div className="w-full md:w-56 flex-shrink-0">
             <SalesFilterSidebar filters={filters} onChange={setFilters} onClose={() => setShowFilters(false)} />
           </div>
         )}
 
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 w-full">
           {filtered.length > 0 && (
             <p className="text-xs text-muted-foreground mb-2">{filtered.length} record{filtered.length !== 1 ? 's' : ''}</p>
           )}
