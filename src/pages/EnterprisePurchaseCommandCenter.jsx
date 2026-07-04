@@ -710,7 +710,7 @@ export default function EnterprisePurchaseCommandCenter() {
 
       {/* ── Invoice Form Dialog ── */}
       <Dialog open={showForm} onOpenChange={open => !open && handleFormClose()}>
-        <DialogContent className="max-w-2xl w-full max-h-[90vh] overflow-y-auto p-0">
+        <DialogContent className="max-w-2xl w-full max-h-[90vh] overflow-y-auto overflow-x-hidden p-0 mx-auto">
           <DialogHeader className="px-4 pt-4 pb-0">
             <DialogTitle className="text-sm font-bold">
               {editing

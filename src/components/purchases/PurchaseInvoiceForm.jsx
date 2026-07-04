@@ -107,25 +107,25 @@ function PurchaseInvoiceItemRow({
   const { products: categoryProducts = [] } = usePurchaseProductsByCategory(item.category_id, supplierId, item.subcategory_id);
 
   return (
-    <div className="rounded-lg border border-border p-3 space-y-2 bg-secondary/20">
-      <div className="flex items-center justify-between">
+    <div className="rounded-lg border border-border p-3 space-y-2 bg-secondary/20 overflow-hidden">
+      <div className="flex items-center justify-between gap-2">
         <span className="text-xs font-medium text-muted-foreground">Item {idx + 1}</span>
         {itemsCount > 1 && (
-          <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => removeItem(item._id)}>
+          <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive flex-shrink-0" onClick={() => removeItem(item._id)}>
             <Trash2 className="w-3.5 h-3.5" />
           </Button>
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        <div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div className="min-w-0">
           <Label className="text-[10px] text-muted-foreground">Product Category *</Label>
           <Select value={item.category_id} onValueChange={v => {
             const cat = categories.find(c => c.id === v);
             updateItem(item._id, 'category_id', v);
             updateItem(item._id, 'category', cat?.name || '');
           }}>
-            <SelectTrigger className="h-8 text-xs">
+            <SelectTrigger className="h-8 text-xs w-full min-w-0">
               <SelectValue placeholder="Select..." />
             </SelectTrigger>
             <SelectContent>
@@ -146,12 +146,12 @@ function PurchaseInvoiceItemRow({
             </SelectContent>
           </Select>
         </div>
-        <div>
+        <div className="min-w-0">
           <Label className="text-[10px] text-muted-foreground">Sub-category</Label>
           <Select value={item.subcategory_id} onValueChange={v => {
             updateItem(item._id, 'subcategory_id', v);
           }} disabled={!item.category_id}>
-            <SelectTrigger className="h-8 text-xs" disabled={!item.category_id}>
+            <SelectTrigger className="h-8 text-xs w-full min-w-0" disabled={!item.category_id}>
               <SelectValue placeholder={item.category_id ? "Select..." : "Select category first"} />
             </SelectTrigger>
             <SelectContent>
@@ -163,7 +163,7 @@ function PurchaseInvoiceItemRow({
             </SelectContent>
           </Select>
         </div>
-        <div className="col-span-2">
+        <div className="col-span-1 sm:col-span-2 min-w-0">
           <Label className="text-[10px] text-muted-foreground">Product *</Label>
           <Select value={item.product_id} onValueChange={v => {
             const prod = categoryProducts.find(p => p.id === v);
@@ -174,7 +174,7 @@ function PurchaseInvoiceItemRow({
               updateItem(item._id, 'unit_cost', prod.default_cost || item.unit_cost);
             }
           }} disabled={!item.category_id && !supplierId}>
-            <SelectTrigger className="h-8 text-xs" disabled={!item.category_id && !supplierId}>
+            <SelectTrigger className="h-8 text-xs w-full min-w-0" disabled={!item.category_id && !supplierId}>
               <SelectValue placeholder={(item.category_id || supplierId) ? (categoryProducts.length === 0 ? 'No matching products.' : 'Select...') : 'Select category or supplier first'} />
             </SelectTrigger>
             <SelectContent>
@@ -187,42 +187,42 @@ function PurchaseInvoiceItemRow({
           </Select>
           {!item.product_id && (item.category_id || item.subcategory_id) && (
             <Input value={item.product_name} onChange={e => updateItem(item._id, 'product_name', e.target.value)}
-              placeholder="Or type product name" className="h-8 text-xs mt-1" />
+              placeholder="Or type product name" className="h-8 text-xs mt-1 w-full min-w-0" />
           )}
         </div>
       </div>
 
       <div className="grid grid-cols-3 gap-2">
-        <div>
+        <div className="min-w-0">
           <Label className="text-[10px] text-muted-foreground">Unit</Label>
-          <Input value={item.unit} onChange={e => updateItem(item._id, 'unit', e.target.value)} placeholder="kg" className="h-8 text-xs" />
+          <Input value={item.unit} onChange={e => updateItem(item._id, 'unit', e.target.value)} placeholder="kg" className="h-8 text-xs w-full min-w-0" />
         </div>
-        <div>
+        <div className="min-w-0">
           <Label className="text-[10px] text-muted-foreground">Quantity</Label>
           <Input type="number" min="0" step="0.001" value={item.quantity}
-            onChange={e => updateItem(item._id, 'quantity', parseFloat(e.target.value) || 0)} className="h-8 text-xs" />
+            onChange={e => updateItem(item._id, 'quantity', parseFloat(e.target.value) || 0)} className="h-8 text-xs w-full min-w-0" />
         </div>
-        <div>
+        <div className="min-w-0">
           <Label className="text-[10px] text-muted-foreground">Unit Cost</Label>
           <Input type="number" min="0" step="0.01" value={item.unit_cost}
-            onChange={e => updateItem(item._id, 'unit_cost', parseFloat(e.target.value) || 0)} className="h-8 text-xs" />
+            onChange={e => updateItem(item._id, 'unit_cost', parseFloat(e.target.value) || 0)} className="h-8 text-xs w-full min-w-0" />
         </div>
       </div>
 
       <div className="grid grid-cols-3 gap-2">
-        <div>
+        <div className="min-w-0">
           <Label className="text-[10px] text-muted-foreground">Discount</Label>
           <Input type="number" min="0" step="0.01" value={item.discount}
-            onChange={e => updateItem(item._id, 'discount', parseFloat(e.target.value) || 0)} className="h-8 text-xs" />
+            onChange={e => updateItem(item._id, 'discount', parseFloat(e.target.value) || 0)} className="h-8 text-xs w-full min-w-0" />
         </div>
-        <div>
+        <div className="min-w-0">
           <Label className="text-[10px] text-muted-foreground">Tax %</Label>
           <Input type="number" min="0" max="100" step="0.1" value={item.tax}
-            onChange={e => updateItem(item._id, 'tax', parseFloat(e.target.value) || 0)} className="h-8 text-xs" />
+            onChange={e => updateItem(item._id, 'tax', parseFloat(e.target.value) || 0)} className="h-8 text-xs w-full min-w-0" />
         </div>
-        <div>
+        <div className="min-w-0">
           <Label className="text-[10px] text-muted-foreground">Line Total</Label>
-          <div className="h-8 flex items-center px-2 rounded-md bg-primary/5 border border-border text-xs font-semibold text-primary">
+          <div className="h-8 flex items-center px-2 rounded-md bg-primary/5 border border-border text-xs font-semibold text-primary truncate">
             {(item.line_total || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
         </div>
@@ -329,7 +329,7 @@ export default function PurchaseInvoiceForm({ invoice = null, onSuccess, onCance
   }, []);
 
   const addItem = () => setItems(prev => [...prev, emptyItem()]);
-  const removeItem = (id) => setItems(prev => prev.filter(i => i._id !== id));
+  const removeItem = (id) => setItems(prev => prev.filter(item => item._id !== id));
 
   // ── Additional cost handlers ───────────────────────────────────────────
   const updateAdditionalCost = (id, field, value) => {
@@ -454,7 +454,7 @@ export default function PurchaseInvoiceForm({ invoice = null, onSuccess, onCance
 
   // ── Render ─────────────────────────────────────────────────────────────
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
+    <form onSubmit={handleSubmit} className="space-y-5 overflow-x-hidden">
       {/* Error */}
       {error && (
         <div className="flex items-center gap-2 text-xs text-destructive bg-destructive/10 rounded-lg px-3 py-2">
@@ -463,16 +463,16 @@ export default function PurchaseInvoiceForm({ invoice = null, onSuccess, onCance
       )}
 
       {/* OCR Scan Button */}
-      <div className="flex justify-end">
+      <div className="flex justify-end px-4">
         <Button type="button" variant="outline" size="sm" onClick={() => setShowOcr(true)} className="gap-1.5 text-xs">
           <ScanLine className="w-3.5 h-3.5" /> Scan Invoice (OCR)
         </Button>
       </div>
 
       {/* ── HEADER ─────────────────────────────────────────────────────── */}
-      <Card className="p-4 space-y-3">
+      <Card className="p-4 space-y-3 overflow-hidden">
         <div className="flex items-center gap-2 mb-1">
-          <Receipt className="w-4 h-4 text-primary" />
+          <Receipt className="w-4 h-4 text-primary flex-shrink-0" />
           <span className="text-sm font-semibold">Invoice Header</span>
           {isEdit && (
             <Badge className={`ms-auto text-[10px] border ${STATUS_CONFIG[form.status]?.cls}`}>
@@ -486,27 +486,27 @@ export default function PurchaseInvoiceForm({ invoice = null, onSuccess, onCance
           )}
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="min-w-0">
             <Label className="text-xs text-muted-foreground">Invoice Number</Label>
-            <Input value={form.invoice_number} onChange={e => setForm(f => ({ ...f, invoice_number: e.target.value }))} placeholder="INV-001" className="h-9" />
+            <Input value={form.invoice_number} onChange={e => setForm(f => ({ ...f, invoice_number: e.target.value }))} placeholder="INV-001" className="h-9 w-full min-w-0 truncate" />
           </div>
-          <div>
+          <div className="min-w-0">
             <Label className="text-xs text-muted-foreground">Currency</Label>
             <Select value={form.currency} onValueChange={v => setForm(f => ({ ...f, currency: v }))}>
-              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-9 w-full min-w-0"><SelectValue /></SelectTrigger>
               <SelectContent>{CURRENCIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
             </Select>
           </div>
         </div>
 
-        <div>
+        <div className="min-w-0">
           <Label className="text-xs text-muted-foreground">Supplier *</Label>
           <Select value={form.supplier_id} onValueChange={v => {
             const s = suppliers.find(s => s.id === v);
             setForm(f => ({ ...f, supplier_id: v, supplier_name: s?.name || '' }));
           }}>
-            <SelectTrigger className="h-9">
+            <SelectTrigger className="h-9 w-full min-w-0">
               <SelectValue placeholder="Select supplier..." />
             </SelectTrigger>
             <SelectContent>
@@ -515,36 +515,36 @@ export default function PurchaseInvoiceForm({ invoice = null, onSuccess, onCance
           </Select>
           {!form.supplier_id && (
             <Input value={form.supplier_name} onChange={e => setForm(f => ({ ...f, supplier_name: e.target.value }))}
-              placeholder="Or type supplier name..." className="h-9 mt-1.5 text-sm" />
+              placeholder="Or type supplier name..." className="h-9 mt-1.5 text-sm w-full min-w-0" />
           )}
         </div>
 
-        <div>
+        <div className="min-w-0">
           <Label className="text-xs text-muted-foreground">Branch *</Label>
           <BranchSelect value={form.branch} onChange={v => setForm(f => ({ ...f, branch: v }))} />
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="min-w-0">
             <Label className="text-xs text-muted-foreground">Purchase Date *</Label>
-            <Input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} className="h-9" />
+            <Input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} className="h-9 w-full min-w-0" />
           </div>
-          <div>
+          <div className="min-w-0">
             <Label className="text-xs text-muted-foreground">Due Date</Label>
-            <Input type="date" value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))} className="h-9" />
+            <Input type="date" value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))} className="h-9 w-full min-w-0" />
           </div>
         </div>
 
-        <div>
+        <div className="min-w-0">
           <Label className="text-xs text-muted-foreground">Notes</Label>
-          <Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} className="text-sm resize-none" placeholder="Additional notes..." />
+          <Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} className="text-sm resize-none w-full min-w-0" placeholder="Additional notes..." />
         </div>
       </Card>
 
       {/* ── LINE ITEMS ──────────────────────────────────────────────────── */}
-      <Card className="p-4">
+      <Card className="p-4 overflow-hidden">
         <div className="flex items-center gap-2 mb-3">
-          <Package className="w-4 h-4 text-primary" />
+          <Package className="w-4 h-4 text-primary flex-shrink-0" />
           <span className="text-sm font-semibold">Line Items</span>
           <Button type="button" size="sm" variant="outline" onClick={addItem} className="ms-auto gap-1 text-xs h-7">
             <Plus className="w-3 h-3" /> Add Item
@@ -569,9 +569,9 @@ export default function PurchaseInvoiceForm({ invoice = null, onSuccess, onCance
       </Card>
 
       {/* ── ADDITIONAL COSTS ────────────────────────────────────────────── */}
-      <Card className="p-4">
+      <Card className="p-4 overflow-hidden">
         <button type="button" className="flex items-center gap-2 w-full" onClick={() => setShowAdditionalCosts(v => !v)}>
-          <Truck className="w-4 h-4 text-primary" />
+          <Truck className="w-4 h-4 text-primary flex-shrink-0" />
           <span className="text-sm font-semibold">Additional Costs</span>
           {totals.additionalTotal > 0 && (
             <span className="text-xs text-muted-foreground ms-1">({currencySymbol}{totals.additionalTotal.toLocaleString()})</span>
@@ -582,22 +582,31 @@ export default function PurchaseInvoiceForm({ invoice = null, onSuccess, onCance
         {showAdditionalCosts && (
           <div className="mt-3 space-y-2">
             {additionalCosts.map(cost => (
-              <div key={cost._id} className="flex gap-2 items-center">
-                <Select value={cost.type} onValueChange={v => updateAdditionalCost(cost._id, 'type', v)}>
-                  <SelectTrigger className="h-8 text-xs w-32 flex-shrink-0"><SelectValue /></SelectTrigger>
-                  <SelectContent>{ADDITIONAL_COST_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
-                </Select>
-                <Input value={cost.description} onChange={e => updateAdditionalCost(cost._id, 'description', e.target.value)}
-                  placeholder="Description" className="h-8 text-xs flex-1" />
-                <Input type="number" min="0" step="0.01" value={cost.amount}
-                  onChange={e => updateAdditionalCost(cost._id, 'amount', parseFloat(e.target.value) || 0)}
-                  className="h-8 text-xs w-24 flex-shrink-0" placeholder="0.00" />
-                <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-destructive flex-shrink-0" onClick={() => removeAdditionalCost(cost._id)}>
+              <div key={cost._id} className="grid grid-cols-1 sm:grid-cols-4 gap-2 items-end rounded-lg border border-border p-2.5 bg-secondary/20">
+                <div className="min-w-0">
+                  <Label className="text-[10px] text-muted-foreground">Type</Label>
+                  <Select value={cost.type} onValueChange={v => updateAdditionalCost(cost._id, 'type', v)}>
+                    <SelectTrigger className="h-8 text-xs w-full min-w-0"><SelectValue /></SelectTrigger>
+                    <SelectContent>{ADDITIONAL_COST_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="min-w-0 sm:col-span-2">
+                  <Label className="text-[10px] text-muted-foreground">Description</Label>
+                  <Input value={cost.description} onChange={e => updateAdditionalCost(cost._id, 'description', e.target.value)}
+                    placeholder="Description" className="h-8 text-xs w-full min-w-0" />
+                </div>
+                <div className="min-w-0">
+                  <Label className="text-[10px] text-muted-foreground">Amount</Label>
+                  <Input type="number" min="0" step="0.01" value={cost.amount}
+                    onChange={e => updateAdditionalCost(cost._id, 'amount', parseFloat(e.target.value) || 0)}
+                    className="h-8 text-xs w-full min-w-0" placeholder="0.00" />
+                </div>
+                <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive flex-shrink-0" onClick={() => removeAdditionalCost(cost._id)}>
                   <Trash2 className="w-3.5 h-3.5" />
                 </Button>
               </div>
             ))}
-            <Button type="button" variant="outline" size="sm" onClick={addAdditionalCost} className="gap-1 text-xs h-7">
+            <Button type="button" variant="outline" size="sm" onClick={addAdditionalCost} className="gap-1 text-xs h-7 w-full">
               <Plus className="w-3 h-3" /> Add Cost
             </Button>
           </div>
@@ -605,41 +614,41 @@ export default function PurchaseInvoiceForm({ invoice = null, onSuccess, onCance
       </Card>
 
       {/* ── TOTALS SUMMARY ──────────────────────────────────────────────── */}
-      <Card className="p-4 bg-secondary/30">
+      <Card className="p-4 bg-secondary/30 overflow-hidden">
         <div className="space-y-1.5 text-sm">
-          <div className="flex justify-between">
+          <div className="flex justify-between gap-2">
             <span className="text-muted-foreground">Subtotal</span>
-            <span className="font-medium">{currencySymbol}{totals.subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+            <span className="font-medium truncate">{currencySymbol}{totals.subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
           </div>
           {totals.discountAmount > 0 && (
-            <div className="flex justify-between text-emerald-600">
+            <div className="flex justify-between gap-2 text-emerald-600">
               <span>Discount</span>
-              <span>-{currencySymbol}{totals.discountAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+              <span className="truncate">-{currencySymbol}{totals.discountAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
             </div>
           )}
           {totals.taxAmount > 0 && (
-            <div className="flex justify-between">
+            <div className="flex justify-between gap-2">
               <span className="text-muted-foreground">Tax</span>
-              <span>+{currencySymbol}{totals.taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+              <span className="truncate">+{currencySymbol}{totals.taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
             </div>
           )}
           {totals.additionalTotal > 0 && (
-            <div className="flex justify-between">
+            <div className="flex justify-between gap-2">
               <span className="text-muted-foreground">Additional Costs</span>
-              <span>+{currencySymbol}{totals.additionalTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+              <span className="truncate">+{currencySymbol}{totals.additionalTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
             </div>
           )}
-          <div className="flex justify-between border-t border-border pt-1.5 font-bold text-base">
+          <div className="flex justify-between gap-2 border-t border-border pt-1.5 font-bold text-base">
             <span>Grand Total</span>
-            <span className="text-primary">{currencySymbol}{totals.grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+            <span className="text-primary truncate">{currencySymbol}{totals.grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
           </div>
         </div>
       </Card>
 
       {/* ── PAYMENTS ────────────────────────────────────────────────────── */}
-      <Card className="p-4">
+      <Card className="p-4 overflow-hidden">
         <button type="button" className="flex items-center gap-2 w-full" onClick={() => setShowPayments(v => !v)}>
-          <DollarSign className="w-4 h-4 text-primary" />
+          <DollarSign className="w-4 h-4 text-primary flex-shrink-0" />
           <span className="text-sm font-semibold">Payments</span>
           {paymentTotal > 0 && (
             <span className="text-xs text-muted-foreground ms-1">(Paid: {currencySymbol}{paymentTotal.toLocaleString()})</span>
@@ -650,53 +659,53 @@ export default function PurchaseInvoiceForm({ invoice = null, onSuccess, onCance
         {showPayments && (
           <div className="mt-3 space-y-2">
             {payments.map((pmt, idx) => (
-              <div key={pmt._id} className="rounded-lg border border-border p-2.5 space-y-2 bg-secondary/20">
-                <div className="flex items-center justify-between">
+              <div key={pmt._id} className="rounded-lg border border-border p-2.5 space-y-2 bg-secondary/20 overflow-hidden">
+                <div className="flex items-center justify-between gap-2">
                   <span className="text-xs font-medium text-muted-foreground">Payment {idx + 1}</span>
                   {payments.length > 1 && (
-                    <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => removePayment(pmt._id)}>
+                    <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive flex-shrink-0" onClick={() => removePayment(pmt._id)}>
                       <Trash2 className="w-3 h-3" />
                     </Button>
                   )}
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="min-w-0">
                     <Label className="text-[10px] text-muted-foreground">Amount</Label>
                     <Input type="number" min="0" step="0.01" value={pmt.amount}
-                      onChange={e => updatePayment(pmt._id, 'amount', e.target.value)} className="h-8 text-xs" />
+                      onChange={e => updatePayment(pmt._id, 'amount', e.target.value)} className="h-8 text-xs w-full min-w-0" />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <Label className="text-[10px] text-muted-foreground">Method</Label>
                     <Select value={pmt.payment_method} onValueChange={v => updatePayment(pmt._id, 'payment_method', v)}>
-                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="h-8 text-xs w-full min-w-0"><SelectValue /></SelectTrigger>
                       <SelectContent>{PAYMENT_METHODS.map(m => <SelectItem key={m} value={m}>{m.charAt(0).toUpperCase() + m.slice(1)}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="min-w-0">
                     <Label className="text-[10px] text-muted-foreground">Date</Label>
-                    <Input type="date" value={pmt.date} onChange={e => updatePayment(pmt._id, 'date', e.target.value)} className="h-8 text-xs" />
+                    <Input type="date" value={pmt.date} onChange={e => updatePayment(pmt._id, 'date', e.target.value)} className="h-8 text-xs w-full min-w-0" />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <Label className="text-[10px] text-muted-foreground">Notes</Label>
-                    <Input value={pmt.notes} onChange={e => updatePayment(pmt._id, 'notes', e.target.value)} placeholder="..." className="h-8 text-xs" />
+                    <Input value={pmt.notes} onChange={e => updatePayment(pmt._id, 'notes', e.target.value)} placeholder="..." className="h-8 text-xs w-full min-w-0" />
                   </div>
                 </div>
               </div>
             ))}
 
-            <Button type="button" variant="outline" size="sm" onClick={addPayment} className="gap-1 text-xs h-7">
+            <Button type="button" variant="outline" size="sm" onClick={addPayment} className="gap-1 text-xs h-7 w-full">
               <Plus className="w-3 h-3" /> Add Payment
             </Button>
 
             {/* Remaining balance */}
             {totals.grandTotal > 0 && (
-              <div className={`flex justify-between items-center rounded-lg px-3 py-2.5 ${remaining > 0 ? 'bg-red-50 dark:bg-red-950' : 'bg-emerald-50 dark:bg-emerald-950'}`}>
+              <div className={`flex justify-between items-center rounded-lg px-3 py-2.5 gap-2 ${remaining > 0 ? 'bg-red-50 dark:bg-red-950' : 'bg-emerald-50 dark:bg-emerald-950'}`}>
                 <span className={`text-xs font-medium ${remaining > 0 ? 'text-red-700' : 'text-emerald-700'}`}>Remaining Balance</span>
                 <div className="flex items-center gap-2">
-                  {remaining <= 0 ? <CheckCircle2 className="w-4 h-4 text-emerald-600" /> : <AlertCircle className="w-4 h-4 text-red-500" />}
-                  <span className={`text-base font-bold ${remaining > 0 ? 'text-red-700' : 'text-emerald-700'}`}>
+                  {remaining <= 0 ? <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" /> : <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />}
+                  <span className={`text-base font-bold truncate ${remaining > 0 ? 'text-red-700' : 'text-emerald-700'}`}>
                     {currencySymbol}{Math.abs(remaining).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </span>
                 </div>
@@ -707,17 +716,17 @@ export default function PurchaseInvoiceForm({ invoice = null, onSuccess, onCance
       </Card>
 
       {/* ── ATTACHMENTS ─────────────────────────────────────────────────── */}
-      <Card className="p-4">
+      <Card className="p-4 overflow-hidden">
         <div className="flex items-center gap-2 mb-3">
-          <Paperclip className="w-4 h-4 text-primary" />
+          <Paperclip className="w-4 h-4 text-primary flex-shrink-0" />
           <span className="text-sm font-semibold">Attachments</span>
         </div>
         <div className="space-y-2">
           {attachments.map((url, i) => (
-            <div key={i} className="flex items-center gap-2 text-xs text-muted-foreground bg-secondary/30 rounded px-2 py-1">
+            <div key={i} className="flex items-center gap-2 text-xs text-muted-foreground bg-secondary/30 rounded px-2 py-1 min-w-0">
               <Paperclip className="w-3 h-3 flex-shrink-0" />
               <a href={url} target="_blank" rel="noreferrer" className="truncate flex-1 text-primary hover:underline">{url.split('/').pop()}</a>
-              <Button type="button" variant="ghost" size="icon" className="h-5 w-5 text-destructive" onClick={() => setAttachments(prev => prev.filter((_, j) => j !== i))}>
+              <Button type="button" variant="ghost" size="icon" className="h-5 w-5 text-destructive flex-shrink-0" onClick={() => setAttachments(prev => prev.filter((_, j) => j !== i))}>
                 <Trash2 className="w-3 h-3" />
               </Button>
             </div>
@@ -732,7 +741,7 @@ export default function PurchaseInvoiceForm({ invoice = null, onSuccess, onCance
       </Card>
 
       {/* ── ACTIONS ─────────────────────────────────────────────────────── */}
-      <div className="flex gap-2 pb-4">
+      <div className="flex gap-2 pb-4 px-4">
         <Button type="submit" className="flex-1 h-11 font-bold" disabled={saving}>
           {saving ? 'Saving...' : isEdit ? 'Update Invoice' : 'Create Invoice'}
         </Button>
