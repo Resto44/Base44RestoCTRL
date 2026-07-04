@@ -5,50 +5,61 @@ import { useLanguage } from '@/lib/LanguageContext';
 import { useTenant } from '@/lib/TenantContext';
 import PageHeader from '@/components/shared/PageHeader';
 import { Card } from '@/components/ui/card';
-import { AlertTriangle, TrendingDown, DollarSign, Bell, UserX, Gift } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+import { AlertTriangle, TrendingDown, DollarSign, Bell, UserX, Gift, AlertCircle } from 'lucide-react';
 import { formatDate, formatCurrency } from '@/lib/helpers';
 import { startOfMonth, subMonths, endOfMonth } from 'date-fns';
 import { currentMonth, monthRange, summariseAttendance } from '@/lib/payrollEngine';
 
 export default function Alerts() {
-  const { t, currency, branches } = useLanguage();
-  const { activeRestaurant, ownerFilter } = useTenant();
+  const { t, currency } = useLanguage();
+  const { ownerFilter, branches = [] } = useTenant();
+  
   // MULTI-TENANT SECURITY: always use ownerFilter (created_by or branch) to scope all queries
   const tenantFilter = ownerFilter || {};
   const tenantEnabled = !!(ownerFilter?.created_by || ownerFilter?.branch);
 
-  const { data: sales = [] } = useQuery({
+  const { data: sales = [], isLoading: loadingSales, isError: errorSales } = useQuery({
     queryKey: ['sales', ownerFilter],
     queryFn: () => base44.entities.DailySales.filter(tenantFilter, '-date', 1000),
     enabled: tenantEnabled,
     staleTime: 120000
   });
-  const { data: purchases = [] } = useQuery({
+
+  const { data: purchases = [], isLoading: loadingPurchases, isError: errorPurchases } = useQuery({
     queryKey: ['purchases', ownerFilter],
     queryFn: () => base44.entities.Purchase.filter(tenantFilter, '-date', 1000),
     enabled: tenantEnabled,
     staleTime: 120000
   });
-  const { data: attendanceAll = [] } = useQuery({
+
+  const { data: attendanceAll = [], isLoading: loadingAttendance, isError: errorAttendance } = useQuery({
     queryKey: ['attendance', ownerFilter],
     queryFn: () => base44.entities.Attendance.filter(tenantFilter, '-date', 1000),
     enabled: tenantEnabled,
     staleTime: 300000
   });
-  const { data: bonusesAll = [] } = useQuery({
+
+  const { data: bonusesAll = [], isLoading: loadingBonuses, isError: errorBonuses } = useQuery({
     queryKey: ['employee_bonuses', ownerFilter],
     queryFn: () => base44.entities.EmployeeBonus.filter(tenantFilter, '-date', 500),
     enabled: tenantEnabled,
     staleTime: 300000
   });
-  const { data: employees = [] } = useQuery({
+
+  const { data: employees = [], isLoading: loadingEmployees, isError: errorEmployees } = useQuery({
     queryKey: ['employees', ownerFilter],
     queryFn: () => base44.entities.Employee.filter(tenantFilter, 'name', 500),
     enabled: tenantEnabled,
     staleTime: 600000
   });
 
+  const isLoading = loadingSales || loadingPurchases || loadingAttendance || loadingBonuses || loadingEmployees;
+  const isError = errorSales || errorPurchases || errorAttendance || errorBonuses || errorEmployees;
+
   const alerts = useMemo(() => {
+    if (isLoading || isError) return [];
+    
     const result = [];
     const now = new Date();
     const thisMonthStart = formatDate(startOfMonth(now));
@@ -56,19 +67,27 @@ export default function Alerts() {
     const lastMonthStart = formatDate(startOfMonth(subMonths(now, 1)));
     const lastMonthEnd = formatDate(endOfMonth(subMonths(now, 1)));
 
-    const thisSales = sales.filter(s => s.date >= thisMonthStart && s.date <= thisMonthEnd);
-    const lastSales = sales.filter(s => s.date >= lastMonthStart && s.date <= lastMonthEnd);
-    const thisPurch = purchases.filter(p => p.date >= thisMonthStart && p.date <= thisMonthEnd);
-    const lastPurch = purchases.filter(p => p.date >= lastMonthStart && p.date <= lastMonthEnd);
+    // Ensure we have arrays
+    const safeSales = Array.isArray(sales) ? sales : [];
+    const safePurchases = Array.isArray(purchases) ? purchases : [];
+    const safeAttendance = Array.isArray(attendanceAll) ? attendanceAll : [];
+    const safeBonuses = Array.isArray(bonusesAll) ? bonusesAll : [];
+    const safeEmployees = Array.isArray(employees) ? employees : [];
+    const safeBranches = Array.isArray(branches) ? branches : [];
 
-    const thisTotal = thisSales.reduce((s, r) => s + (r.cash || 0) + (r.network || 0) + (r.credit || 0), 0);
-    const lastTotal = lastSales.reduce((s, r) => s + (r.cash || 0) + (r.network || 0) + (r.credit || 0), 0);
-    const thisCost = thisPurch.reduce((s, p) => s + (p.qty || 0) * (p.used_price || p.current_price || 0), 0);
-    const lastCost = lastPurch.reduce((s, p) => s + (p.qty || 0) * (p.used_price || p.current_price || 0), 0);
+    const thisSales = safeSales.filter(s => s && s.date >= thisMonthStart && s.date <= thisMonthEnd);
+    const lastSales = safeSales.filter(s => s && s.date >= lastMonthStart && s.date <= lastMonthEnd);
+    const thisPurch = safePurchases.filter(p => p && p.date >= thisMonthStart && p.date <= thisMonthEnd);
+    const lastPurch = safePurchases.filter(p => p && p.date >= lastMonthStart && p.date <= lastMonthEnd);
+
+    const thisTotal = thisSales.reduce((s, r) => s + (Number(r.cash) || 0) + (Number(r.network) || 0) + (Number(r.credit) || 0), 0);
+    const lastTotal = lastSales.reduce((s, r) => s + (Number(r.cash) || 0) + (Number(r.network) || 0) + (Number(r.credit) || 0), 0);
+    const thisCost = thisPurch.reduce((s, p) => s + (Number(p.qty) || 0) * (Number(p.used_price || p.current_price) || 0), 0);
+    const lastCost = lastPurch.reduce((s, p) => s + (Number(p.qty) || 0) * (Number(p.used_price || p.current_price) || 0), 0);
 
     const thisProfit = thisTotal - thisCost;
     const lastProfit = lastTotal - lastCost;
-    const thisCredit = thisSales.reduce((s, r) => s + (r.credit || 0), 0);
+    const thisCredit = thisSales.reduce((s, r) => s + (Number(r.credit) || 0), 0);
     const thisCreditPct = thisTotal > 0 ? (thisCredit / thisTotal) * 100 : 0;
 
     // High credit risk
@@ -96,8 +115,8 @@ export default function Alerts() {
 
     // Price increase alerts per product
     const productPrices = {};
-    purchases.forEach(p => {
-      if (!p.product_id || !p.used_price) return;
+    safePurchases.forEach(p => {
+      if (!p || !p.product_id || !p.used_price || !p.date) return;
       if (!productPrices[p.product_id]) productPrices[p.product_id] = [];
       productPrices[p.product_id].push({ date: p.date, price: p.used_price, name: p.product_name });
     });
@@ -119,17 +138,18 @@ export default function Alerts() {
     });
 
     // Per-branch credit alerts
-    branches.forEach(b => {
+    safeBranches.forEach(b => {
+      if (!b || !b.key) return;
       const bs = thisSales.filter(s => s.branch === b.key);
-      const bt = bs.reduce((s, r) => s + (r.cash || 0) + (r.network || 0) + (r.credit || 0), 0);
-      const bc = bs.reduce((s, r) => s + (r.credit || 0), 0);
+      const bt = bs.reduce((s, r) => s + (Number(r.cash) || 0) + (Number(r.network) || 0) + (Number(r.credit) || 0), 0);
+      const bc = bs.reduce((s, r) => s + (Number(r.credit) || 0), 0);
       const pct = bt > 0 ? (bc / bt) * 100 : 0;
       if (pct > 40) {
         result.push({
           id: `branch_credit_${b.key}`,
           type: 'danger',
           icon: AlertTriangle,
-          title: `${b.label} — ${t('alert_high_credit')}`,
+          title: `${b.label || b.name || b.key} — ${t('alert_high_credit')}`,
           detail: `${pct.toFixed(1)}% ${t('credit_pct')}`,
         });
       }
@@ -143,13 +163,15 @@ export default function Alerts() {
 
     // Group attendance by employee for this month
     const empAttMap = {};
-    attendanceAll.filter(r => r.date >= mFrom && r.date <= mTo).forEach(r => {
+    safeAttendance.filter(r => r && r.date >= mFrom && r.date <= mTo).forEach(r => {
+      if (!r.employee_id) return;
       if (!empAttMap[r.employee_id]) empAttMap[r.employee_id] = [];
       empAttMap[r.employee_id].push(r);
     });
 
     // Repeated absences (>3 this month)
-    employees.forEach(emp => {
+    safeEmployees.forEach(emp => {
+      if (!emp || !emp.id) return;
       const recs = empAttMap[emp.id] || [];
       const summary = summariseAttendance(recs);
       if (summary.absent >= 3) {
@@ -157,8 +179,8 @@ export default function Alerts() {
           id: `absent_${emp.id}`,
           type: 'warning',
           icon: UserX,
-          title: `Repeated Absences — ${emp.name}`,
-          detail: `${summary.absent} absences this month at ${emp.branch}`,
+          title: `Repeated Absences — ${emp.name || 'Unknown'}`,
+          detail: `${summary.absent} absences this month at ${emp.branch || 'unassigned'}`,
         });
       }
       // Excessive late (>4 times)
@@ -167,24 +189,25 @@ export default function Alerts() {
           id: `late_${emp.id}`,
           type: 'warning',
           icon: AlertTriangle,
-          title: `Frequent Late Arrivals — ${emp.name}`,
-          detail: `${summary.late} late occurrences this month at ${emp.branch}`,
+          title: `Frequent Late Arrivals — ${emp.name || 'Unknown'}`,
+          detail: `${summary.late} late occurrences this month at ${emp.branch || 'unassigned'}`,
         });
       }
     });
 
     // Unusually high bonuses (>50% of base salary)
-    const monthBonuses = bonusesAll.filter(b => b.date >= mFrom && b.date <= mTo);
-    employees.forEach(emp => {
+    const monthBonuses = safeBonuses.filter(b => b && b.date >= mFrom && b.date <= mTo);
+    safeEmployees.forEach(emp => {
+      if (!emp || !emp.id) return;
       const empBonuses = monthBonuses.filter(b => b.employee_id === emp.id);
-      const total = empBonuses.reduce((s, b) => s + (b.amount || 0), 0);
-      const base = emp.base_salary || 0;
+      const total = empBonuses.reduce((s, b) => s + (Number(b.amount) || 0), 0);
+      const base = Number(emp.base_salary) || 0;
       if (base > 0 && total > base * 0.5) {
         result.push({
           id: `bonus_high_${emp.id}`,
           type: 'warning',
           icon: Gift,
-          title: `High Bonus — ${emp.name}`,
+          title: `High Bonus — ${emp.name || 'Unknown'}`,
           detail: `${formatCurrency(total, currency)} in bonuses (${Math.round((total/base)*100)}% of base salary)`,
         });
       }
@@ -192,9 +215,9 @@ export default function Alerts() {
 
     // Unpaid salaries near month-end (after day 25)
     if (dayOfMonth >= 25) {
-      const totalUnpaidSalary = employees
-        .filter(e => e.is_active !== false)
-        .reduce((s, e) => s + (e.base_salary || 0), 0);
+      const totalUnpaidSalary = safeEmployees
+        .filter(e => e && e.is_active !== false)
+        .reduce((s, e) => s + (Number(e.base_salary) || 0), 0);
       if (totalUnpaidSalary > 0) {
         result.push({
           id: 'payroll_due',
@@ -207,7 +230,7 @@ export default function Alerts() {
     }
 
     return result;
-  }, [sales, purchases, branches, t, currency, attendanceAll, bonusesAll, employees]);
+  }, [sales, purchases, branches, t, currency, attendanceAll, bonusesAll, employees, isLoading, isError]);
 
   const typeStyles = {
     danger: 'border-red-200 bg-red-50 dark:bg-red-950/20',
@@ -218,10 +241,38 @@ export default function Alerts() {
     warning: 'text-amber-500',
   };
 
+  if (isError) {
+    return (
+      <div className="space-y-4">
+        <PageHeader title={t('alerts_title')} />
+        <Card className="p-8 border-red-200 bg-red-50 dark:bg-red-950/20 flex flex-col items-center justify-center text-center">
+          <AlertCircle className="w-10 h-10 text-red-500 mb-3" />
+          <p className="text-sm font-semibold text-red-700 dark:text-red-400">Failed to load alerts</p>
+          <p className="text-xs text-red-600/80 dark:text-red-400/80 mt-1">Please check your connection and try again.</p>
+        </Card>
+      </div>
+    );
+  }
+
   return (
-    <div>
+    <div className="space-y-4">
       <PageHeader title={t('alerts_title')} />
-      {alerts.length === 0 ? (
+      
+      {isLoading ? (
+        <div className="space-y-3">
+          {[1, 2, 3].map(i => (
+            <Card key={i} className="p-4 border border-border/50">
+              <div className="flex items-start gap-3">
+                <Skeleton className="w-5 h-5 rounded-full" />
+                <div className="space-y-2 flex-1">
+                  <Skeleton className="h-4 w-1/3" />
+                  <Skeleton className="h-3 w-2/3" />
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      ) : alerts.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <Bell className="w-12 h-12 text-emerald-400 mb-3" />
           <p className="text-muted-foreground text-sm">{t('no_alerts')}</p>
@@ -231,9 +282,9 @@ export default function Alerts() {
           {alerts.map(alert => {
             const Icon = alert.icon;
             return (
-              <Card key={alert.id} className={`p-4 border ${typeStyles[alert.type]}`}>
+              <Card key={alert.id} className={`p-4 border ${typeStyles[alert.type] || ''}`}>
                 <div className="flex items-start gap-3">
-                  <Icon className={`w-5 h-5 mt-0.5 flex-shrink-0 ${iconStyles[alert.type]}`} />
+                  <Icon className={`w-5 h-5 mt-0.5 flex-shrink-0 ${iconStyles[alert.type] || ''}`} />
                   <div>
                     <p className="text-sm font-semibold">{alert.title}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">{alert.detail}</p>
