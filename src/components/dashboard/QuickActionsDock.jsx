@@ -24,14 +24,12 @@ export default function QuickActionsDock() {
   if (!isDashboard) return null;
 
   const actions = [
-    { to: '/sales', label: t('add_sales') || 'Add Sale', icon: Plus, color: 'bg-emerald-500' },
+    { to: '/sales', label: t('add_sales') || 'Add Sales', icon: Plus, color: 'bg-emerald-500' },
     { to: '/enterprise-purchases', label: t('add_purchase') || 'Add Purchase', icon: ShoppingCart, color: 'bg-blue-500' },
+    { to: '/cash-register', label: t('cash_register') || 'Cash Register', icon: Banknote, color: 'bg-indigo-500' },
     { to: '/expenses', label: t('add_expense') || 'Add Expense', icon: Wallet, color: 'bg-amber-500' },
     { to: '/debts', label: t('receive_debt') || 'Receive Debt', icon: ArrowDownLeft, color: 'bg-cyan-500' },
     { to: '/suppliers', label: t('supplier_payment') || 'Supplier Payment', icon: Truck, color: 'bg-orange-500' },
-    { to: '/sales/invoices', label: t('create_invoice') || 'Create Invoice', icon: FileText, color: 'bg-violet-500' },
-    { to: '/product-management', label: t('add_product') || 'Add Product', icon: PackagePlus, color: 'bg-indigo-500' },
-    { to: '/treasury', label: t('treasury') || 'Treasury', icon: Banknote, color: 'bg-rose-500' },
   ];
 
   return (

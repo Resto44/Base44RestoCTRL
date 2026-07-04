@@ -338,19 +338,19 @@ const BottomNav = memo(function BottomNav() {
         <MoreMenu sections={moreSections} onClose={() => setShowMore(false)} />
       )}
       <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border shadow-lg pb-[env(safe-area-inset-bottom,0px)]">
-        <div className="flex items-center justify-around h-[var(--bottom-nav-height)] max-w-lg mx-auto">
+        <div className="flex items-center justify-between h-[var(--bottom-nav-height)] max-w-lg mx-auto px-1">
           {visibleNav.map(({ path, icon: NavIcon, labelKey, isMore }) => {
             if (isMore) {
               return (
                 <button
                   key="more"
                   onClick={() => setShowMore(s => !s)}
-                  className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
+                  className={`flex flex-col items-center justify-center flex-1 min-w-0 h-full transition-colors ${
                     showMore ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
-                  <NavIcon className={`w-5 h-5 ${showMore ? 'stroke-[2.5]' : ''}`} />
-                  <span className={`text-[10px] mt-1 ${showMore ? 'font-semibold' : 'font-medium'}`}>
+                  <NavIcon className={`w-5 h-5 flex-shrink-0 ${showMore ? 'stroke-[2.5]' : ''}`} />
+                  <span className={`text-[10px] mt-1 truncate w-full text-center ${showMore ? 'font-semibold' : 'font-medium'}`}>
                     {t(labelKey) || 'More'}
                   </span>
                 </button>
@@ -363,12 +363,12 @@ const BottomNav = memo(function BottomNav() {
               <Link
                 key={path}
                 to={path}
-                className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
+                className={`flex flex-col items-center justify-center flex-1 min-w-0 h-full transition-colors ${
                   isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
-                <NavIcon className={`w-5 h-5 ${isActive ? 'stroke-[2.5]' : ''}`} />
-                <span className={`text-[10px] mt-1 ${isActive ? 'font-semibold' : 'font-medium'}`}>
+                <NavIcon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'stroke-[2.5]' : ''}`} />
+                <span className={`text-[10px] mt-1 truncate w-full text-center ${isActive ? 'font-semibold' : 'font-medium'}`}>
                   {t(labelKey) || labelKey.replace(/_/g, ' ')}
                 </span>
               </Link>

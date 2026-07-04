@@ -499,7 +499,7 @@ const translations = {
     installments: 'Installments',
     repayment_tracking: 'Repayment Tracking',
     // Debt Management
-    debt_management: 'Debt Management',
+    debt_management: 'Debt',
     customer_receivables: 'Customer Receivables',
     supplier_payables: 'Supplier Payables',
     employee_loans: 'Employee Loans',
@@ -758,7 +758,7 @@ const translations = {
     completed: 'Completed',
     main_branch: 'Main Branch',
     // ── Product Management System ──
-    product_management: 'Product Management',
+    product_management: 'Product',
     product_dashboard: 'Product Dashboard',
     product_master: 'Product Master',
     product_catalog: 'Product Catalog',
