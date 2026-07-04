@@ -755,9 +755,13 @@ export default function OwnerDashboard() {
         </div>
         <div className="flex items-center gap-2">
           {totalAlerts > 0 && (
-            <span className="bg-red-500 text-white text-xs font-bold rounded-full px-2 py-0.5">
+            <button
+              onClick={() => navigate('/alerts')}
+              className="bg-red-500 hover:bg-red-600 text-white text-xs font-bold rounded-full px-2 py-0.5 transition-colors cursor-pointer active:scale-95"
+              aria-label={`${totalAlerts} alerts`}
+            >
               {totalAlerts} alerts
-            </span>
+            </button>
           )}
           <ModeBadge />
           <Badge variant="outline" className="text-xs capitalize">{role}</Badge>
