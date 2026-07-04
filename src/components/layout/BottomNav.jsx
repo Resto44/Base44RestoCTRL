@@ -2,8 +2,8 @@
  * BottomNav — Business Mode Aware Navigation
  *
  * The bottom navigation adapts to the active business mode.
- * Restaurant Mode shows: Dashboard, Sales, Kitchen, Product Management, Debt Management, More
- * Retail Mode shows:     Dashboard, Sales, Inventory, Barcode, More
+ * Restaurant Mode shows: Dashboard, Treasury, Product Management, Debt Management, More
+ * Retail Mode shows:     Dashboard, Treasury, Inventory, Barcode, More
  *
  * The "More" menu also filters items by business mode.
  */
@@ -25,7 +25,7 @@ import { useBusinessMode } from '@/lib/BusinessModeContext';
 
 const PRIMARY_NAV_OWNER_RESTAURANT = [
   { path: '/owner-command-center', icon: LayoutDashboard, labelKey: 'dashboard' },
-  { path: '/sales',                icon: Receipt,          labelKey: 'sales' },
+  { path: '/treasury',              icon: Wallet,           labelKey: 'treasury' },
   { path: '/product-management',    icon: Package,          labelKey: 'product_management' },
   { path: '/debt-management',       icon: CreditCard,       labelKey: 'debt_management' },
   { path: '/more',                 icon: Grid3x3,          labelKey: 'more', isMore: true },
@@ -33,7 +33,7 @@ const PRIMARY_NAV_OWNER_RESTAURANT = [
 
 const PRIMARY_NAV_OWNER_RETAIL = [
   { path: '/owner-command-center', icon: LayoutDashboard, labelKey: 'dashboard' },
-  { path: '/sales',                icon: Receipt,          labelKey: 'sales' },
+  { path: '/treasury',              icon: Wallet,           labelKey: 'treasury' },
   { path: '/inventory',            icon: Boxes,            labelKey: 'inventory' },
   { path: '/retail/barcode',       icon: Barcode,          labelKey: 'barcode' },
   { path: '/more',                 icon: Grid3x3,          labelKey: 'more', isMore: true },
@@ -41,7 +41,7 @@ const PRIMARY_NAV_OWNER_RETAIL = [
 
 const PRIMARY_NAV_MANAGER_RESTAURANT = [
   { path: '/manager-dashboard',    icon: LayoutDashboard, labelKey: 'dashboard' },
-  { path: '/sales',                icon: Receipt,         labelKey: 'sales' },
+  { path: '/treasury',              icon: Wallet,          labelKey: 'treasury' },
   { path: '/product-management',    icon: Package,         labelKey: 'product_management' },
   { path: '/debt-management',       icon: CreditCard,      labelKey: 'debt_management' },
   { path: '/more',                 icon: Grid3x3,         labelKey: 'more', isMore: true },
@@ -49,7 +49,7 @@ const PRIMARY_NAV_MANAGER_RESTAURANT = [
 
 const PRIMARY_NAV_MANAGER_RETAIL = [
   { path: '/manager-dashboard',    icon: LayoutDashboard, labelKey: 'dashboard' },
-  { path: '/sales',                icon: Receipt,         labelKey: 'sales' },
+  { path: '/treasury',              icon: Wallet,          labelKey: 'treasury' },
   { path: '/inventory',            icon: Boxes,           labelKey: 'inventory' },
   { path: '/retail/barcode',       icon: Barcode,         labelKey: 'barcode' },
   { path: '/more',                 icon: Grid3x3,         labelKey: 'more', isMore: true },
@@ -338,19 +338,19 @@ const BottomNav = memo(function BottomNav() {
         <MoreMenu sections={moreSections} onClose={() => setShowMore(false)} />
       )}
       <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border shadow-lg pb-[env(safe-area-inset-bottom,0px)]">
-        <div className="flex items-center justify-between h-[var(--bottom-nav-height)] max-w-lg mx-auto px-1">
+        <div className="flex items-center justify-between h-[var(--bottom-nav-height)] max-w-lg mx-auto px-0.5">
           {visibleNav.map(({ path, icon: NavIcon, labelKey, isMore }) => {
             if (isMore) {
               return (
                 <button
                   key="more"
                   onClick={() => setShowMore(s => !s)}
-                  className={`flex flex-col items-center justify-center flex-1 min-w-0 h-full transition-colors ${
+                  className={`flex flex-col items-center justify-center flex-1 min-w-0 h-full transition-colors px-0.5 ${
                     showMore ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
                   <NavIcon className={`w-5 h-5 flex-shrink-0 ${showMore ? 'stroke-[2.5]' : ''}`} />
-                  <span className={`text-[10px] mt-1 truncate w-full text-center ${showMore ? 'font-semibold' : 'font-medium'}`}>
+                  <span className={`text-[9px] mt-0.5 w-full text-center leading-tight whitespace-nowrap ${showMore ? 'font-semibold' : 'font-medium'}`}>
                     {t(labelKey) || 'More'}
                   </span>
                 </button>
@@ -363,12 +363,12 @@ const BottomNav = memo(function BottomNav() {
               <Link
                 key={path}
                 to={path}
-                className={`flex flex-col items-center justify-center flex-1 min-w-0 h-full transition-colors ${
+                className={`flex flex-col items-center justify-center flex-1 min-w-0 h-full transition-colors px-0.5 ${
                   isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 <NavIcon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'stroke-[2.5]' : ''}`} />
-                <span className={`text-[10px] mt-1 truncate w-full text-center ${isActive ? 'font-semibold' : 'font-medium'}`}>
+                <span className={`text-[9px] mt-0.5 w-full text-center leading-tight whitespace-nowrap ${isActive ? 'font-semibold' : 'font-medium'}`}>
                   {t(labelKey) || labelKey.replace(/_/g, ' ')}
                 </span>
               </Link>
