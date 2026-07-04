@@ -458,6 +458,7 @@ export default function Sales() {
       qc.invalidateQueries({ queryKey: ['settlements_all'] });
       qc.invalidateQueries({ queryKey: ['settlements_mgr'] });
       qc.invalidateQueries({ queryKey: ['wallet_transactions'] });
+      qc.invalidateQueries({ queryKey: ['wallet_transactions_dash'] });
       setShowForm(false);
     },
   });
@@ -487,6 +488,7 @@ export default function Sales() {
       qc.invalidateQueries({ queryKey: ['sales_month'] });
       qc.invalidateQueries({ queryKey: ['settlements_all'] });
       qc.invalidateQueries({ queryKey: ['settlements_mgr'] });
+      qc.invalidateQueries({ queryKey: ['wallet_transactions_dash'] });
       setEditing(null);
     },
   });
