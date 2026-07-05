@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { useLanguage } from '@/lib/LanguageContext';
 import { useTenant } from '@/lib/TenantContext';
+import { useSalesSources } from '@/hooks/useSalesSources';
 import { generateUltimatePDF } from '@/lib/pdfGenerator';
 import { Button } from '@/components/ui/button';
 import { FileDown, Loader2, CheckCircle2, AlertCircle, X } from 'lucide-react';
@@ -16,6 +17,7 @@ const STATUS = { idle: 'idle', generating: 'generating', done: 'done', error: 'e
 export default function AsyncPDFButton({ sales, purchases, expenses, rangeType, fromStr, toStr }) {
   const { t, currency, lang, dir } = useLanguage();
   const { branches, activeRestaurant } = useTenant();
+  const { revenueSources } = useSalesSources();
   const [status, setStatus] = useState(STATUS.idle);
   const [step, setStep] = useState('');
   const [error, setError] = useState(null);
@@ -62,6 +64,7 @@ export default function AsyncPDFButton({ sales, purchases, expenses, rangeType, 
         brandSettings,
         inventory,
         supplierInvoices,
+        revenueSources,
       });
       clearInterval(interval);
       setStep(steps[steps.length - 1]);

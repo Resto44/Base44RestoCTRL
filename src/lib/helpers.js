@@ -47,12 +47,23 @@ export const getSaleNetwork = r => Number(r.restaurant_network ?? r.network ?? 0
  * An expense is considered fixed when its category has is_fixed = true.
  * If category info is not available, fall back to deducting all expenses.
  */
-export function computeDashboardMetrics(sales, purchases, expenses = [], rangeType = 'month') {
-  const totalSales   = sales.reduce((s, r) => s + getSaleCash(r) + getSaleNetwork(r) + (Number(r.credit) || 0), 0);
-  const totalCredit  = sales.reduce((s, r) => s + (Number(r.credit) || 0), 0);
-  const totalCash    = sales.reduce((s, r) => s + getSaleCash(r), 0);
-  const totalNetwork = sales.reduce((s, r) => s + getSaleNetwork(r), 0);
+export function computeDashboardMetrics(sales, purchases, expenses = [], rangeType = 'month', revenueSources = []) {
+  let totalSales = 0;
+  let totalCash = 0;
+  let totalNetwork = 0;
+  let totalCredit = 0;
+  let totalCustomSources = 0;
+
+  sales.forEach(r => {
+    const revenue = calculateSalesRevenue(r, revenueSources);
+    totalSales += revenue.total;
+    totalCash += revenue.cash;
+    totalNetwork += revenue.network;
+    totalCredit += revenue.credit;
+    totalCustomSources += revenue.customSources;
+  });
   const totalPurchaseCost = purchases.reduce((s, r) => s + (Number(r.total_amount) || (r.qty || 0) * (r.used_price || r.current_price || 0)), 0);
+  const totalAdditionalSources = totalCustomSources;
 
   // Separate fixed vs variable expenses
   const isShortRange = rangeType === 'day' || rangeType === 'week';
@@ -81,6 +92,7 @@ export function computeDashboardMetrics(sales, purchases, expenses = [], rangeTy
     totalCredit,
     totalCash,
     totalNetwork,
+    totalAdditionalSources,  // custom sources from sales_sources_json
     totalPurchaseCost,
     totalExpenses,           // expenses actually deducted from net profit
     totalExpensesAll,        // all expenses (for display)
@@ -112,11 +124,67 @@ export function formatPct(val) {
   return `${Number(val).toFixed(1)}%`;
 }
 
-export function buildDailyProfitTrend(sales, purchases) {
+/**
+ * calculateSalesRevenue
+ *
+ * Calculates total revenue from a single sales record, respecting SalesSource configuration.
+ * Parses sales_sources_json and applies included_in_revenue flags.
+ *
+ * @param {Object} record - Sales record with restaurant_cash, restaurant_network, credit, sales_sources_json
+ * @param {Array} revenueSources - Array of SalesSource objects with included_in_revenue flags
+ * @returns {Object} { cash, network, credit, customSources, total }
+ */
+export function calculateSalesRevenue(record, revenueSources = []) {
+  const cash = getSaleCash(record);
+  const network = getSaleNetwork(record);
+  const credit = Number(record.credit) || 0;
+
+  // Check if base sources should be included in revenue
+  const cashIncluded = !revenueSources.length || revenueSources.find(s => s.system_key === 'cash')?.included_in_revenue !== false;
+  const networkIncluded = !revenueSources.length || revenueSources.find(s => s.system_key === 'network')?.included_in_revenue !== false;
+  const creditIncluded = !revenueSources.length || revenueSources.find(s => s.system_key === 'credit')?.included_in_revenue !== false;
+
+  const baseSales = (cashIncluded ? cash : 0) + (networkIncluded ? network : 0) + (creditIncluded ? credit : 0);
+
+  // Parse custom sources from sales_sources_json
+  let customSources = 0;
+  if (record.sales_sources_json) {
+    try {
+      const entries = JSON.parse(record.sales_sources_json);
+      entries.forEach(e => {
+        const sourceId = e.source_id || e.source_key;
+        const sourceConfig = revenueSources.find(s => s.id === sourceId || s.source_key === sourceId);
+        // Include if no config found (default) or if explicitly included
+        if (!sourceConfig || sourceConfig.included_in_revenue !== false) {
+          customSources += Number(e.amount) || 0;
+        }
+      });
+    } catch (err) {
+      console.warn('Failed to parse sales_sources_json:', err);
+    }
+  }
+
+  const total = baseSales + customSources;
+
+  return {
+    cash: cashIncluded ? cash : 0,
+    network: networkIncluded ? network : 0,
+    credit: creditIncluded ? credit : 0,
+    customSources,
+    total,
+    // Raw values for reference
+    rawCash: cash,
+    rawNetwork: network,
+    rawCredit: credit,
+  };
+}
+
+export function buildDailyProfitTrend(sales, purchases, revenueSources = []) {
   const map = {};
   sales.forEach(s => {
     if (!map[s.date]) map[s.date] = { sales: 0, cost: 0 };
-    map[s.date].sales += getSaleCash(s) + getSaleNetwork(s) + (Number(s.credit) || 0);
+    const revenue = calculateSalesRevenue(s, revenueSources);
+    map[s.date].sales += revenue.total;
   });
   purchases.forEach(p => {
     if (!map[p.date]) map[p.date] = { sales: 0, cost: 0 };

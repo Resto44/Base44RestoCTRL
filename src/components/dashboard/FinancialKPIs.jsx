@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { calculateSalesRevenue } from '@/lib/helpers';
 
 const LABELS = {
   en: {
@@ -283,36 +284,22 @@ export default function FinancialKPIs({ branch }) {
         // ── Card A: Sales Summary ─────────────────────────────────────────────────
     // Total Sales = Cash + Network + Credit + Custom Sources.
     // NEVER affected by reconciliation.
-    const cashSalesToday    = daySales.reduce((s, r) => s + (Number(r.restaurant_cash) || Number(r.cash) || 0), 0);
-    const networkSalesToday = daySales.reduce((s, r) => s + (Number(r.restaurant_network) || Number(r.network) || 0), 0);
-    const creditSalesToday  = daySales.reduce((s, r) => s + (Number(r.credit) || 0), 0);
-    // Custom sources from sales_sources_json (dynamic)
-    const customSourcesMap = {};
+    let cashSalesToday = 0;
+    let networkSalesToday = 0;
+    let creditSalesToday = 0;
+    let customSalesToday = 0;
+    let totalSalesToday = 0;
+
     daySales.forEach(r => {
-      if (r.sales_sources_json) {
-        try {
-          const entries = JSON.parse(r.sales_sources_json);
-          entries.forEach(e => {
-            const key = e.source_id || e.source_key;
-            customSourcesMap[key] = (customSourcesMap[key] || 0) + (Number(e.amount) || 0);
-          });
-        } catch { /* ignore */ }
-      }
+      const rev = calculateSalesRevenue(r, revenueSources);
+      cashSalesToday += rev.cash;
+      networkSalesToday += rev.network;
+      creditSalesToday += rev.credit;
+      customSalesToday += rev.customSources;
+      totalSalesToday += rev.total;
     });
-    const customSalesToday = Object.values(customSourcesMap).reduce((s, v) => s + v, 0);
-    // Revenue-aware total (respects included_in_revenue flag)
-    const cashIncluded = !revenueSources.length || revenueSources.find(s => s.system_key === 'cash')?.included_in_revenue !== false;
-    const netIncluded  = !revenueSources.length || revenueSources.find(s => s.system_key === 'network')?.included_in_revenue !== false;
-    const credIncluded = !revenueSources.length || revenueSources.find(s => s.system_key === 'credit')?.included_in_revenue !== false;
-    const totalSalesToday =
-      (cashIncluded ? cashSalesToday : 0) +
-      (netIncluded  ? networkSalesToday : 0) +
-      (credIncluded ? creditSalesToday : 0) +
-      customSalesToday;
-    const totalSalesYesterday = prevSales.reduce((s, r) =>
-      s + (Number(r.restaurant_cash) || Number(r.cash) || 0)
-        + (Number(r.restaurant_network) || Number(r.network) || 0)
-        + (Number(r.credit) || 0), 0);
+
+    const totalSalesYesterday = prevSales.reduce((s, r) => s + calculateSalesRevenue(r, revenueSources).total, 0);
     const salesTrend = totalSalesYesterday > 0
       ? ((totalSalesToday - totalSalesYesterday) / totalSalesYesterday) * 100
       : 0;

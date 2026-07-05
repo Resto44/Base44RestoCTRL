@@ -10,6 +10,8 @@ import { getDateRange, formatDate, formatCurrency, formatPct, computeDashboardMe
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, Legend } from 'recharts';
 import AsyncPDFButton from '@/components/reports/AsyncPDFButton';
 import { useTenant } from '@/lib/TenantContext';
+import { useSalesSources } from '@/hooks/useSalesSources';
+import { format } from 'date-fns';
 
 const COLORS = ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
 
@@ -19,11 +21,18 @@ export default function Reports() {
   const { t, currency } = useLanguage();
   const { ownerFilter, isManager, managerBranch, branches } = useTenant();
   const [rangeType, setRangeType] = useState('month');
+  const { revenueSources, isLoading: loadingSources } = useSalesSources();
 
   // enabled as long as we have any filter key (owner has created_by, manager has branch)
   const hasFilter = !!(ownerFilter?.created_by || ownerFilter?.branch);
 
   const { data: sales = [], isLoading: loadingSales, isError: errorSales } = useQuery({ queryKey: ['sales', ownerFilter], queryFn: () => base44.entities.DailySales.filter(ownerFilter || {}, '-date', 2000), staleTime: 120000, enabled: hasFilter });
+  const { data: walletTransactions = [] } = useQuery({
+    queryKey: ['wallet_transactions', ownerFilter],
+    queryFn: () => base44.entities.WalletTransaction.filter(ownerFilter || {}, '-date', 500),
+    enabled: hasFilter,
+    staleTime: 60000,
+  });
   const { data: purchases = [], isLoading: loadingPurchases } = useQuery({ 
     queryKey: ['purchases', ownerFilter], 
     queryFn: async () => {
@@ -43,7 +52,7 @@ export default function Reports() {
   });
   const { data: expenses = [], isLoading: loadingExpenses } = useQuery({ queryKey: ['expenses', ownerFilter], queryFn: () => base44.entities.Expense.filter(ownerFilter || {}, '-date', 2000), staleTime: 120000, enabled: hasFilter });
 
-  const isLoading = loadingSales || loadingPurchases || loadingExpenses;
+  const isLoading = loadingSales || loadingPurchases || loadingExpenses || loadingSources;
 
   const dateRange = useMemo(() => getDateRange(rangeType), [rangeType]);
   const fromStr = formatDate(dateRange.from);
@@ -60,25 +69,51 @@ export default function Reports() {
   const filtered = (arr) => arr.filter(r => r.date >= fromStr && r.date <= toStr);
   const prevFiltered = (arr) => arr.filter(r => r.date >= prevFromStr && r.date <= prevToStr);
 
-  const metrics = useMemo(() => computeDashboardMetrics(filtered(sales), filtered(purchases), filtered(expenses)), [sales, purchases, expenses, fromStr, toStr]);
-  const prevMetrics = useMemo(() => computeDashboardMetrics(prevFiltered(sales), prevFiltered(purchases), prevFiltered(expenses)), [sales, purchases, expenses, prevFromStr, prevToStr]);
+  const metrics = useMemo(() => computeDashboardMetrics(filtered(sales), filtered(purchases), filtered(expenses), rangeType, revenueSources), [sales, purchases, expenses, fromStr, toStr, rangeType, revenueSources]);
+  const prevMetrics = useMemo(() => computeDashboardMetrics(prevFiltered(sales), prevFiltered(purchases), prevFiltered(expenses), rangeType, revenueSources), [sales, purchases, expenses, prevFromStr, prevToStr, rangeType, revenueSources]);
+
+  // Network balance calculation
+  const networkMetrics = useMemo(() => {
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const yesterdayStr = format(new Date(Date.now() - 86400000), 'yyyy-MM-dd');
+
+    const todaySales = sales.filter(s => s.date === todayStr);
+    const yesterdaySales = sales.filter(s => s.date === yesterdayStr);
+
+    const todayNetwork = todaySales.reduce((s, r) => s + (Number(r.restaurant_network) || Number(r.network) || 0), 0);
+    const yesterdayNetwork = yesterdaySales.reduce((s, r) => s + (Number(r.restaurant_network) || Number(r.network) || 0), 0);
+
+    // Month-to-date balance (Total Network Sales - Settlements)
+    const mtdSales = sales.filter(s => s.date >= startOfMonth(new Date()).toISOString().split('T')[0]);
+    const mtdNetworkSales = mtdSales.reduce((s, r) => s + (Number(r.restaurant_network) || Number(r.network) || 0), 0);
+    const mtdSettlements = walletTransactions
+      .filter(t => t.date >= startOfMonth(new Date()).toISOString().split('T')[0] && t.type === 'sent_to_owner')
+      .reduce((s, t) => s + (Number(t.amount) || 0), 0);
+
+    return {
+      today: todayNetwork,
+      yesterday: yesterdayNetwork,
+      balance: mtdNetworkSales - mtdSettlements,
+    };
+  }, [sales, walletTransactions]);
 
   // Branch comparison
   const branchData = useMemo(() => branches.map(b => {
     const bs = filtered(sales).filter(s => s.branch === b.key);
     const bp = filtered(purchases).filter(p => p.branch === b.key);
     const be = filtered(expenses).filter(e => e.branch === b.key || e.branch === 'all');
-    const m = computeDashboardMetrics(bs, bp, be);
+    const m = computeDashboardMetrics(bs, bp, be, rangeType, revenueSources);
     return { name: b.label, sales: m.totalSales, profit: m.profit, creditPct: m.creditPct };
-  }), [sales, purchases, expenses, fromStr, toStr, branches]);
+  }), [sales, purchases, expenses, fromStr, toStr, branches, rangeType, revenueSources]);
 
-  const profitTrend = useMemo(() => buildDailyProfitTrend(filtered(sales), filtered(purchases)), [sales, purchases, fromStr, toStr]);
+  const profitTrend = useMemo(() => buildDailyProfitTrend(filtered(sales), filtered(purchases), revenueSources), [sales, purchases, fromStr, toStr, revenueSources]);
 
   const paymentMix = useMemo(() => [
     { name: t('cash'), value: metrics.totalCash },
     { name: t('network'), value: metrics.totalNetwork },
     { name: t('credit'), value: metrics.totalCredit },
-  ].filter(d => d.value > 0), [metrics]);
+    { name: t('additional_sources') || 'Additional', value: metrics.totalAdditionalSources },
+  ].filter(d => d.value > 0), [metrics, t]);
 
   const pct = (cur, prev) => {
     if (!prev || prev === 0) return null;
@@ -152,12 +187,52 @@ export default function Reports() {
       </div>
 
       {/* Period comparison KPIs */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <Card className="p-4">
+          <h3 className="text-sm font-semibold mb-3">{t('period_comparison')}</h3>
+          <CompRow label={t('total_sales')} cur={metrics.totalSales} prev={prevMetrics.totalSales} />
+          <CompRow label={t('total_purchase_cost')} cur={metrics.totalPurchaseCost} prev={prevMetrics.totalPurchaseCost} />
+          <CompRow label={t('profit')} cur={metrics.profit} prev={prevMetrics.profit} />
+          <CompRow label={t('total_expenses')} cur={metrics.totalExpenses} prev={prevMetrics.totalExpenses} />
+        </Card>
+
+        <Card className="p-4">
+          <h3 className="text-sm font-semibold mb-3">{t('network_balance') || 'Network Balance'}</h3>
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">{t('today_network') || 'Today Network'}</span>
+              <span className="font-semibold">{formatCurrency(networkMetrics.today, currency)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">{t('yesterday_network') || 'Yesterday Network'}</span>
+              <span className="font-semibold">{formatCurrency(networkMetrics.yesterday, currency)}</span>
+            </div>
+            <Separator className="my-2" />
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground font-medium">{t('mtd_balance') || 'MTD Balance (Net)'}</span>
+              <span className="font-bold text-primary">{formatCurrency(networkMetrics.balance, currency)}</span>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      {/* Additional Sales Sources */}
       <Card className="p-4 mb-4">
-        <h3 className="text-sm font-semibold mb-3">{t('period_comparison')}</h3>
-        <CompRow label={t('total_sales')} cur={metrics.totalSales} prev={prevMetrics.totalSales} />
-        <CompRow label={t('total_purchase_cost')} cur={metrics.totalPurchaseCost} prev={prevMetrics.totalPurchaseCost} />
-        <CompRow label={t('profit')} cur={metrics.profit} prev={prevMetrics.profit} />
-        <CompRow label={t('total_expenses')} cur={metrics.totalExpenses} prev={prevMetrics.totalExpenses} />
+        <h3 className="text-sm font-semibold mb-3">{t('additional_sales_sources') || 'Additional Sales Sources'}</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="p-3 bg-slate-50 rounded-lg">
+            <p className="text-xs text-muted-foreground mb-1">{t('today')}</p>
+            <p className="text-lg font-bold">{formatCurrency(sales.filter(s => s.date === format(new Date(), 'yyyy-MM-dd')).reduce((s, r) => s + (computeDashboardMetrics([r], [], [], 'day', revenueSources).totalAdditionalSources), 0), currency)}</p>
+          </div>
+          <div className="p-3 bg-slate-50 rounded-lg">
+            <p className="text-xs text-muted-foreground mb-1">{t('yesterday')}</p>
+            <p className="text-lg font-bold">{formatCurrency(sales.filter(s => s.date === format(new Date(Date.now() - 86400000), 'yyyy-MM-dd')).reduce((s, r) => s + (computeDashboardMetrics([r], [], [], 'day', revenueSources).totalAdditionalSources), 0), currency)}</p>
+          </div>
+          <div className="p-3 bg-slate-50 rounded-lg">
+            <p className="text-xs text-muted-foreground mb-1">{t('current_month')}</p>
+            <p className="text-lg font-bold">{formatCurrency(filtered(sales).reduce((s, r) => s + (computeDashboardMetrics([r], [], [], 'day', revenueSources).totalAdditionalSources), 0), currency)}</p>
+          </div>
+        </div>
       </Card>
 
       {/* Profit trend chart */}

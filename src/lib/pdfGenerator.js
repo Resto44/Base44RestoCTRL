@@ -573,7 +573,7 @@ export async function generateUltimatePDF({
   sales = [], purchases = [], expenses = [], rangeType, fromStr, toStr,
   t, lang, currency, branches = [], dir,
   brandSettings = null, inventory = [], supplierInvoices = [],
-  walletTransactions = [],
+  walletTransactions = [], revenueSources = [],
 }) {
   const isRTL = dir === 'rtl';
   const l = L(lang);
@@ -605,15 +605,15 @@ export async function generateUltimatePDF({
   const fExp = expenses.filter(e => e.date >= fromStr && e.date <= toStr);
 
   // Compute metrics with safe values
-  const metrics = computeDashboardMetrics(fSales, fPurch, fExp);
-  const trend = buildDailyProfitTrend(fSales, fPurch);
+  const metrics = computeDashboardMetrics(fSales, fPurch, fExp, rangeType, revenueSources);
+  const trend = buildDailyProfitTrend(fSales, fPurch, revenueSources);
 
   // Branch metrics
   const branchMetrics = branches.map(b => {
     const bs = fSales.filter(s => s.branch === b.key);
     const bp = fPurch.filter(p => p.branch === b.key);
     const be = fExp.filter(e => e.branch === b.key || e.branch === 'all');
-    const m = computeDashboardMetrics(bs, bp, be);
+    const m = computeDashboardMetrics(bs, bp, be, rangeType, revenueSources);
     return { key: b.key, name: b.label, ...m };
   });
 
@@ -677,6 +677,7 @@ export async function generateUltimatePDF({
     { name: l.cash, value: safeNum(metrics.totalCash) },
     { name: l.network, value: safeNum(metrics.totalNetwork) },
     { name: l.credit, value: safeNum(metrics.totalCredit) },
+    { name: l.other || 'Other', value: safeNum(metrics.totalAdditionalSources) },
   ].filter(d => d.value > 0);
   y = await chartPie(doc, payMix, ML, y, TW, 10, dir);
 
