@@ -455,6 +455,17 @@ export default function Sales() {
       qc.invalidateQueries({ queryKey: ['sales_daily'] });
       qc.invalidateQueries({ queryKey: ['sales_today'] });
       qc.invalidateQueries({ queryKey: ['sales_month'] });
+      qc.invalidateQueries({ queryKey: ['sales_yesterday'] });
+      qc.invalidateQueries({ queryKey: ['sales_week'] });
+      qc.invalidateQueries({ queryKey: ['sales_prev_week'] });
+      qc.invalidateQueries({ queryKey: ['sales_prev_month'] });
+      // Live Sales Summary keys
+      qc.invalidateQueries({ queryKey: ['sales_today_live'] });
+      qc.invalidateQueries({ queryKey: ['sales_yesterday_live'] });
+      qc.invalidateQueries({ queryKey: ['sales_month_live'] });
+      // Dashboard keys
+      qc.invalidateQueries({ queryKey: ['supplier_invoices_dash'] });
+      qc.invalidateQueries({ queryKey: ['debts_customer_dash'] });
       qc.invalidateQueries({ queryKey: ['settlements_all'] });
       qc.invalidateQueries({ queryKey: ['settlements_mgr'] });
       qc.invalidateQueries({ queryKey: ['wallet_transactions'] });
@@ -486,6 +497,15 @@ export default function Sales() {
       qc.invalidateQueries({ queryKey: ['sales_daily'] });
       qc.invalidateQueries({ queryKey: ['sales_today'] });
       qc.invalidateQueries({ queryKey: ['sales_month'] });
+      qc.invalidateQueries({ queryKey: ['sales_yesterday'] });
+      qc.invalidateQueries({ queryKey: ['sales_week'] });
+      // Live Sales Summary keys
+      qc.invalidateQueries({ queryKey: ['sales_today_live'] });
+      qc.invalidateQueries({ queryKey: ['sales_yesterday_live'] });
+      qc.invalidateQueries({ queryKey: ['sales_month_live'] });
+      // Dashboard keys
+      qc.invalidateQueries({ queryKey: ['supplier_invoices_dash'] });
+      qc.invalidateQueries({ queryKey: ['debts_customer_dash'] });
       qc.invalidateQueries({ queryKey: ['settlements_all'] });
       qc.invalidateQueries({ queryKey: ['settlements_mgr'] });
       qc.invalidateQueries({ queryKey: ['wallet_transactions_dash'] });
@@ -498,7 +518,15 @@ export default function Sales() {
       await base44.entities.DailySales.delete(sale.id);
       await notif.sale({ branch: sale.branch, action: 'delete' });
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['sales'] }); setDeleting(null); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['sales'] });
+      qc.invalidateQueries({ queryKey: ['sales_today'] });
+      qc.invalidateQueries({ queryKey: ['sales_month'] });
+      qc.invalidateQueries({ queryKey: ['sales_today_live'] });
+      qc.invalidateQueries({ queryKey: ['sales_yesterday_live'] });
+      qc.invalidateQueries({ queryKey: ['sales_month_live'] });
+      setDeleting(null);
+    },
   });
 
   const handleSave = async (data, proofUrl, ocr) => {

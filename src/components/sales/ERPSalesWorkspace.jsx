@@ -33,7 +33,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { format } from 'date-fns';
+import { format, startOfMonth, subDays } from 'date-fns';
 import {
   Store, CreditCard, Trash2, Plus, Search,
   TrendingDown, TrendingUp, CheckCircle2, XCircle,
@@ -606,7 +606,72 @@ export default function ERPSalesWorkspace({ initial, onSubmit, onCancel }) {
     enabled: !!ownerFilter?.created_by && !!form.date,
   });
 
-  // Yesterday's sales for growth comparison
+  // ── Real daily_sales for Live Sales Summary ─────────────────────────────────
+  const todayStr = format(new Date(), 'yyyy-MM-dd');
+  const yesterdayStr = format(subDays(new Date(), 1), 'yyyy-MM-dd');
+  const monthStartStr = format(startOfMonth(new Date()), 'yyyy-MM-dd');
+
+  // Today's real sales from daily_sales (all branches or selected branch)
+  const { data: realTodaySales = [], isLoading: realTodayLoading } = useQuery({
+    queryKey: ['sales_today_live', ownerFilter?.created_by, todayStr, form.branch],
+    queryFn: async () => {
+      if (!ownerFilter?.created_by) return [];
+      let q = supabase
+        .from('daily_sales')
+        .select('restaurant_cash, restaurant_network, credit, cash, network, branch, sales_sources_json, custom_sources_total')
+        .eq('created_by', ownerFilter.created_by)
+        .eq('date', todayStr)
+        .limit(50);
+      if (form.branch && form.branch !== 'all') q = q.eq('branch', form.branch);
+      const { data, error } = await q;
+      if (error) return [];
+      return data || [];
+    },
+    staleTime: 10000,
+    enabled: !!ownerFilter?.created_by,
+  });
+
+  // Yesterday's real sales from daily_sales
+  const { data: realYesterdaySales = [] } = useQuery({
+    queryKey: ['sales_yesterday_live', ownerFilter?.created_by, yesterdayStr, form.branch],
+    queryFn: async () => {
+      if (!ownerFilter?.created_by) return [];
+      let q = supabase
+        .from('daily_sales')
+        .select('restaurant_cash, restaurant_network, credit, cash, network, branch, sales_sources_json, custom_sources_total')
+        .eq('created_by', ownerFilter.created_by)
+        .eq('date', yesterdayStr)
+        .limit(50);
+      if (form.branch && form.branch !== 'all') q = q.eq('branch', form.branch);
+      const { data, error } = await q;
+      if (error) return [];
+      return data || [];
+    },
+    staleTime: 60000,
+    enabled: !!ownerFilter?.created_by,
+  });
+
+  // Month-to-date real sales from daily_sales
+  const { data: realMonthSales = [] } = useQuery({
+    queryKey: ['sales_month_live', ownerFilter?.created_by, monthStartStr, form.branch],
+    queryFn: async () => {
+      if (!ownerFilter?.created_by) return [];
+      let q = supabase
+        .from('daily_sales')
+        .select('restaurant_cash, restaurant_network, credit, cash, network, branch, sales_sources_json, custom_sources_total')
+        .eq('created_by', ownerFilter.created_by)
+        .gte('date', monthStartStr)
+        .limit(500);
+      if (form.branch && form.branch !== 'all') q = q.eq('branch', form.branch);
+      const { data, error } = await q;
+      if (error) return [];
+      return data || [];
+    },
+    staleTime: 30000,
+    enabled: !!ownerFilter?.created_by,
+  });
+
+  // Yesterday's sales for growth comparison (legacy — kept for growthVsYesterday calc)
   const { data: yesterdaySales = [] } = useQuery({
     queryKey: ['yesterday_sales', ownerFilter?.created_by, form.date, form.branch],
     queryFn: async () => {
@@ -708,6 +773,52 @@ export default function ERPSalesWorkspace({ initial, onSubmit, onCancel }) {
     if (yesterdayTotal === 0 || totalSales === 0) return null;
     return ((totalSales - yesterdayTotal) / yesterdayTotal) * 100;
   }, [totalSales, yesterdayTotal]);
+
+  // ── Real daily_sales aggregation for Live Sales Summary ─────────────────────
+  // Helper: sum a field across an array of daily_sales records
+  const sumField = (arr, field1, field2) =>
+    (arr || []).reduce((s, r) => s + (Number(r[field1]) || (field2 ? Number(r[field2]) : 0) || 0), 0);
+
+  // Helper: sum custom sources from sales_sources_json + custom_sources_total fallback
+  const sumCustom = (arr) =>
+    (arr || []).reduce((s, r) => {
+      if (r.sales_sources_json) {
+        try {
+          const entries = JSON.parse(r.sales_sources_json);
+          return s + entries.reduce((cs, e) => cs + (Number(e.amount) || 0), 0);
+        } catch { /* ignore */ }
+      }
+      return s + (Number(r.custom_sources_total) || 0);
+    }, 0);
+
+  const realSummary = useMemo(() => {
+    // TODAY
+    const todayCash    = sumField(realTodaySales, 'restaurant_cash', 'cash');
+    const todayNetwork = sumField(realTodaySales, 'restaurant_network', 'network');
+    const todayCredit  = sumField(realTodaySales, 'credit');
+    const todayCustom  = sumCustom(realTodaySales);
+    const todayTotal   = todayCash + todayNetwork + todayCredit + todayCustom;
+
+    // YESTERDAY
+    const yesterdayRealCash    = sumField(realYesterdaySales, 'restaurant_cash', 'cash');
+    const yesterdayRealNetwork = sumField(realYesterdaySales, 'restaurant_network', 'network');
+    const yesterdayRealCredit  = sumField(realYesterdaySales, 'credit');
+    const yesterdayRealCustom  = sumCustom(realYesterdaySales);
+    const yesterdayRealTotal   = yesterdayRealCash + yesterdayRealNetwork + yesterdayRealCredit + yesterdayRealCustom;
+
+    // MONTH-TO-DATE
+    const monthCash    = sumField(realMonthSales, 'restaurant_cash', 'cash');
+    const monthNetwork = sumField(realMonthSales, 'restaurant_network', 'network');
+    const monthCredit  = sumField(realMonthSales, 'credit');
+    const monthCustom  = sumCustom(realMonthSales);
+    const monthTotal   = monthCash + monthNetwork + monthCredit + monthCustom;
+
+    return {
+      todayCash, todayNetwork, todayCredit, todayCustom, todayTotal,
+      yesterdayRealTotal,
+      monthTotal,
+    };
+  }, [realTodaySales, realYesterdaySales, realMonthSales]);
 
   // Average ticket (rough estimate: total / estimated transactions)
   const avgTicket = useMemo(() => {
@@ -1015,7 +1126,7 @@ export default function ERPSalesWorkspace({ initial, onSubmit, onCancel }) {
           </div>
 
           {/* ═══════════════════════════════════════════════════════════════
-              SECTION 2 — LIVE SALES SUMMARY (KPI Cards)
+              SECTION 2 — LIVE SALES SUMMARY (Real daily_sales data)
           ═══════════════════════════════════════════════════════════════ */}
           <div className={`rounded-2xl border-2 ${SECTION_COLORS.kpi.border} overflow-hidden bg-background shadow-sm`}>
             <SectionHeader
@@ -1025,92 +1136,63 @@ export default function ERPSalesWorkspace({ initial, onSubmit, onCancel }) {
               sectionNum="2"
               badge={
                 <Badge className="bg-indigo-600 text-white text-[10px] font-bold">
-                  {currency}{totalSales.toLocaleString()}
+                  {currency}{realSummary.todayTotal.toLocaleString()}
                 </Badge>
               }
             />
-            <div className="p-4 grid grid-cols-2 gap-3">
-              <KPICard
-                label="Cash Sales"
-                value={`${currency}${cashSales.toLocaleString()}`}
-                icon={Banknote}
-                colorClass="text-emerald-600"
-                bgClass="bg-emerald-100"
-                sublabel="Counter cash revenue"
-              />
-              <KPICard
-                label="POS Sales"
-                value={`${currency}${networkTotal.toLocaleString()}`}
-                icon={CreditCard}
-                colorClass="text-violet-600"
-                bgClass="bg-violet-100"
-                sublabel={`${posEntries.filter(e => Number(e.amount) > 0).length} device(s)`}
-              />
-              <KPICard
-                label="Customer Credit"
-                value={`${currency}${creditTotal.toLocaleString()}`}
-                icon={User}
-                colorClass="text-blue-600"
-                bgClass="bg-blue-100"
-                sublabel={`${creditEntries.filter(e => Number(e.amount) > 0).length} customer(s)`}
-              />
-              <KPICard
-                label="Total Revenue"
-                value={`${currency}${totalSales.toLocaleString()}`}
-                icon={DollarSign}
-                colorClass="text-indigo-600"
-                bgClass="bg-indigo-100"
-                sublabel={customTotal > 0 ? `Cash + POS + Credit + Custom` : `Cash + POS + Credit`}
-              />
-              {/* Dynamic custom source KPI cards */}
-              {customSources.filter(s => s.included_in_dashboard_kpi).map(src => {
-                const SrcIcon = getSourceIcon(src.icon);
-                const amt = Number(customSourceAmounts[src.id]) || 0;
-                return (
-                  <KPICard
-                    key={src.id}
-                    label={src.name_en}
-                    value={`${currency}${amt.toLocaleString()}`}
-                    icon={SrcIcon}
-                    colorClass={`text-${src.color || 'slate'}-600`}
-                    bgClass={`bg-${src.color || 'slate'}-100`}
-                    sublabel={src.name_ar || src.description || ''}
-                  />
-                );
-              })}
-              <KPICard
-                label="Average Ticket"
-                value={avgTicket > 0 ? `${currency}${avgTicket.toFixed(0)}` : '—'}
-                icon={Target}
-                colorClass="text-pink-600"
-                bgClass="bg-pink-100"
-                sublabel="Per transaction"
-              />
-              <KPICard
-                label="Transactions"
-                value={String(posEntries.filter(e => Number(e.amount) > 0).length + (cashSales > 0 ? 1 : 0) + creditEntries.filter(e => Number(e.amount) > 0).length)}
-                icon={Activity}
-                colorClass="text-cyan-600"
-                bgClass="bg-cyan-100"
-                sublabel="This shift"
-              />
-              <KPICard
-                label="Customers (Credit)"
-                value={String(creditEntries.filter(e => e.customer).length)}
-                icon={Users}
-                colorClass="text-teal-600"
-                bgClass="bg-teal-100"
-                sublabel="Credit accounts"
-              />
-              <KPICard
-                label="Growth vs Yesterday"
-                value={growthVsYesterday !== null ? `${growthVsYesterday >= 0 ? '+' : ''}${growthVsYesterday.toFixed(1)}%` : '—'}
-                icon={TrendingUp}
-                colorClass={growthVsYesterday !== null ? (growthVsYesterday >= 0 ? 'text-emerald-600' : 'text-red-500') : 'text-muted-foreground'}
-                bgClass={growthVsYesterday !== null ? (growthVsYesterday >= 0 ? 'bg-emerald-100' : 'bg-red-100') : 'bg-muted/50'}
-                sublabel={yesterdayTotal > 0 ? `Yesterday: ${currency}${yesterdayTotal.toLocaleString()}` : 'No data'}
-              />
-            </div>
+            {realTodayLoading ? (
+              <div className="p-4 grid grid-cols-2 gap-3">
+                {[...Array(6)].map((_, i) => <SkeletonCard key={i} />)}
+              </div>
+            ) : (
+              <div className="p-4 space-y-4">
+                {/* ── TODAY ───────────────────────────────────────────────────────────────────────────────────── */}
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider">Today</span>
+                    <span className="text-[10px] text-muted-foreground">{todayStr}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <KPICard label="Cash Sales"       value={`${currency}${realSummary.todayCash.toLocaleString()}`}    icon={Banknote}    colorClass="text-emerald-600" bgClass="bg-emerald-100" sublabel="Counter cash" />
+                    <KPICard label="POS / Network"    value={`${currency}${realSummary.todayNetwork.toLocaleString()}`} icon={CreditCard}  colorClass="text-violet-600" bgClass="bg-violet-100" sublabel="POS & digital" />
+                    <KPICard label="Customer Credit"  value={`${currency}${realSummary.todayCredit.toLocaleString()}`}  icon={User}        colorClass="text-blue-600"   bgClass="bg-blue-100"   sublabel="Credit sales" />
+                    {realSummary.todayCustom > 0 && (
+                      <KPICard label="Custom Sources"  value={`${currency}${realSummary.todayCustom.toLocaleString()}`}  icon={Star}        colorClass="text-amber-600"  bgClass="bg-amber-100"  sublabel="Other sources" />
+                    )}
+                    <KPICard label="Total Revenue"    value={`${currency}${realSummary.todayTotal.toLocaleString()}`}   icon={DollarSign}  colorClass="text-indigo-600" bgClass="bg-indigo-100" sublabel={realSummary.todayCustom > 0 ? 'Cash+POS+Credit+Custom' : 'Cash+POS+Credit'} />
+                  </div>
+                </div>
+
+                {/* ── YESTERDAY ─────────────────────────────────────────────────────────────────────────────────── */}
+                <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Yesterday</span>
+                    <span className="text-[10px] text-muted-foreground">{yesterdayStr}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-bold text-foreground">{currency}{realSummary.yesterdayRealTotal.toLocaleString()}</span>
+                    {realSummary.yesterdayRealTotal > 0 && realSummary.todayTotal > 0 && (
+                      <span className={`text-xs font-bold ${
+                        realSummary.todayTotal >= realSummary.yesterdayRealTotal ? 'text-emerald-600' : 'text-red-500'
+                      }`}>
+                        {realSummary.todayTotal >= realSummary.yesterdayRealTotal ? '+' : ''}
+                        {(((realSummary.todayTotal - realSummary.yesterdayRealTotal) / realSummary.yesterdayRealTotal) * 100).toFixed(1)}% vs today
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* ── MONTH ──────────────────────────────────────────────────────────────────────────────────────── */}
+                <div className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[10px] font-bold text-indigo-700 uppercase tracking-wider">Month Running Total</span>
+                    <span className="text-[10px] text-muted-foreground">{monthStartStr} → today</span>
+                  </div>
+                  <span className="text-lg font-black text-indigo-700">{currency}{realSummary.monthTotal.toLocaleString()}</span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* ═══════════════════════════════════════════════════════════════

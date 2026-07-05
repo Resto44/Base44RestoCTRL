@@ -182,6 +182,13 @@ export default function DailyCashSettlementForm({ branch, date, onSettlementChan
       notif.success('Settlement submitted successfully.');
       qc.invalidateQueries({ queryKey: ['daily_cash_settlements'] });
       qc.invalidateQueries({ queryKey: ['cash_shortages'] });
+      // Refresh dashboard and live summary
+      qc.invalidateQueries({ queryKey: ['sales_today'] });
+      qc.invalidateQueries({ queryKey: ['sales_month'] });
+      qc.invalidateQueries({ queryKey: ['sales_today_live'] });
+      qc.invalidateQueries({ queryKey: ['sales_yesterday_live'] });
+      qc.invalidateQueries({ queryKey: ['sales_month_live'] });
+      qc.invalidateQueries({ queryKey: ['wallet_transactions_dash'] });
       if (onSettlementChange) onSettlementChange(data);
     },
     onError: (err) => notif.error('Failed to submit: ' + (err?.message || 'Unknown error')),
@@ -193,6 +200,10 @@ export default function DailyCashSettlementForm({ branch, date, onSettlementChan
     onSuccess: () => {
       notif.success('Settlement approved.');
       qc.invalidateQueries({ queryKey: ['daily_cash_settlements'] });
+      qc.invalidateQueries({ queryKey: ['sales_today'] });
+      qc.invalidateQueries({ queryKey: ['sales_today_live'] });
+      qc.invalidateQueries({ queryKey: ['sales_month_live'] });
+      qc.invalidateQueries({ queryKey: ['wallet_transactions_dash'] });
     },
     onError: (err) => notif.error('Failed to approve: ' + (err?.message || 'Unknown error')),
   });

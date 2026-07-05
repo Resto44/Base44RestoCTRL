@@ -548,24 +548,18 @@ export default function OwnerDashboard() {
       ? (Number(latestSale.closing_cash) || Number(latestSale.restaurant_cash) || Number(latestSale.cash) || 0)
       : 0;
 
-    // KPI FIX: Network Balance = month-to-date network/POS sales MINUS received treasury settlements
-    // Sum all daily_sales network amounts from month start until today
-    const monthNetworkSales = (monthSales || []).reduce((s, r) =>
+    // NETWORK BALANCE — Today / Yesterday / Month (POS/Network only, no cash, no credit)
+    const networkToday = (todaySales || []).reduce((s, r) =>
       s + (Number(r.restaurant_network) || Number(r.network) || 0), 0);
-    
-    // Subtract treasury settlement transactions (branch_to_owner_network type)
-    // These represent money received FROM the branch/treasury
-    const receivedSettlements = (walletTransactions || [])
-      .filter(tx => {
-        const isNetworkSettlement = tx.type === 'branch_to_owner_network' || 
-                                     (tx.wallet === 'owner_network' && tx.settlement === true);
-        const isThisMonth = tx.transaction_date && tx.transaction_date.startsWith(monthStart.substring(0, 7));
-        const isInflow = tx.direction === 'in';
-        return isNetworkSettlement && isThisMonth && isInflow;
-      })
-      .reduce((s, tx) => s + (Number(tx.amount) || 0), 0);
-    
-    const networkBalance = monthNetworkSales - receivedSettlements;
+
+    const networkYesterday = (yesterdaySales || []).reduce((s, r) =>
+      s + (Number(r.restaurant_network) || Number(r.network) || 0), 0);
+
+    const networkMonth = (monthSales || []).reduce((s, r) =>
+      s + (Number(r.restaurant_network) || Number(r.network) || 0), 0);
+
+    // Keep legacy networkBalance for any other widgets that may reference it
+    const networkBalance = networkMonth;
 
     // KPI FIX: Customer Credit = total open receivables (live balance from DebtRecord)
     const customerCredit = customerDebts
@@ -591,11 +585,11 @@ export default function OwnerDashboard() {
     return {
       salesToday, cashSalesToday, networkSalesToday, creditSalesToday,
       purchasesToday, grossProfit, netProfit,
-      cashInRegister, networkBalance, customerCredit,
+      cashInRegister, networkBalance, networkToday, networkYesterday, networkMonth, customerCredit,
       inventoryValue, supplierPayables,
       ownerCapitalToday, cashShortageToday, cashOverageToday,
     };
-  }, [todaySales, todayExpenses, supplierInvoices, customerDebts, inventory, today, monthSales, walletTransactions, monthStart, selectedBranch]);
+  }, [todaySales, yesterdaySales, todayExpenses, supplierInvoices, customerDebts, inventory, today, monthSales, walletTransactions, monthStart, selectedBranch]);
 
   // ── Section 2: Operating Result (NEVER REMOVE) ───────────────────────────────
   const operatingResult = useMemo(() => {
@@ -839,7 +833,12 @@ export default function OwnerDashboard() {
               <MetricCard title="Gross Profit"       value={fmt(execSummary.grossProfit)}      subtitle="Sales − Purchases"          icon={execSummary.grossProfit >= 0 ? TrendingUp : TrendingDown} color={execSummary.grossProfit >= 0 ? 'green' : 'red'} onClick={() => navigate('/profit-loss')} />
               <MetricCard title="Net Profit"         value={fmt(execSummary.netProfit)}        subtitle="Sales − Purchases − Expenses" icon={execSummary.netProfit >= 0 ? TrendingUp : TrendingDown} color={execSummary.netProfit >= 0 ? 'green' : 'red'} onClick={() => navigate('/profit-loss')} />
               <MetricCard title="Cash in Register"   value={fmt(execSummary.cashInRegister)}   subtitle="Latest closing cash"        icon={Banknote}      color="blue"   onClick={() => navigate('/sales')} />
-              <MetricCard title="Network Balance"    value={fmt(execSummary.networkBalance)}   subtitle="Month-to-date after settlements"      icon={Wifi}          color="cyan"   onClick={() => navigate('/network-management')} />
+              {/* NETWORK BALANCE — 3-column row: Today / Yesterday / Month */}
+              <div className="col-span-2 grid grid-cols-3 gap-2">
+                <MetricCard title="Network Today"     value={fmt(execSummary.networkToday)}     subtitle="POS/Network today"          icon={Wifi}  color="cyan"   onClick={() => navigate('/network-management')} />
+                <MetricCard title="Network Yesterday" value={fmt(execSummary.networkYesterday)} subtitle="POS/Network yesterday"      icon={Wifi}  color="cyan"   onClick={() => navigate('/network-management')} />
+                <MetricCard title="Month Network"     value={fmt(execSummary.networkMonth)}     subtitle="POS/Network month-to-date"  icon={Wifi}  color="cyan"   onClick={() => navigate('/network-management')} />
+              </div>
               <MetricCard title="Customer Credit"    value={fmt(execSummary.customerCredit)}   subtitle="Outstanding receivables"    icon={CreditCard}    color="purple" onClick={() => navigate('/debt-management')} />
               <MetricCard title="Inventory Value"    value={fmt(execSummary.inventoryValue)}   subtitle="At cost price"              icon={Package}       color="indigo" onClick={() => navigate('/inventory')} />
               <MetricCard title="Supplier Payables"  value={fmt(execSummary.supplierPayables)} subtitle="Outstanding invoices"       icon={Truck}         color="orange" onClick={() => navigate('/suppliers')} />
