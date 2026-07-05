@@ -524,17 +524,14 @@ export default function SalesSourcesManager() {
 
   // ── Fetch ───────────────────────────────────────────────────────────────
   const { data: sources = [], isLoading, refetch } = useQuery({
-    queryKey: ['sales_sources', ownerFilter?.created_by],
+    queryKey: ['sales_sources'],
     queryFn: async () => {
-      // Owner sees all their sources; filter by created_by for tenant isolation
+      // Fetch all sources: system sources (created_by IS NULL) + current restaurant/tenant sources + current user created sources
       const all = await base44.entities.SalesSource.list('sort_order', 200);
-      if (ownerFilter?.created_by) {
-        return all.filter(s => !s.created_by || s.created_by === ownerFilter.created_by);
-      }
       return all;
     },
     staleTime: 30000,
-    enabled: !!(ownerFilter?.created_by || user?.email),
+    enabled: !!user?.email,
   });
 
   const sorted = useMemo(() =>
@@ -545,7 +542,12 @@ export default function SalesSourcesManager() {
   // ── Mutations ──────────────────────────────────────────────────────────────
   const createMut = useMutation({
     mutationFn: (data) => base44.entities.SalesSource.create({ ...data, created_by: user?.email }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['sales_sources'] }); toast.success('Sales source created'); setDialogOpen(false); },
+    onSuccess: async () => { 
+      await qc.invalidateQueries({ queryKey: ['sales_sources'] }); 
+      await refetch();
+      toast.success('Sales source created'); 
+      setDialogOpen(false); 
+    },
     onError: (e) => toast.error(`Failed to create: ${e.message}`),
   });
 

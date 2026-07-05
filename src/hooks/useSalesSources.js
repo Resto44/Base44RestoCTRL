@@ -16,13 +16,11 @@ export function useSalesSources({ branchKey } = {}) {
   const effectiveBranch = branchKey || managerBranch || null;
 
   const { data: allSources = [], isLoading, error, refetch } = useQuery({
-    queryKey: ['sales_sources_active', ownerFilter?.created_by],
+    queryKey: ['sales_sources_active'],
     queryFn: async () => {
       const all = await base44.entities.SalesSource.list('sort_order', 200);
-      // Tenant isolation: only show sources created by this owner
-      if (ownerFilter?.created_by) {
-        return all.filter(s => !s.created_by || s.created_by === ownerFilter.created_by);
-      }
+      // Return: system sources (created_by IS NULL) + current restaurant/tenant sources + current user created sources
+      // RLS will filter what the user can actually see based on their role and permissions
       return all;
     },
     staleTime: 60000,
