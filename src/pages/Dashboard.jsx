@@ -2,7 +2,6 @@ import { useAuth } from "@/lib/AuthContext";
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
-import { supabase } from '@/api/supabaseClient';
 import { useLanguage } from '@/lib/LanguageContext';
 import { useTenant } from '@/lib/TenantContext';
 import { useSalesSources } from '@/hooks/useSalesSources';
@@ -17,7 +16,7 @@ import AccountsPayableWidget from '@/components/dashboard/AccountsPayableWidget'
 import PriceChangesWidget from '@/components/dashboard/PriceChangesWidget';
 import SmartInsights from '@/components/dashboard/SmartInsights';
 import { Card } from '@/components/ui/card';
-import { DollarSign, TrendingUp, TrendingDown, Percent, ShoppingCart, AlertTriangle, Receipt, Flame, Wallet, Scale, ShoppingBag, BarChart3 } from 'lucide-react';
+import { DollarSign, TrendingUp, TrendingDown, Percent, ShoppingCart, AlertTriangle, Receipt, Wallet, Scale, BarChart3 } from 'lucide-react';
 import { computeBranchSettlements } from '@/components/treasury/BranchSettlementLedger';
 import { format } from 'date-fns';
 import { Link } from 'react-router-dom';
@@ -33,23 +32,13 @@ import ManagerWorkspace from '@/components/dashboard/ManagerWorkspace';
 import FinancialKPIs from '@/components/dashboard/FinancialKPIs';
 import { useRole, ROLES } from '@/lib/RoleContext';
 
-const FETCH_DAYS = 90;
-
 export default function Dashboard() {
-  const { user, isLoadingAuth } = useAuth(); {
+  const { user, isLoadingAuth } = useAuth();
   const { t, currency } = useLanguage();
   const { branches, ownerFilter } = useTenant();
   const { role } = useRole();
-  const { profile } = useTenant();
   const { revenueSources } = useSalesSources();
-  const isLoading = loadingSales || loadingPurchases || loadingExpenses || loadingWaste || loadingWallet || loadingInventory || loadingPayroll;
-  if (isLoadingAuth || isLoading || !user || !profile) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
-      </div>
-    );
-  }
+
   const [rangeType, setRangeType] = useState('month');
   const [branch, setBranch] = useState('all');
   const [customFrom, setCustomFrom] = useState(format(new Date(), 'yyyy-MM-dd'));
@@ -63,13 +52,49 @@ export default function Dashboard() {
   const fromStr = formatDate(dateRange.from);
   const toStr = formatDate(dateRange.to);
 
-  const allSales = rawSales || [];
-  const allPurchases = rawPurchases || [];
-  const allExpenses = rawExpenses || [];
-  const allWaste = rawWaste || [];
-  const walletTx = rawWallet || [];
-  const inventory = rawInventory || [];
-  const allPayroll = rawPayroll || [];
+  // ── DATA QUERIES ──────────────────────────────────────────────────────
+  const { data: allSales = [], isLoading: loadingSales } = useQuery({
+    queryKey: ['sales', ownerFilter],
+    queryFn: () => base44.entities.DailySales.filter(ownerFilter || {}, '-date', 1000),
+    staleTime: 60000,
+    enabled: !!ownerFilter?.created_by,
+  });
+  const { data: allPurchases = [], isLoading: loadingPurchases } = useQuery({
+    queryKey: ['purchases', ownerFilter],
+    queryFn: () => base44.entities.Purchase.filter(ownerFilter || {}, '-date', 1000),
+    staleTime: 60000,
+    enabled: !!ownerFilter?.created_by,
+  });
+  const { data: allExpenses = [] } = useQuery({
+    queryKey: ['expenses', ownerFilter],
+    queryFn: () => base44.entities.Expense.filter(ownerFilter || {}, '-date', 1000),
+    staleTime: 120000,
+    enabled: !!ownerFilter?.created_by,
+  });
+  const { data: allWaste = [] } = useQuery({
+    queryKey: ['inventory_waste', ownerFilter],
+    queryFn: () => base44.entities.InventoryWaste.filter(ownerFilter || {}, '-date', 500),
+    staleTime: 120000,
+    enabled: !!ownerFilter?.created_by,
+  });
+  const { data: walletTx = [] } = useQuery({
+    queryKey: ['wallet_transactions', ownerFilter],
+    queryFn: () => base44.entities.WalletTransaction.filter(ownerFilter || {}, '-transaction_date', 500),
+    staleTime: 120000,
+    enabled: !!ownerFilter?.created_by,
+  });
+  const { data: inventory = [] } = useQuery({
+    queryKey: ['inventory_dashboard', ownerFilter],
+    queryFn: () => base44.entities.Inventory.filter(ownerFilter || {}, 'product_name', 500),
+    staleTime: 300000,
+    enabled: !!ownerFilter?.created_by,
+  });
+  const { data: allPayroll = [] } = useQuery({
+    queryKey: ['payroll_runs', ownerFilter],
+    queryFn: () => base44.entities.PayrollRun.filter(ownerFilter || {}, '-paid_date', 500),
+    staleTime: 300000,
+    enabled: !!ownerFilter?.created_by,
+  });
 
   // ── Period-scoped data ────────────────────────────────────────────────
   const filteredSales = useMemo(() =>
@@ -88,12 +113,9 @@ export default function Dashboard() {
     allWaste.filter(w => w.date >= fromStr && w.date <= toStr && (branch === 'all' || w.branch === branch)),
     [allWaste, fromStr, toStr, branch]
   );
-  const totalWasteLoss = useMemo(() => filteredWaste.reduce((s, w) => s + (w.total_loss || 0), 0), [filteredWaste]);
 
-  // ── Correct profit = Sales - Purchase Cost - Expenses (NOT wallet balance) ──
   const metrics = useMemo(() => computeDashboardMetrics(filteredSales, filteredPurchases, filteredExpenses, rangeType, revenueSources), [filteredSales, filteredPurchases, filteredExpenses, rangeType, revenueSources]);
 
-  // ── Previous period comparison ────────────────────────────────────────
   const prevRange = useMemo(() => {
     const diffMs = dateRange.to - dateRange.from;
     return { from: new Date(dateRange.from - diffMs - 86400000), to: new Date(dateRange.from - 86400000) };
@@ -105,7 +127,6 @@ export default function Dashboard() {
   const prevExpenses = useMemo(() => allExpenses.filter(e => e.date >= prevFrom && e.date <= prevTo && (branch === 'all' || e.branch === branch || e.branch === 'all')), [allExpenses, prevFrom, prevTo, branch]);
   const prevMetrics = useMemo(() => computeDashboardMetrics(prevSales, prevPurchases, prevExpenses, rangeType, revenueSources), [prevSales, prevPurchases, prevExpenses, rangeType, revenueSources]);
 
-  // ── Treasury wallet balances — separate from P&L, never mixed into profit ──
   const walletBalances = useMemo(() => {
     const calc = (walletKey) => walletTx.filter(tx => tx.wallet === walletKey)
       .reduce((s, tx) => s + (tx.direction === 'in' ? (tx.amount || 0) : -(tx.amount || 0)), 0);
@@ -117,7 +138,6 @@ export default function Dashboard() {
       branchMap[tx.branch] += tx.direction === 'in' ? (tx.amount || 0) : -(tx.amount || 0);
     });
     const totalBranchCash = Object.values(branchMap).reduce((s, v) => s + v, 0);
-    // Settlement: total branch balances held by owner
     const settlements = computeBranchSettlements(walletTx, branches);
     const totalHeldByOwner = Object.values(settlements).reduce((s, v) => s + v.remaining, 0);
     return { ownerNetwork, ownerCash, totalBranchCash, totalHeldByOwner };
@@ -129,11 +149,9 @@ export default function Dashboard() {
     return `${Number(p) >= 0 ? '+' : ''}${p}% ${t('vs_last_period')}`;
   };
 
-  // ── First-time owner: wait for both queries to finish before deciding ──
-  const dataLoading = loadingSales || loadingPurchases;
+  const dataLoading = loadingSales || loadingPurchases || isLoadingAuth;
   const isFirstTime = !dataLoading && allSales.length === 0 && allPurchases.length === 0;
 
-  // Managers see their dedicated branch workspace
   if (role === ROLES.MANAGER) return <ManagerWorkspace />;
 
   if (dataLoading) return (
@@ -222,7 +240,6 @@ export default function Dashboard() {
         prevExpenses={prevExpenses}
       />
 
-      {/* ── Real Daily Profit (cash-difference accounting) ── */}
       <RealDailyProfit
         walletTx={walletTx}
         allSales={allSales}
@@ -234,7 +251,6 @@ export default function Dashboard() {
         currency={currency}
       />
 
-      {/* ── Sales & Profit KPIs (from actual transactions only) ── */}
       <div className="grid grid-cols-2 gap-3 mb-4">
         <KPICard label={t('total_sales')} value={formatCurrency(metrics.totalSales, currency)} sublabel={vsLabel(metrics.totalSales, prevMetrics.totalSales)} icon={DollarSign} />
         <KPICard label={t('total_purchase_cost')} value={formatCurrency(metrics.totalPurchaseCost, currency)} sublabel={vsLabel(metrics.totalPurchaseCost, prevMetrics.totalPurchaseCost)} icon={ShoppingCart} color="text-amber-500" />
@@ -244,7 +260,6 @@ export default function Dashboard() {
         <KPICard label={t('margin')} value={formatPct(metrics.margin)} icon={Percent} color="text-violet-500" />
       </div>
 
-      {/* ── Treasury balances (separate section — NOT part of P&L) ── */}
       <Card className="p-3 mb-4 border-indigo-200 bg-indigo-50 dark:bg-indigo-950/20">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-1.5">
@@ -286,11 +301,9 @@ export default function Dashboard() {
         </div>
       </Card>
 
-      {/* ── Risk + Waste ── */}
       <div className="grid grid-cols-2 gap-3 mb-4">
         <KPICard label={t('credit_pct')} value={formatPct(metrics.creditPct)} icon={AlertTriangle} color="text-orange-500" />
-        <KPICard label={t('waste_loss') || 'Waste Loss'} value={formatCurrency(totalWasteLoss, currency)} icon={Flame} color="text-red-500" />
-        <div className="col-span-2 flex items-center justify-center bg-card rounded-xl border p-3">
+        <div className="bg-muted/30 rounded-xl p-3 flex items-center justify-center">
           <div className="text-center">
             <p className="text-xs text-muted-foreground mb-1">{t('risk')}</p>
             <RiskBadge creditPct={metrics.creditPct} />
@@ -302,7 +315,6 @@ export default function Dashboard() {
       <AccountsPayableWidget />
       <PriceChangesWidget />
 
-      {/* ── Upgraded Payment Mix + Charts ── */}
       <div className="mt-4">
         <h2 className="text-sm font-semibold text-foreground mb-3">{t('sales_dashboard')}</h2>
         <PaymentMixCharts
@@ -318,4 +330,4 @@ export default function Dashboard() {
 
     </div>
   );
-}}
+}

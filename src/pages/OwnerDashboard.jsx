@@ -313,7 +313,7 @@ export default function OwnerDashboard() {
   const { t, currency } = useLanguage();
   const { branches, ownerFilter, orgId, activeRestaurant } = useTenant();
   const { role } = useRole();
-  const { user, isLoadingAuth } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const notif = useNotify();
   const qc = useQueryClient();
@@ -322,13 +322,6 @@ export default function OwnerDashboard() {
   // ── BRANCH SELECTION STATE ────────────────────────────────────────────────
   // 'all' means aggregate all branches; any other value is a branch key/id
   const [selectedBranch, setSelectedBranch] = useState('all');
-  if (isLoadingAuth || isLoading || !user || !profile) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
-      </div>
-    );
-  }
 
   // Build the effective filter: owner-scoped + optional branch filter
   // When 'all' is selected: use ownerFilter as-is (all branches)
@@ -466,7 +459,12 @@ export default function OwnerDashboard() {
     enabled,
   });
 
-  const inventory = rawInventory || [];
+  const { data: inventory = [] } = useQuery({
+    queryKey: ['inventory_dash', branchFilter, selectedBranch],
+    queryFn: () => base44.entities.Inventory.filter(branchFilter || {}, 'product_name', 500),
+    staleTime: 60000,
+    enabled,
+  });
 
   const { data: networkAccounts = [] } = useQuery({
     queryKey: ['network_accounts_dash', branchFilter, selectedBranch],

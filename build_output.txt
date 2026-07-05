@@ -1,0 +1,5 @@
+
+> base44-app@0.0.0 build
+> vite build
+
+[base44] Proxy not enabled (VITE_BASE44_APP_BASE_URL not set)
