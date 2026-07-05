@@ -163,10 +163,17 @@ class RouteErrorBoundary extends React.Component {
 // ── Onboarding gate ───────────────────────────────────────────────────────────
 function OnboardingGate({ children }) {
   const { restaurants, loadingRestaurants } = useTenant();
-  const { user } = useAuth();
+  const { user, isLoadingAuth } = useAuth();
   const location = window.location;
 
-  if (loadingRestaurants) return null;
+  // Block rendering until both auth AND restaurant data are ready
+  if (isLoadingAuth || loadingRestaurants) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   const restrictedRole = [ROLES.MANAGER, ROLES.EMPLOYEE, ROLES.DRIVER, ROLES.SPONSOR, ROLES.KITCHEN, ROLES.CUSTOMER].includes(user?.role);
   if (restrictedRole) return children;
@@ -408,7 +415,7 @@ function ManagerRoleApplier() {
 
 // ── Authenticated app shell ───────────────────────────────────────────────────
 const AuthenticatedApp = () => {
-  const { isLoadingAuth, authError, navigateToLogin } = useAuth();
+  const { isLoadingAuth, authError, user, navigateToLogin } = useAuth();
   const [timedOut, setTimedOut] = React.useState(false);
 
   React.useEffect(() => {
@@ -416,7 +423,8 @@ const AuthenticatedApp = () => {
     return () => clearTimeout(t);
   }, []);
 
-  const noUser = !isLoadingAuth && !useAuth().user && !useAuth().authError;
+  // Wait for auth to finish before deciding whether to redirect
+  const noUser = !isLoadingAuth && !user && !authError;
   if (noUser) { navigateToLogin(); return null; }
 
   if (isLoadingAuth && timedOut) {

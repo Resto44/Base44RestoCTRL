@@ -156,19 +156,20 @@ function logSecurityEvent(_user, _type, detail) {
   audit.securityViolation(detail, _user?.role || 'unknown');
 }
 export function RoleProvider({ children }) {
-  const { user } = useAuth();
+  const { user, isLoadingAuth } = useAuth();
   const role = useMemo(() => {
-    if (!user) return ROLES.OWNER; 
+    // Do not resolve role until auth has finished loading
+    if (isLoadingAuth || !user) return ROLES.OWNER;
     // Normalize role strings to match our ROLES constant
-    const r = (user.role || '').toLowerCase();
+    const r = (user?.role || '').toLowerCase();
     if (Object.values(ROLES).includes(r)) return r;
     if (r === 'admin' || r === 'restaurant_admin') return ROLES.OWNER;
     if (r === 'staff') return ROLES.EMPLOYEE;
     return ROLES.OWNER; // Safe default
-  }, [user]);
+  }, [user, isLoadingAuth]);
   const can = useMemo(() => buildCan(role), [role]);
   return (
-    <RoleContext.Provider value={{ role, can, user }}>
+    <RoleContext.Provider value={{ role, can, user, isLoadingAuth }}>
       {children}
     </RoleContext.Provider>
   );
@@ -179,11 +180,12 @@ export function useRole() {
   return ctx;
 }
 export function useRouteGuard() {
-  const { role, user } = useRole();
+  const { role, user, isLoadingAuth } = useRole();
   const navigate = useNavigate();
   const location = useLocation();
   useEffect(() => {
-    if (!user) return;
+    // Never redirect while auth is still loading — role is not yet final
+    if (isLoadingAuth || !user) return;
     const path = location.pathname;
     // Whitelist bypass for home, auth, and onboarding
     if (['/', '/auth', '/onboarding', '/support'].includes(path)) return;
@@ -194,5 +196,5 @@ export function useRouteGuard() {
         navigate(ROLE_HOME[role] || '/owner-command-center', { replace: true });
       }
     }
-  }, [location.pathname, role, user]);
+  }, [location.pathname, role, user, isLoadingAuth]);
 }

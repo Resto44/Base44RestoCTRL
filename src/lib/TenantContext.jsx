@@ -13,7 +13,7 @@ const TenantContext = createContext({
 });
 
 export function TenantProvider({ children }) {
-  const { user } = useAuth();
+  const { user, isLoadingAuth } = useAuth();
   const queryClient = useQueryClient();
 
   // Active restaurant id stored in localStorage per user
@@ -70,7 +70,7 @@ export function TenantProvider({ children }) {
       
       return [];
     },
-    enabled: !!user?.email,
+    enabled: !!user?.email && !isLoadingAuth,
     staleTime: 60000,
   });
 
@@ -196,7 +196,7 @@ export function TenantProvider({ children }) {
   return (
     <TenantContext.Provider value={{
       restaurants,
-      loadingRestaurants,
+      loadingRestaurants: loadingRestaurants || isLoadingAuth,
       activeRestaurant,
       activeRestaurantId: activeRestaurant?.id || null,
       setActiveRestaurant,

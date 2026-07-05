@@ -69,14 +69,16 @@ export function SubscriptionProvider({ children }) {
     }
   }, [orgKey]);
 
+  const { isLoadingAuth } = useAuth();
+
   useEffect(() => {
     if (user?.email) {
       fetchSubscription();
-    } else if (!user && !useAuth().isLoadingAuth) {
+    } else if (!user && !isLoadingAuth) {
       // If auth check finished and no user, we're not loading subscription
       setLoading(false);
     }
-  }, [fetchSubscription, user?.email, user]);
+  }, [fetchSubscription, user?.email, user, isLoadingAuth]);
 
   const effectiveStatus = (() => {
     if (!subscription) return 'trial';
