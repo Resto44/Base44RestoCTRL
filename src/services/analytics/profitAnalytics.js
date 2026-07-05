@@ -1,111 +1,85 @@
+/**
+ * profitAnalytics.js — Compatibility shim.
+ * Provides getProfitAndLoss functions used by AdvancedKPICards and ExecutivePnL.
+ * All computations are done inline from raw Supabase/base44 data.
+ */
+
 import { base44 } from '@/api/base44Client';
 import { supabase } from '@/api/supabaseClient';
-import { computeDashboardMetrics } from '@/lib/helpers';
+import { formatDate, getDateRange } from '@/lib/helpers';
 
-/**
- * Fetches and processes data required for P&L calculations.
- * @param {object} ownerFilter - The tenant/owner filter object.
- * @param {string} fromDate - Start date (YYYY-MM-DD).
- * @param {string} toDate - End date (YYYY-MM-DD).
- * @param {string} branchKey - Optional branch key to filter by.
- * @returns {Promise<{sales: Array, purchases: Array, expenses: Array}>} Raw data.
- */
-async function fetchPnlData(ownerFilter, fromDate, toDate, branchKey = 'all') {
-  const [allSales, allPurchases, allExpenses] = await Promise.all([
-    base44.entities.DailySales.filter(ownerFilter || {}, '-date', 1000),
-    supabase
-      .from('supplier_invoices')
-      .select('*')
-      .eq('created_by', ownerFilter?.created_by)
-      .in('approval_status', ['approved', 'auto_approved'])
-      .order('date', { ascending: false })
-      .limit(1000)
-      .then(({ data }) => data || []),
-    base44.entities.Expense.filter(ownerFilter || {}, '-date', 1000),
-  ]);
+// ── Core P&L builder ──────────────────────────────────────────────────────────
+async function buildPnL(ownerFilter, fromStr, toStr, branchKey = 'all') {
+  try {
+    const [sales, expenses] = await Promise.all([
+      base44.entities.DailySales.filter(ownerFilter || {}, '-date', 2000),
+      base44.entities.Expense.filter(ownerFilter || {}, '-date', 2000),
+    ]);
 
-  let filteredSales = allSales.filter(s => s.date >= fromDate && s.date <= toDate);
-  let filteredPurchases = allPurchases.filter(p => p.date >= fromDate && p.date <= toDate);
-  let filteredExpenses = allExpenses.filter(e => e.date >= fromDate && e.date <= toDate);
+    let purchases = [];
+    if (ownerFilter?.created_by) {
+      const { data } = await supabase
+        .from('supplier_invoices')
+        .select('total_amount, date')
+        .eq('created_by', ownerFilter.created_by)
+        .in('approval_status', ['approved', 'auto_approved'])
+        .gte('date', fromStr)
+        .lte('date', toStr);
+      purchases = data || [];
+    }
 
-  if (branchKey !== 'all') {
-    filteredSales = filteredSales.filter(s => s.branch === branchKey);
-    filteredPurchases = filteredPurchases.filter(p => p.branch === branchKey);
-    filteredExpenses = filteredExpenses.filter(e => e.branch === branchKey || e.branch === 'all');
+    const filteredSales = sales.filter(s =>
+      s.date >= fromStr && s.date <= toStr &&
+      (branchKey === 'all' || s.branch === branchKey)
+    );
+    const filteredExpenses = expenses.filter(e =>
+      e.date >= fromStr && e.date <= toStr &&
+      (branchKey === 'all' || e.branch === branchKey || e.branch === 'all')
+    );
+
+    const revenue = filteredSales.reduce((s, x) => s + (x.cash || 0) + (x.network || 0) + (x.credit || 0), 0);
+    const cogs = purchases.reduce((s, x) => s + (x.total_amount || 0), 0);
+    const operatingExpenses = filteredExpenses.reduce((s, x) => s + (x.amount || 0), 0);
+    const grossProfit = revenue - cogs;
+    const netProfit = grossProfit - operatingExpenses;
+    const profitMargin = revenue > 0 ? (grossProfit / revenue) * 100 : 0;
+    const netProfitMargin = revenue > 0 ? (netProfit / revenue) * 100 : 0;
+
+    return { revenue, cogs, grossProfit, operatingExpenses, netProfit, profitMargin, netProfitMargin };
+  } catch {
+    return { revenue: 0, cogs: 0, grossProfit: 0, operatingExpenses: 0, netProfit: 0, profitMargin: 0, netProfitMargin: 0 };
   }
-
-  return { sales: filteredSales, purchases: filteredPurchases, expenses: filteredExpenses };
 }
 
-/**
- * Calculates P&L metrics for a given period and branch.
- * @param {object} ownerFilter - The tenant/owner filter object.
- * @param {string} fromDate - Start date (YYYY-MM-DD).
- * @param {string} toDate - End date (YYYY-MM-DD).
- * @param {string} branchKey - Optional branch key to filter by.
- * @returns {Promise<object>} P&L metrics.
- */
-export async function getProfitAndLoss(ownerFilter, fromDate, toDate, branchKey = 'all') {
-  const { sales, purchases, expenses } = await fetchPnlData(ownerFilter, fromDate, toDate, branchKey);
-
-  const metrics = computeDashboardMetrics(sales, purchases, expenses);
-
-  return {
-    revenue: metrics.totalSales,
-    cogs: metrics.totalPurchaseCost,
-    grossProfit: metrics.profit,
-    operatingExpenses: metrics.totalExpenses,
-    netProfit: metrics.netProfit,
-    profitMargin: metrics.margin,
-    netProfitMargin: metrics.netMargin,
-  };
+// ── Public API ────────────────────────────────────────────────────────────────
+export function getProfitAndLoss(ownerFilter, fromStr, toStr, branchKey = 'all') {
+  return buildPnL(ownerFilter, fromStr, toStr, branchKey);
 }
 
-/**
- * Calculates P&L metrics for today.
- */
-export async function getProfitAndLossToday(ownerFilter, branchKey = 'all') {
-  const today = new Date().toISOString().split('T')[0];
-  return getProfitAndLoss(ownerFilter, today, today, branchKey);
+export function getProfitAndLossToday(ownerFilter, branchKey = 'all') {
+  const today = formatDate(new Date());
+  return buildPnL(ownerFilter, today, today, branchKey);
 }
 
-/**
- * Calculates P&L metrics for the current week.
- */
-export async function getProfitAndLossThisWeek(ownerFilter, branchKey = 'all') {
-  const today = new Date();
-  const startOfWeek = new Date(today.setDate(today.getDate() - today.getDay())).toISOString().split('T')[0];
-  const endOfWeek = new Date(today.setDate(today.getDate() - today.getDay() + 6)).toISOString().split('T')[0];
-  return getProfitAndLoss(ownerFilter, startOfWeek, endOfWeek, branchKey);
+export function getProfitAndLossThisWeek(ownerFilter, branchKey = 'all') {
+  const dr = getDateRange('week');
+  return buildPnL(ownerFilter, formatDate(dr.from), formatDate(dr.to), branchKey);
 }
 
-/**
- * Calculates P&L metrics for the current month.
- */
-export async function getProfitAndLossThisMonth(ownerFilter, branchKey = 'all') {
-  const today = new Date();
-  const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
-  const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
-  return getProfitAndLoss(ownerFilter, startOfMonth, endOfMonth, branchKey);
+export function getProfitAndLossThisMonth(ownerFilter, branchKey = 'all') {
+  const dr = getDateRange('month');
+  return buildPnL(ownerFilter, formatDate(dr.from), formatDate(dr.to), branchKey);
 }
 
-/**
- * Calculates P&L metrics for the current quarter.
- */
-export async function getProfitAndLossThisQuarter(ownerFilter, branchKey = 'all') {
-  const today = new Date();
-  const quarter = Math.floor((today.getMonth() / 3));
-  const startOfQuarter = new Date(today.getFullYear(), quarter * 3, 1).toISOString().split('T')[0];
-  const endOfQuarter = new Date(today.getFullYear(), quarter * 3 + 3, 0).toISOString().split('T')[0];
-  return getProfitAndLoss(ownerFilter, startOfQuarter, endOfQuarter, branchKey);
+export function getProfitAndLossThisQuarter(ownerFilter, branchKey = 'all') {
+  const now = new Date();
+  const q = Math.floor(now.getMonth() / 3);
+  const from = new Date(now.getFullYear(), q * 3, 1);
+  const to = new Date(now.getFullYear(), q * 3 + 3, 0);
+  return buildPnL(ownerFilter, formatDate(from), formatDate(to), branchKey);
 }
 
-/**
- * Calculates P&L metrics for the current year.
- */
-export async function getProfitAndLossThisYear(ownerFilter, branchKey = 'all') {
-  const today = new Date();
-  const startOfYear = new Date(today.getFullYear(), 0, 1).toISOString().split('T')[0];
-  const endOfYear = new Date(today.getFullYear(), 11, 31).toISOString().split('T')[0];
-  return getProfitAndLoss(ownerFilter, startOfYear, endOfYear, branchKey);
+export function getProfitAndLossThisYear(ownerFilter, branchKey = 'all') {
+  const year = new Date().getFullYear();
+  return buildPnL(ownerFilter, `${year}-01-01`, `${year}-12-31`, branchKey);
 }

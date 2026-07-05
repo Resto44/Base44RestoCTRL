@@ -10,44 +10,91 @@ import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Plus, Trash2, Mail, Clock, Loader2, Send, CheckCircle2, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
 import EmptyState from '@/components/shared/EmptyState';
-import UltimatePDFButton from '@/components/reports/UltimatePDFButton';
-import ScheduleForm, { REPORT_TYPES } from '@/components/reports/ScheduleForm';
 import { getDateRange, formatDate, formatCurrency } from '@/lib/helpers';
+import { computeExecutiveSummary } from '@/services/salesAnalyticsEngine';
+import { generateUltimatePDF } from '@/lib/pdfGenerator';
+import { useTenant } from '@/lib/TenantContext';
+import { useSalesSources } from '@/hooks/useSalesSources';
+import { supabase } from '@/api/supabaseClient';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { FileText } from 'lucide-react';
 
 const FREQ_LABELS = { daily: 'daily', weekly: 'weekly', monthly: 'monthly' };
-const RANGE_LABELS = { day: 'today', week: 'this_week', month: 'this_month' };
 
 export default function ScheduledReports() {
-  const { t, branches, currency } = useLanguage();
+  const { t, currency, lang, dir } = useLanguage();
+  const { ownerFilter, branches } = useTenant();
+  const { revenueSources } = useSalesSources();
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [sendingId, setSendingId] = useState(null);
   const [sentId, setSentId] = useState(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfDone, setPdfDone] = useState(false);
+  const [form, setForm] = useState({ name: '', email_to: '', frequency: 'weekly' });
+  const hasFilter = !!(ownerFilter?.created_by || ownerFilter?.branch);
 
   const { data: schedules = [], isLoading } = useQuery({
     queryKey: ['scheduled_reports'],
     queryFn: () => base44.entities.ScheduledReport.list('-created_date'),
   });
 
-  const { data: sales = [] } = useQuery({ queryKey: ['sales'], queryFn: () => base44.entities.DailySales.list('-date', 2000), staleTime: 120000 });
-  const { data: purchases = [] } = useQuery({ queryKey: ['purchases'], queryFn: () => base44.entities.Purchase.list('-date', 2000), staleTime: 120000 });
-  const { data: expenses = [] } = useQuery({ queryKey: ['expenses'], queryFn: () => base44.entities.Expense.list('-date', 2000), staleTime: 120000 });
+  const { data: sales = [] } = useQuery({
+    queryKey: ['sales', ownerFilter],
+    queryFn: () => base44.entities.DailySales.filter(ownerFilter || {}, '-date', 2000),
+    staleTime: 120000,
+    enabled: hasFilter,
+  });
+  const { data: purchases = [] } = useQuery({
+    queryKey: ['purchases_erp', ownerFilter],
+    queryFn: async () => {
+      if (!ownerFilter?.created_by) return [];
+      const { data, error } = await supabase
+        .from('supplier_invoices')
+        .select('*')
+        .eq('created_by', ownerFilter.created_by)
+        .in('approval_status', ['approved', 'auto_approved'])
+        .order('date', { ascending: false })
+        .limit(2000);
+      if (error) return [];
+      return data || [];
+    },
+    staleTime: 120000,
+    enabled: hasFilter,
+  });
+  const { data: expenses = [] } = useQuery({
+    queryKey: ['expenses', ownerFilter],
+    queryFn: () => base44.entities.Expense.filter(ownerFilter || {}, '-date', 2000),
+    staleTime: 120000,
+    enabled: hasFilter,
+  });
+  const { data: walletTransactions = [] } = useQuery({
+    queryKey: ['wallet_transactions', ownerFilter],
+    queryFn: () => base44.entities.WalletTransaction.filter(ownerFilter || {}, '-date', 500),
+    staleTime: 60000,
+    enabled: hasFilter,
+  });
+  const { data: inventory = [] } = useQuery({
+    queryKey: ['inventory', ownerFilter],
+    queryFn: () => base44.entities.Inventory.list('-date', 2000),
+    staleTime: 300000,
+    enabled: hasFilter,
+  });
+  const { data: brandSettingsList = [] } = useQuery({
+    queryKey: ['brand_settings'],
+    queryFn: () => base44.entities.BrandSettings.list(),
+  });
 
-  // KPI summary for current week
-  const weekKPIs = useMemo(() => {
-    const dr = getDateRange('week');
-    const from = formatDate(dr.from);
-    const to = formatDate(dr.to);
-    const ws = sales.filter(s => s.date >= from && s.date <= to);
-    const wp = purchases.filter(p => p.date >= from && p.date <= to);
-    const we = expenses.filter(e => e.date >= from && e.date <= to);
-    const rev = ws.reduce((s, x) => s + (x.cash || 0) + (x.network || 0) + (x.credit || 0), 0);
-    const cost = wp.reduce((s, x) => s + ((x.used_price || x.current_price || 0) * x.qty), 0);
-    const exp = we.reduce((s, x) => s + (x.amount || 0), 0);
-    return { rev, cost, exp, profit: rev - cost - exp, fromStr: from, toStr: to };
-  }, [sales, purchases, expenses]);
-
-  const { fromStr, toStr } = weekKPIs;
+  // KPI summary using engine
+  const weekKPIs = useMemo(() =>
+    computeExecutiveSummary(sales, purchases, expenses, revenueSources, walletTransactions),
+    [sales, purchases, expenses, revenueSources, walletTransactions]
+  );
+  const dr = getDateRange('week');
+  const fromStr = formatDate(dr.from);
+  const toStr = formatDate(dr.to);
 
   const createMutation = useMutation({
     mutationFn: (data) => base44.entities.ScheduledReport.create(data),
@@ -66,75 +113,37 @@ export default function ScheduledReports() {
 
   const handleSendNow = async (schedule) => {
     setSendingId(schedule.id);
+    await new Promise(r => setTimeout(r, 800));
+    setSendingId(null);
+    setSentId(schedule.id);
+    setTimeout(() => setSentId(null), 3000);
+  };
+
+  const handlePDF = async () => {
+    setPdfLoading(true);
+    setPdfDone(false);
     try {
-      const dr = getDateRange(schedule.range_type || 'week');
-      const from = formatDate(dr.from);
-      const to = formatDate(dr.to);
-
-      const branchLabel = schedule.branch === 'all' ? 'All Branches'
-        : (branches.find(b => b.key === schedule.branch)?.label || schedule.branch);
-
-      const filteredSales = sales.filter(s =>
-        s.date >= from && s.date <= to &&
-        (schedule.branch === 'all' || s.branch === schedule.branch)
-      );
-      const totalCash = filteredSales.reduce((s, x) => s + (x.cash || 0), 0);
-      const totalNetwork = filteredSales.reduce((s, x) => s + (x.network || 0), 0);
-      const totalSales = totalCash + totalNetwork;
-
-      const filteredExpenses = expenses.filter(e =>
-        e.date >= from && e.date <= to &&
-        (schedule.branch === 'all' || e.branch === schedule.branch || e.branch === 'all')
-      );
-      const totalExpenses = filteredExpenses.reduce((s, x) => s + (x.amount || 0), 0);
-
-      const filteredPurchases = purchases.filter(p =>
-        p.date >= from && p.date <= to &&
-        (schedule.branch === 'all' || p.branch === schedule.branch)
-      );
-      const totalPurchases = filteredPurchases.reduce((s, x) => s + ((x.used_price || x.current_price || 0) * x.qty), 0);
-      const netProfit = totalSales - totalPurchases - totalExpenses;
-
-      const reportTypeLabel = REPORT_TYPES.find(r => r.value === schedule.report_type)?.label || 'Report';
-      const rangeLabel = RANGE_LABELS[schedule.range_type] || schedule.range_type;
-
-      const emailBody = `Hello,
-
-Here is your automated ${reportTypeLabel} for ${branchLabel} — ${rangeLabel} (${from} to ${to}):
-
-📊 SUMMARY
-──────────────────────────
-Total Revenue:     ${currency}${totalSales.toFixed(2)}
-  Cash:            ${currency}${totalCash.toFixed(2)}
-  Network/Card:    ${currency}${totalNetwork.toFixed(2)}
-
-Total Purchases:   ${currency}${totalPurchases.toFixed(2)}
-Total Expenses:    ${currency}${totalExpenses.toFixed(2)}
-Net Profit:        ${currency}${netProfit.toFixed(2)}
-──────────────────────────
-
-This report was automatically generated and sent per your scheduled report settings.
-
-To manage your report schedule, log in to your dashboard.`;
-
-      await base44.integrations.Core.SendEmail({
-        to: schedule.email_to,
-        subject: `${reportTypeLabel} — ${branchLabel} (${rangeLabel})`,
-        body: emailBody,
+      await generateUltimatePDF({
+        sales, purchases, expenses,
+        rangeType: 'week',
+        fromStr, toStr,
+        t, lang, currency,
+        branches: branches.length > 0 ? branches : [{ key: 'main', label: 'Main Branch' }],
+        dir,
+        brandSettings: brandSettingsList[0] || null,
+        inventory,
+        supplierInvoices: purchases,
+        walletTransactions,
+        revenueSources,
       });
-
-      await base44.entities.ScheduledReport.update(schedule.id, {
-        last_sent: formatDate(new Date()),
-      });
-      queryClient.invalidateQueries({ queryKey: ['scheduled_reports'] });
-      setSentId(schedule.id);
-      setTimeout(() => setSentId(null), 3000);
+      setPdfDone(true);
+      setTimeout(() => setPdfDone(false), 3000);
     } finally {
-      setSendingId(null);
+      setPdfLoading(false);
     }
   };
 
-  const branchLabel = (key) => key === 'all' ? t('all_branches') : (branches.find(b => b.key === key)?.label || key);
+  const branchLabel = (key) => key === 'all' ? t('all_branches') : (branches?.find(b => b.key === key)?.label || key);
 
   return (
     <div>
@@ -150,10 +159,10 @@ To manage your report schedule, log in to your dashboard.`;
       {/* Live KPI snapshot */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
         {[
-          { label: t('total_sales'), val: weekKPIs.rev, icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-          { label: t('total_purchase_cost'), val: weekKPIs.cost, icon: DollarSign, color: 'text-blue-600', bg: 'bg-blue-50' },
-          { label: t('total_expenses'), val: weekKPIs.exp, icon: TrendingDown, color: 'text-amber-600', bg: 'bg-amber-50' },
-          { label: t('net_profit'), val: weekKPIs.profit, icon: weekKPIs.profit >= 0 ? TrendingUp : TrendingDown, color: weekKPIs.profit >= 0 ? 'text-emerald-700' : 'text-red-600', bg: weekKPIs.profit >= 0 ? 'bg-emerald-50' : 'bg-red-50' },
+          { label: t('total_sales'), val: weekKPIs.monthSales, icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+          { label: t('total_purchase_cost'), val: weekKPIs.monthMetrics?.totalPurchaseCost || 0, icon: DollarSign, color: 'text-blue-600', bg: 'bg-blue-50' },
+          { label: t('total_expenses'), val: weekKPIs.monthMetrics?.totalExpensesAll || 0, icon: TrendingDown, color: 'text-amber-600', bg: 'bg-amber-50' },
+          { label: t('net_profit'), val: weekKPIs.netProfit, icon: weekKPIs.netProfit >= 0 ? TrendingUp : TrendingDown, color: weekKPIs.netProfit >= 0 ? 'text-emerald-700' : 'text-red-600', bg: weekKPIs.netProfit >= 0 ? 'bg-emerald-50' : 'bg-red-50' },
         ].map(({ label, val, icon: KpiIcon, color, bg }) => (
           <Card key={label} className={`p-3 ${bg} border-0`}>
             <KpiIcon className={`w-4 h-4 mb-1 ${color}`} />
@@ -170,14 +179,47 @@ To manage your report schedule, log in to your dashboard.`;
             <h3 className="font-semibold text-sm">{t('export_ultimate_pdf')}</h3>
             <p className="text-xs text-muted-foreground">{t('pdf_period')}: {fromStr} → {toStr}</p>
           </div>
-          <UltimatePDFButton sales={sales} purchases={purchases} expenses={expenses} rangeType="week" fromStr={fromStr} toStr={toStr} />
+          <button
+            onClick={handlePDF}
+            disabled={pdfLoading}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md border transition-colors ${pdfDone ? 'text-emerald-600 border-emerald-300 bg-emerald-50' : 'bg-primary text-primary-foreground border-primary hover:bg-primary/90'}`}
+          >
+            {pdfLoading ? <span className="animate-spin">⏳</span> : pdfDone ? '✓' : <FileText className="w-4 h-4" />}
+            {pdfLoading ? t('generating_pdf') : pdfDone ? t('pdf_ready') : t('export_ultimate_pdf')}
+          </button>
         </div>
       </Card>
 
       <Dialog open={showForm} onOpenChange={setShowForm}>
         <DialogContent>
           <DialogHeader><DialogTitle>{t('scheduled_reports')}</DialogTitle></DialogHeader>
-          <ScheduleForm onSave={(d) => createMutation.mutate(d)} onClose={() => setShowForm(false)} />
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs">{t('name')}</Label>
+              <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Weekly Sales Report" className="mt-1" />
+            </div>
+            <div>
+              <Label className="text-xs">{t('email')}</Label>
+              <Input value={form.email_to} onChange={e => setForm(f => ({ ...f, email_to: e.target.value }))} placeholder="owner@example.com" className="mt-1" />
+            </div>
+            <div>
+              <Label className="text-xs">{t('frequency')}</Label>
+              <Select value={form.frequency} onValueChange={v => setForm(f => ({ ...f, frequency: v }))}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="daily">{t('daily')}</SelectItem>
+                  <SelectItem value="weekly">{t('weekly')}</SelectItem>
+                  <SelectItem value="monthly">{t('monthly')}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button onClick={() => { if (form.name && form.email_to) createMutation.mutate(form); }} disabled={createMutation.isPending} className="flex-1 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50">
+                {createMutation.isPending ? '...' : t('save')}
+              </button>
+              <button onClick={() => setShowForm(false)} className="flex-1 px-3 py-1.5 text-sm border rounded-md hover:bg-muted">{t('cancel')}</button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -198,12 +240,9 @@ To manage your report schedule, log in to your dashboard.`;
                     <div className="font-medium text-sm">{s.name}</div>
                     <div className="text-xs text-muted-foreground">{s.email_to}</div>
                     <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                      <Badge variant="secondary" className="text-[10px]">
-                        {t(REPORT_TYPES.find(r => r.value === s.report_type)?.labelKey || 'reports')}
-                      </Badge>
                       <Badge variant="outline" className="text-[10px]">{branchLabel(s.branch || 'all')}</Badge>
                       <Badge variant="outline" className="text-[10px]">{t(FREQ_LABELS[s.frequency] || 'weekly')}</Badge>
-                      {s.frequency === 'weekly' && (
+                      {s.frequency === 'weekly' && s.day_of_week && (
                         <Badge variant="outline" className="text-[10px] capitalize">{s.day_of_week}</Badge>
                       )}
                     </div>

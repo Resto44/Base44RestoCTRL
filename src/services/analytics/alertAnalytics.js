@@ -1,157 +1,101 @@
-import { base44 } from '@/api/base44Client';
-import { getProfitAndLoss } from './profitAnalytics';
-import { predictLowStock } from './inventoryAnalytics';
-import { calculateOutstandingPayables } from './supplierAnalytics';
-import { calculateOutstandingReceivables } from './receivableAnalytics';
-
 /**
- * Defines alert severity levels.
+ * alertAnalytics.js — Compatibility shim.
+ * Provides generateOperationalAlerts and ALERT_SEVERITY used by OperationalAlerts.
  */
+
+import { base44 } from '@/api/base44Client';
+import { supabase } from '@/api/supabaseClient';
+import { formatDate, getDateRange } from '@/lib/helpers';
+
 export const ALERT_SEVERITY = {
-  CRITICAL: 'critical',
-  HIGH: 'high',
-  MEDIUM: 'medium',
-  LOW: 'low',
   INFO: 'info',
+  WARNING: 'warning',
+  CRITICAL: 'critical',
 };
 
-/**
- * Fetches data for alert generation.
- * @param {object} ownerFilter - The tenant/owner filter object.
- * @param {string} branchKey - Optional branch key to filter by.
- * @returns {Promise<object>} Raw data for alerts.
- */
-async function fetchAlertData(ownerFilter, branchKey = 'all') {
-  const today = new Date().toISOString().split('T')[0];
-  const thirtyDaysAgo = new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0];
-
-  const [dailySales, expenses, inventory, supplierInvoices, debtRecords, purchases] = await Promise.all([
-    base44.entities.DailySales.filter(ownerFilter || {}, '-date', 1000),
-    base44.entities.Expense.filter(ownerFilter || {}, '-date', 1000),
-    base44.entities.Inventory.filter(ownerFilter || {}, 'product_name', 500),
-    base44.entities.SupplierInvoice.filter(ownerFilter || {}, '-date', 1000),
-    base44.entities.DebtRecord.filter(ownerFilter || {}, '-date', 1000),
-    base44.entities.Purchase.filter(ownerFilter || {}, '-date', 1000),
-  ]);
-
-  const filteredDailySales = branchKey === 'all' ? dailySales : dailySales.filter(s => s.branch === branchKey);
-  const filteredExpenses = branchKey === 'all' ? expenses : expenses.filter(e => e.branch === branchKey || e.branch === 'all');
-  const filteredInventory = branchKey === 'all' ? inventory : inventory.filter(item => item.branch === branchKey);
-  const filteredSupplierInvoices = branchKey === 'all' ? supplierInvoices : supplierInvoices.filter(inv => inv.branch === branchKey);
-  const filteredDebtRecords = branchKey === 'all' ? debtRecords : debtRecords.filter(d => d.branch === branchKey);
-  const filteredPurchases = branchKey === 'all' ? purchases : purchases.filter(p => p.branch === branchKey);
-
-  return {
-    dailySales: filteredDailySales,
-    expenses: filteredExpenses,
-    inventory: filteredInventory,
-    supplierInvoices: filteredSupplierInvoices,
-    debtRecords: filteredDebtRecords,
-    purchases: filteredPurchases,
-    today,
-    thirtyDaysAgo,
-  };
-}
-
-/**
- * Generates real-time operational alerts.
- * @param {object} ownerFilter - The tenant/owner filter object.
- * @param {string} branchKey - Optional branch key to filter by.
- * @returns {Promise<Array>} List of generated alerts.
- */
-export async function generateOperationalAlerts(ownerFilter, branchKey = 'all') {
-  const { dailySales, expenses, inventory, supplierInvoices, debtRecords, purchases, today, thirtyDaysAgo } = await fetchAlertData(ownerFilter, branchKey);
+export async function generateOperationalAlerts(ownerFilter, branches = []) {
   const alerts = [];
+  try {
+    const dr = getDateRange('month');
+    const fromStr = formatDate(dr.from);
+    const toStr = formatDate(dr.to);
 
-  // 1. Low Inventory Alerts
-  const lowStockPredictions = predictLowStock(inventory, purchases, 7); // Predict for next 7 days
-  lowStockPredictions.forEach(prediction => {
-    if (prediction.severity === 'critical' || prediction.severity === 'warning') {
+    const [sales, expenses, inventory] = await Promise.all([
+      base44.entities.DailySales.filter(ownerFilter || {}, '-date', 500),
+      base44.entities.Expense.filter(ownerFilter || {}, '-date', 500),
+      base44.entities.Inventory.list('-date', 500),
+    ]);
+
+    let purchases = [];
+    if (ownerFilter?.created_by) {
+      const { data } = await supabase
+        .from('supplier_invoices')
+        .select('total_amount, date')
+        .eq('created_by', ownerFilter.created_by)
+        .in('approval_status', ['approved', 'auto_approved'])
+        .gte('date', fromStr)
+        .lte('date', toStr);
+      purchases = data || [];
+    }
+
+    const filteredSales = sales.filter(s => s.date >= fromStr && s.date <= toStr);
+    const revenue = filteredSales.reduce((s, x) => s + (x.cash || 0) + (x.network || 0) + (x.credit || 0), 0);
+    const creditSales = filteredSales.reduce((s, x) => s + (x.credit || 0), 0);
+    const purchaseCost = purchases.reduce((s, x) => s + (x.total_amount || 0), 0);
+    const expenseCost = expenses.filter(e => e.date >= fromStr && e.date <= toStr).reduce((s, x) => s + (x.amount || 0), 0);
+    const netProfit = revenue - purchaseCost - expenseCost;
+
+    // Credit ratio alert
+    if (revenue > 0 && (creditSales / revenue) > 0.3) {
       alerts.push({
-        type: 'inventory',
-        severity: prediction.severity === 'critical' ? ALERT_SEVERITY.CRITICAL : ALERT_SEVERITY.HIGH,
-        message: `Low stock for ${prediction.product_name} in ${prediction.branch}: ${prediction.currentStock} ${prediction.unit} left, will last ${prediction.daysLeft} days.`,
-        details: prediction,
+        id: 'high_credit',
+        severity: ALERT_SEVERITY.WARNING,
+        title: 'High Credit Sales',
+        message: `Credit sales are ${((creditSales / revenue) * 100).toFixed(1)}% of revenue`,
+        value: creditSales,
+        threshold: revenue * 0.3,
       });
     }
-  });
 
-  // 2. Overdue Supplier Invoices
-  const outstandingPayables = supplierInvoices.filter(inv => inv.status === 'unpaid' && new Date(inv.date) < new Date(today));
-  outstandingPayables.forEach(inv => {
-    alerts.push({
-      type: 'supplier_invoice',
-      severity: ALERT_SEVERITY.CRITICAL,
-      message: `Overdue supplier invoice from ${inv.supplier_name} for ${inv.amount} on ${inv.date}.`,
-      details: inv,
-    });
-  });
+    // Profit alert
+    if (netProfit < 0) {
+      alerts.push({
+        id: 'negative_profit',
+        severity: ALERT_SEVERITY.CRITICAL,
+        title: 'Negative Profit',
+        message: `Net profit is negative this month`,
+        value: netProfit,
+        threshold: 0,
+      });
+    }
 
-  // 3. Negative Profit Trend (compared to previous period, e.g., last 7 days vs prior 7 days)
-  const currentProfitData = await getProfitAndLoss(ownerFilter, thirtyDaysAgo, today, branchKey);
-  const prevPeriodStart = new Date(new Date().setDate(new Date().getDate() - 60)).toISOString().split('T')[0];
-  const prevPeriodEnd = thirtyDaysAgo;
-  const previousProfitData = await getProfitAndLoss(ownerFilter, prevPeriodStart, prevPeriodEnd, branchKey);
+    // Food cost alert
+    if (revenue > 0 && (purchaseCost / revenue) > 0.4) {
+      alerts.push({
+        id: 'high_food_cost',
+        severity: ALERT_SEVERITY.WARNING,
+        title: 'High Food Cost',
+        message: `Purchase cost is ${((purchaseCost / revenue) * 100).toFixed(1)}% of revenue`,
+        value: purchaseCost,
+        threshold: revenue * 0.4,
+      });
+    }
 
-  if (currentProfitData.netProfit < 0 && previousProfitData.netProfit > 0) {
-    alerts.push({
-      type: 'profit_trend',
-      severity: ALERT_SEVERITY.CRITICAL,
-      message: `Negative profit trend detected: Current period net profit is ${currentProfitData.netProfit.toFixed(2)}, previous period was ${previousProfitData.netProfit.toFixed(2)}.`,
-      details: { currentProfit: currentProfitData.netProfit, previousProfit: previousProfitData.netProfit },
-    });
-  } else if (currentProfitData.netProfit < previousProfitData.netProfit * 0.8 && previousProfitData.netProfit > 0) {
-    alerts.push({
-      type: 'profit_trend',
-      severity: ALERT_SEVERITY.HIGH,
-      message: `Significant profit drop: Current period net profit is ${currentProfitData.netProfit.toFixed(2)}, a ${((1 - currentProfitData.netProfit / previousProfitData.netProfit) * 100).toFixed(2)}% decrease.`,
-      details: { currentProfit: currentProfitData.netProfit, previousProfit: previousProfitData.netProfit },
-    });
+    // Low stock alerts
+    const lowStockItems = inventory.filter(i => (i.current_stock || 0) <= (i.low_stock_threshold || 0));
+    if (lowStockItems.length > 0) {
+      alerts.push({
+        id: 'low_stock',
+        severity: ALERT_SEVERITY.WARNING,
+        title: 'Low Stock',
+        message: `${lowStockItems.length} items below reorder level`,
+        value: lowStockItems.length,
+        threshold: 0,
+        items: lowStockItems.map(i => i.product_name || i.name || ''),
+      });
+    }
+  } catch (e) {
+    // silently return empty on error
   }
-
-  // 4. High Expense Anomaly (compared to average of last 30 days)
-  const currentExpenses = expenses.filter(e => e.date === today).reduce((sum, e) => sum + (e.amount || 0), 0);
-  const last30DaysExpenses = expenses.filter(e => e.date >= thirtyDaysAgo && e.date < today).reduce((sum, e) => sum + (e.amount || 0), 0);
-  const averageDailyExpenses = last30DaysExpenses / 30;
-
-  if (currentExpenses > averageDailyExpenses * 1.5 && averageDailyExpenses > 0) { // 50% higher than average
-    alerts.push({
-      type: 'expense_anomaly',
-      severity: ALERT_SEVERITY.HIGH,
-      message: `High expense anomaly detected today: ${currentExpenses.toFixed(2)}, significantly higher than 30-day average of ${averageDailyExpenses.toFixed(2)}.`,
-      details: { currentExpenses, averageDailyExpenses },
-    });
-  }
-
-  // 5. Outstanding Customer Debt
-  const outstandingReceivables = calculateOutstandingReceivables(debtRecords.filter(d => d.status === 'open'));
-  if (outstandingReceivables > 5000) { // Example threshold
-    alerts.push({
-      type: 'customer_debt',
-      severity: ALERT_SEVERITY.MEDIUM,
-      message: `Total outstanding customer receivables: ${outstandingReceivables.toFixed(2)}. Review collections.`,
-      details: { outstandingReceivables },
-    });
-  }
-
-  // 6. Unusual Sales Drop (compared to average of last 7 days)
-  const currentSales = dailySales.filter(s => s.date === today).reduce((sum, s) => sum + (s.cash || 0) + (s.network || 0) + (s.credit || 0), 0);
-  const last7DaysSales = dailySales.filter(s => s.date >= new Date(new Date().setDate(new Date().getDate() - 7)).toISOString().split('T')[0] && s.date < today).reduce((sum, s) => sum + (s.cash || 0) + (s.network || 0) + (s.credit || 0), 0);
-  const averageDailySales = last7DaysSales / 7;
-
-  if (currentSales < averageDailySales * 0.7 && averageDailySales > 0) { // 30% lower than average
-    alerts.push({
-      type: 'sales_drop',
-      severity: ALERT_SEVERITY.HIGH,
-      message: `Unusual sales drop today: ${currentSales.toFixed(2)}, significantly lower than 7-day average of ${averageDailySales.toFixed(2)}.`,
-      details: { currentSales, averageDailySales },
-    });
-  }
-
-  // Store alerts in the database (assuming an 'alerts' table exists or will be created)
-  // This part would typically involve calling a Supabase function or entity.create for the 'alerts' table.
-  // For now, we'll just return the alerts.
-  // Example: await base44.entities.Alert.bulkCreate(alerts.map(alert => ({ ...alert, created_by: ownerFilter.created_by })));
-
   return alerts;
 }

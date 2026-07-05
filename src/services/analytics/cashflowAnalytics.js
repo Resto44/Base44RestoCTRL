@@ -1,115 +1,80 @@
+/**
+ * cashflowAnalytics.js — Compatibility shim.
+ * Provides getDailyCashFlow, getCashFlowSummary, calculateCashBalances
+ * used by CashFlowAnalytics dashboard component.
+ */
+
 import { base44 } from '@/api/base44Client';
-import { computeBranchSettlements } from '@/components/treasury/BranchSettlementLedger';
+import { formatDate } from '@/lib/helpers';
 
-/**
- * Fetches and processes wallet transactions and cash register entries for cash flow analysis.
- * @param {object} ownerFilter - The tenant/owner filter object.
- * @param {string} fromDate - Start date (YYYY-MM-DD).
- * @param {string} toDate - End date (YYYY-MM-DD).
- * @param {string} branchKey - Optional branch key to filter by.
- * @returns {Promise<{walletTransactions: Array, cashRegisterEntries: Array}>} Raw data.
- */
-async function fetchCashflowData(ownerFilter, fromDate, toDate, branchKey = 'all') {
-  let walletTxQuery = base44.entities.WalletTransaction.filter(ownerFilter || {}, '-transaction_date', 1000);
-  let cashRegisterQuery = base44.entities.CashRegisterEntry.filter(ownerFilter || {}, '-date', 1000);
+// ── calculateCashBalances ─────────────────────────────────────────────────────
+export function calculateCashBalances(walletTransactions = [], branches = []) {
+  const ownerCash = walletTransactions
+    .filter(t => t.wallet_type === 'owner_cash')
+    .reduce((s, t) => s + (t.direction === 'in' ? (t.amount || 0) : -(t.amount || 0)), 0);
+  const ownerNetwork = walletTransactions
+    .filter(t => t.wallet_type === 'owner_network')
+    .reduce((s, t) => s + (t.direction === 'in' ? (t.amount || 0) : -(t.amount || 0)), 0);
+  const branchCash = walletTransactions
+    .filter(t => t.wallet_type === 'branch_cash')
+    .reduce((s, t) => s + (t.direction === 'in' ? (t.amount || 0) : -(t.amount || 0)), 0);
+  return { ownerCash, ownerNetwork, branchCash, total: ownerCash + ownerNetwork + branchCash };
+}
 
-  walletTxQuery = walletTxQuery.filter(tx => tx.created_date >= fromDate && tx.created_date <= toDate);
-  cashRegisterQuery = cashRegisterQuery.filter(entry => entry.date >= fromDate && entry.date <= toDate);
+// ── getDailyCashFlow ──────────────────────────────────────────────────────────
+export async function getDailyCashFlow(ownerFilter, fromStr, toStr, branchKey = 'all') {
+  try {
+    const [sales, expenses] = await Promise.all([
+      base44.entities.DailySales.filter(ownerFilter || {}, '-date', 2000),
+      base44.entities.Expense.filter(ownerFilter || {}, '-date', 2000),
+    ]);
 
-  if (branchKey !== 'all') {
-    walletTxQuery = walletTxQuery.filter(tx => tx.branch === branchKey);
-    cashRegisterQuery = cashRegisterQuery.filter(entry => entry.branch === branchKey);
+    const filteredSales = sales.filter(s =>
+      s.date >= fromStr && s.date <= toStr &&
+      (branchKey === 'all' || s.branch === branchKey)
+    );
+    const filteredExpenses = expenses.filter(e =>
+      e.date >= fromStr && e.date <= toStr &&
+      (branchKey === 'all' || e.branch === branchKey || e.branch === 'all')
+    );
+
+    const map = {};
+    for (const s of filteredSales) {
+      if (!map[s.date]) map[s.date] = { date: s.date, cashIn: 0, cashOut: 0 };
+      map[s.date].cashIn += (s.cash || 0) + (s.network || 0);
+    }
+    for (const e of filteredExpenses) {
+      if (!map[e.date]) map[e.date] = { date: e.date, cashIn: 0, cashOut: 0 };
+      map[e.date].cashOut += e.amount || 0;
+    }
+    return Object.values(map)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map(d => ({ ...d, netFlow: d.cashIn - d.cashOut }));
+  } catch {
+    return [];
   }
-
-  const [walletTransactions, cashRegisterEntries] = await Promise.all([
-    walletTxQuery,
-    cashRegisterQuery,
-  ]);
-
-  return { walletTransactions, cashRegisterEntries };
 }
 
-/**
- * Calculates current cash balances.
- * @param {Array} walletTransactions - Array of WalletTransaction records.
- * @param {Array} branches - Array of branch objects for settlement calculation.
- * @returns {object} Current cash balances.
- */
-export function calculateCashBalances(walletTransactions, branches) {
-  const calc = (walletKey) => walletTransactions.filter(tx => tx.wallet === walletKey)
-    .reduce((s, tx) => s + (tx.direction === 'in' ? (tx.amount || 0) : -(tx.amount || 0)), 0);
-
-  const ownerNetwork = calc('owner_network');
-  const ownerCash = calc('owner_cash');
-
-  const branchMap = {};
-  walletTransactions.filter(tx => tx.wallet === 'branch_cash' && tx.branch).forEach(tx => {
-    if (!branchMap[tx.branch]) branchMap[tx.branch] = 0;
-    branchMap[tx.branch] += tx.direction === 'in' ? (tx.amount || 0) : -(tx.amount || 0);
-  });
-  const totalBranchCash = Object.values(branchMap).reduce((s, v) => s + v, 0);
-
-  // Settlement: total branch balances held by owner
-  const settlements = computeBranchSettlements(walletTransactions, branches);
-  const totalHeldByOwner = Object.values(settlements).reduce((s, v) => s + v.remaining, 0);
-
-  return { ownerNetwork, ownerCash, totalBranchCash, totalHeldByOwner };
-}
-
-/**
- * Calculates daily cash flow for a given period.
- * @param {object} ownerFilter - The tenant/owner filter object.
- * @param {string} fromDate - Start date (YYYY-MM-DD).
- * @param {string} toDate - End date (YYYY-MM-DD).
- * @param {string} branchKey - Optional branch key to filter by.
- * @returns {Promise<Array>} Daily cash flow data.
- */
-export async function getDailyCashFlow(ownerFilter, fromDate, toDate, branchKey = 'all') {
-  const { walletTransactions, cashRegisterEntries } = await fetchCashflowData(ownerFilter, fromDate, toDate, branchKey);
-
-  const dailyFlow = {};
-
-  walletTransactions.forEach(tx => {
-    const date = tx.created_date.split('T')[0]; // Assuming created_date is ISO string
-    if (!dailyFlow[date]) dailyFlow[date] = { inflows: 0, outflows: 0, net: 0 };
-    if (tx.direction === 'in') {
-      dailyFlow[date].inflows += (tx.amount || 0);
-    } else {
-      dailyFlow[date].outflows += (tx.amount || 0);
-    }
-    dailyFlow[date].net = dailyFlow[date].inflows - dailyFlow[date].outflows;
-  });
-
-  cashRegisterEntries.forEach(entry => {
-    const date = entry.date;
-    if (!dailyFlow[date]) dailyFlow[date] = { inflows: 0, outflows: 0, net: 0 };
-    if (entry.type === 'in') {
-      dailyFlow[date].inflows += (entry.amount || 0);
-    } else {
-      dailyFlow[date].outflows += (entry.amount || 0);
-    }
-    dailyFlow[date].net = dailyFlow[date].inflows - dailyFlow[date].outflows;
-  });
-
-  return Object.entries(dailyFlow)
-    .sort(([dateA], [dateB]) => dateA.localeCompare(dateB))
-    .map(([date, data]) => ({ date, ...data }));
-}
-
-/**
- * Calculates cash flow summary for a given period.
- * @param {object} ownerFilter - The tenant/owner filter object.
- * @param {string} fromDate - Start date (YYYY-MM-DD).
- * @param {string} toDate - End date (YYYY-MM-DD).
- * @param {string} branchKey - Optional branch key to filter by.
- * @returns {Promise<object>} Cash flow summary.
- */
-export async function getCashFlowSummary(ownerFilter, fromDate, toDate, branchKey = 'all') {
-  const dailyFlow = await getDailyCashFlow(ownerFilter, fromDate, toDate, branchKey);
-
-  const totalInflows = dailyFlow.reduce((sum, day) => sum + day.inflows, 0);
-  const totalOutflows = dailyFlow.reduce((sum, day) => sum + day.outflows, 0);
-  const netCashFlow = totalInflows - totalOutflows;
-
-  return { totalInflows, totalOutflows, netCashFlow };
+// ── getCashFlowSummary ────────────────────────────────────────────────────────
+export async function getCashFlowSummary(ownerFilter, fromStr, toStr, branchKey = 'all') {
+  try {
+    const daily = await getDailyCashFlow(ownerFilter, fromStr, toStr, branchKey);
+    const totalIn = daily.reduce((s, d) => s + d.cashIn, 0);
+    const totalOut = daily.reduce((s, d) => s + d.cashOut, 0);
+    const netFlow = totalIn - totalOut;
+    const avgDaily = daily.length > 0 ? netFlow / daily.length : 0;
+    const forecast = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() + i + 1);
+      return { date: formatDate(d), value: avgDaily };
+    });
+    return {
+      totalIn, totalOut, netFlow, avgDaily,
+      cashFlowForecast: { expectedCase: forecast },
+      openingBalance: 0,
+      closingBalance: netFlow,
+    };
+  } catch {
+    return { totalIn: 0, totalOut: 0, netFlow: 0, avgDaily: 0, cashFlowForecast: { expectedCase: [] }, openingBalance: 0, closingBalance: 0 };
+  }
 }
