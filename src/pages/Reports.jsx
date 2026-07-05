@@ -11,7 +11,8 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import AsyncPDFButton from '@/components/reports/AsyncPDFButton';
 import { useTenant } from '@/lib/TenantContext';
 import { useSalesSources } from '@/hooks/useSalesSources';
-import { format } from 'date-fns';
+import { format, startOfMonth } from 'date-fns';
+import { Separator } from '@/components/ui/separator';
 
 const COLORS = ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
 
@@ -84,10 +85,11 @@ export default function Reports() {
     const yesterdayNetwork = yesterdaySales.reduce((s, r) => s + (Number(r.restaurant_network) || Number(r.network) || 0), 0);
 
     // Month-to-date balance (Total Network Sales - Settlements)
-    const mtdSales = sales.filter(s => s.date >= startOfMonth(new Date()).toISOString().split('T')[0]);
+    const mtdStart = startOfMonth(new Date()).toISOString().split('T')[0];
+    const mtdSales = (sales || []).filter(s => s && s.date >= mtdStart);
     const mtdNetworkSales = mtdSales.reduce((s, r) => s + (Number(r.restaurant_network) || Number(r.network) || 0), 0);
-    const mtdSettlements = walletTransactions
-      .filter(t => t.date >= startOfMonth(new Date()).toISOString().split('T')[0] && t.type === 'sent_to_owner')
+    const mtdSettlements = (walletTransactions || [])
+      .filter(t => t && t.date >= mtdStart && t.type === 'sent_to_owner')
       .reduce((s, t) => s + (Number(t.amount) || 0), 0);
 
     return {
@@ -98,21 +100,22 @@ export default function Reports() {
   }, [sales, walletTransactions]);
 
   // Branch comparison
-  const branchData = useMemo(() => branches.map(b => {
-    const bs = filtered(sales).filter(s => s.branch === b.key);
-    const bp = filtered(purchases).filter(p => p.branch === b.key);
-    const be = filtered(expenses).filter(e => e.branch === b.key || e.branch === 'all');
+  const branchData = useMemo(() => (branches || []).map(b => {
+    if (!b) return { name: '', sales: 0, profit: 0, creditPct: 0 };
+    const bs = filtered(sales || []).filter(s => s && s.branch === b.key);
+    const bp = filtered(purchases || []).filter(p => p && p.branch === b.key);
+    const be = filtered(expenses || []).filter(e => e && (e.branch === b.key || e.branch === 'all'));
     const m = computeDashboardMetrics(bs, bp, be, rangeType, revenueSources);
-    return { name: b.label, sales: m.totalSales, profit: m.profit, creditPct: m.creditPct };
+    return { name: b.label || '', sales: m.totalSales, profit: m.profit, creditPct: m.creditPct };
   }), [sales, purchases, expenses, fromStr, toStr, branches, rangeType, revenueSources]);
 
   const profitTrend = useMemo(() => buildDailyProfitTrend(filtered(sales), filtered(purchases), revenueSources), [sales, purchases, fromStr, toStr, revenueSources]);
 
   const paymentMix = useMemo(() => [
-    { name: t('cash'), value: metrics.totalCash },
-    { name: t('network'), value: metrics.totalNetwork },
-    { name: t('credit'), value: metrics.totalCredit },
-    { name: t('additional_sources') || 'Additional', value: metrics.totalAdditionalSources },
+    { name: t('cash'), value: metrics?.totalCash || 0 },
+    { name: t('network'), value: metrics?.totalNetwork || 0 },
+    { name: t('credit'), value: metrics?.totalCredit || 0 },
+    { name: t('additional_sources') || 'Additional', value: metrics?.totalAdditionalSources || 0 },
   ].filter(d => d.value > 0), [metrics, t]);
 
   const pct = (cur, prev) => {
@@ -222,15 +225,15 @@ export default function Reports() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="p-3 bg-slate-50 rounded-lg">
             <p className="text-xs text-muted-foreground mb-1">{t('today')}</p>
-            <p className="text-lg font-bold">{formatCurrency(sales.filter(s => s.date === format(new Date(), 'yyyy-MM-dd')).reduce((s, r) => s + (computeDashboardMetrics([r], [], [], 'day', revenueSources).totalAdditionalSources), 0), currency)}</p>
+            <p className="text-lg font-bold">{formatCurrency((sales || []).filter(s => s && s.date === format(new Date(), 'yyyy-MM-dd')).reduce((s, r) => s + (computeDashboardMetrics([r], [], [], 'day', revenueSources).totalAdditionalSources), 0), currency)}</p>
           </div>
           <div className="p-3 bg-slate-50 rounded-lg">
             <p className="text-xs text-muted-foreground mb-1">{t('yesterday')}</p>
-            <p className="text-lg font-bold">{formatCurrency(sales.filter(s => s.date === format(new Date(Date.now() - 86400000), 'yyyy-MM-dd')).reduce((s, r) => s + (computeDashboardMetrics([r], [], [], 'day', revenueSources).totalAdditionalSources), 0), currency)}</p>
+            <p className="text-lg font-bold">{formatCurrency((sales || []).filter(s => s && s.date === format(new Date(Date.now() - 86400000), 'yyyy-MM-dd')).reduce((s, r) => s + (computeDashboardMetrics([r], [], [], 'day', revenueSources).totalAdditionalSources), 0), currency)}</p>
           </div>
           <div className="p-3 bg-slate-50 rounded-lg">
             <p className="text-xs text-muted-foreground mb-1">{t('current_month')}</p>
-            <p className="text-lg font-bold">{formatCurrency(filtered(sales).reduce((s, r) => s + (computeDashboardMetrics([r], [], [], 'day', revenueSources).totalAdditionalSources), 0), currency)}</p>
+            <p className="text-lg font-bold">{formatCurrency(filtered(sales || []).reduce((s, r) => s + (computeDashboardMetrics([r], [], [], 'day', revenueSources).totalAdditionalSources), 0), currency)}</p>
           </div>
         </div>
       </Card>

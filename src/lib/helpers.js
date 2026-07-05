@@ -148,17 +148,30 @@ export function calculateSalesRevenue(record, revenueSources = []) {
 
   // Parse custom sources from sales_sources_json
   let customSources = 0;
-  if (record.sales_sources_json) {
+  const rawSources = record?.sales_sources_json;
+
+  if (rawSources) {
     try {
-      const entries = JSON.parse(record.sales_sources_json);
-      entries.forEach(e => {
-        const sourceId = e.source_id || e.source_key;
-        const sourceConfig = revenueSources.find(s => s.id === sourceId || s.source_key === sourceId);
-        // Include if no config found (default) or if explicitly included
-        if (!sourceConfig || sourceConfig.included_in_revenue !== false) {
-          customSources += Number(e.amount) || 0;
-        }
-      });
+      let entries = [];
+      if (typeof rawSources === 'string') {
+        entries = JSON.parse(rawSources);
+      } else if (Array.isArray(rawSources)) {
+        entries = rawSources;
+      } else if (typeof rawSources === 'object') {
+        entries = [rawSources];
+      }
+
+      if (Array.isArray(entries)) {
+        entries.forEach(e => {
+          if (!e) return;
+          const sourceId = e.source_id || e.source_key;
+          const sourceConfig = revenueSources?.find(s => s.id === sourceId || s.source_key === sourceId);
+          // Include if no config found (default) or if explicitly included
+          if (!sourceConfig || sourceConfig.included_in_revenue !== false) {
+            customSources += Number(e.amount || 0);
+          }
+        });
+      }
     } catch (err) {
       console.warn('Failed to parse sales_sources_json:', err);
     }
@@ -181,16 +194,18 @@ export function calculateSalesRevenue(record, revenueSources = []) {
 
 export function buildDailyProfitTrend(sales, purchases, revenueSources = []) {
   const map = {};
-  sales.forEach(s => {
+  (sales || []).forEach(s => {
+    if (!s || !s.date) return;
     if (!map[s.date]) map[s.date] = { sales: 0, cost: 0 };
     const revenue = calculateSalesRevenue(s, revenueSources);
-    map[s.date].sales += revenue.total;
+    map[s.date].sales += (revenue?.total || 0);
   });
-  purchases.forEach(p => {
+  (purchases || []).forEach(p => {
+    if (!p || !p.date) return;
     if (!map[p.date]) map[p.date] = { sales: 0, cost: 0 };
-    map[p.date].cost += (p.qty || 0) * (p.used_price || p.current_price || 0);
+    map[p.date].cost += (Number(p.total_amount) || (Number(p.qty) || 0) * (Number(p.used_price || p.current_price) || 0));
   });
   return Object.entries(map)
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, v]) => ({ date, profit: v.sales - v.cost, sales: v.sales, cost: v.cost }));
+    .map(([date, v]) => ({ date, profit: (v.sales || 0) - (v.cost || 0), sales: v.sales || 0, cost: v.cost || 0 }));
 }
