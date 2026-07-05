@@ -1,3 +1,4 @@
+import { useAuth } from "@/lib/AuthContext";
 /**
  * FinancialKPIs — ERP Dashboard.
  *
@@ -208,6 +209,8 @@ function AlertItem({ icon: Icon, text, severity = 'warning' }) {
 
 // ── Main Component ─────────────────────────────────────────────────────────────
 export default function FinancialKPIs({ branch }) {
+  const { user, isLoadingAuth } = useAuth();
+  const { profile } = useTenant();
   const { language, currency } = useLanguage();
   const lbl = LABELS[language] || LABELS.en;
   const { ownerFilter } = useTenant();
@@ -256,12 +259,7 @@ export default function FinancialKPIs({ branch }) {
   });
 
   // All supplier invoices (for payables balance)
-  const { data: allInvoices = [] } = useQuery({
-    queryKey: ['supplier_invoices', ownerFilter],
-    queryFn: () => base44.entities.SupplierInvoice.filter(ownerFilter || {}, '-date', 500),
-    enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
-    staleTime: 30000,
-  });
+  const allInvoices = rawInvoices || [];
 
   const { data: customerDebts = [] } = useQuery({
     queryKey: ['debts_customer', ownerFilter],

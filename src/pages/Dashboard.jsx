@@ -1,3 +1,4 @@
+import { useAuth } from "@/lib/AuthContext";
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
@@ -35,10 +36,20 @@ import { useRole, ROLES } from '@/lib/RoleContext';
 const FETCH_DAYS = 90;
 
 export default function Dashboard() {
+  const { user, isLoadingAuth } = useAuth(); {
   const { t, currency } = useLanguage();
   const { branches, ownerFilter } = useTenant();
   const { role } = useRole();
+  const { profile } = useTenant();
   const { revenueSources } = useSalesSources();
+  const isLoading = loadingSales || loadingPurchases || loadingExpenses || loadingWaste || loadingWallet || loadingInventory || loadingPayroll;
+  if (isLoadingAuth || isLoading || !user || !profile) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
+      </div>
+    );
+  }
   const [rangeType, setRangeType] = useState('month');
   const [branch, setBranch] = useState('all');
   const [customFrom, setCustomFrom] = useState(format(new Date(), 'yyyy-MM-dd'));
@@ -52,59 +63,13 @@ export default function Dashboard() {
   const fromStr = formatDate(dateRange.from);
   const toStr = formatDate(dateRange.to);
 
-  const { data: allSales = [], isLoading: loadingSales } = useQuery({
-    queryKey: ['sales', ownerFilter],
-    queryFn: () => base44.entities.DailySales.filter(ownerFilter || {}, '-date', 1000),
-    staleTime: 120000,
-    enabled: !!ownerFilter?.created_by,
-  });
-  const { data: allPurchases = [], isLoading: loadingPurchases } = useQuery({
-    queryKey: ['purchases', ownerFilter],
-    queryFn: async () => {
-      if (!ownerFilter?.created_by) return [];
-      const { data, error } = await supabase
-        .from('supplier_invoices')
-        .select('*')
-        .eq('created_by', ownerFilter.created_by)
-        .in('approval_status', ['approved', 'auto_approved'])
-        .order('date', { ascending: false })
-        .limit(1000);
-      if (error) return [];
-      return data || [];
-    },
-    staleTime: 120000,
-    enabled: !!ownerFilter?.created_by,
-  });
-  const { data: allExpenses = [] } = useQuery({
-    queryKey: ['expenses', ownerFilter],
-    queryFn: () => base44.entities.Expense.filter(ownerFilter || {}, '-date', 1000),
-    staleTime: 120000,
-    enabled: !!ownerFilter?.created_by,
-  });
-  const { data: allWaste = [] } = useQuery({
-    queryKey: ['inventory_waste', ownerFilter],
-    queryFn: () => base44.entities.InventoryWaste.filter(ownerFilter || {}, '-date', 500),
-    staleTime: 120000,
-    enabled: !!ownerFilter?.created_by,
-  });
-  const { data: walletTx = [] } = useQuery({
-    queryKey: ['wallet_transactions', ownerFilter],
-    queryFn: () => base44.entities.WalletTransaction.filter(ownerFilter || {}, '-transaction_date', 500),
-    staleTime: 120000,
-    enabled: !!ownerFilter?.created_by,
-  });
-  const { data: inventory = [] } = useQuery({
-    queryKey: ['inventory_dashboard', ownerFilter],
-    queryFn: () => base44.entities.Inventory.filter(ownerFilter || {}, 'product_name', 500),
-    staleTime: 300000,
-    enabled: !!ownerFilter?.created_by,
-  });
-  const { data: allPayroll = [] } = useQuery({
-    queryKey: ['payroll_runs', ownerFilter],
-    queryFn: () => base44.entities.PayrollRun.filter(ownerFilter || {}, '-paid_date', 500),
-    staleTime: 300000,
-    enabled: !!ownerFilter?.created_by,
-  });
+  const allSales = rawSales || [];
+  const allPurchases = rawPurchases || [];
+  const allExpenses = rawExpenses || [];
+  const allWaste = rawWaste || [];
+  const walletTx = rawWallet || [];
+  const inventory = rawInventory || [];
+  const allPayroll = rawPayroll || [];
 
   // ── Period-scoped data ────────────────────────────────────────────────
   const filteredSales = useMemo(() =>
@@ -353,4 +318,4 @@ export default function Dashboard() {
 
     </div>
   );
-}
+}}
