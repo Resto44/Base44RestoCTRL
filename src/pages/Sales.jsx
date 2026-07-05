@@ -470,6 +470,9 @@ export default function Sales() {
       qc.invalidateQueries({ queryKey: ['settlements_mgr'] });
       qc.invalidateQueries({ queryKey: ['wallet_transactions'] });
       qc.invalidateQueries({ queryKey: ['wallet_transactions_dash'] });
+      qc.invalidateQueries({ queryKey: ['sales_sources'] });
+      qc.invalidateQueries({ queryKey: ['dashboard_metrics'] });
+      qc.invalidateQueries({ queryKey: ['reports'] });
       setShowForm(false);
     },
   });
@@ -509,6 +512,9 @@ export default function Sales() {
       qc.invalidateQueries({ queryKey: ['settlements_all'] });
       qc.invalidateQueries({ queryKey: ['settlements_mgr'] });
       qc.invalidateQueries({ queryKey: ['wallet_transactions_dash'] });
+      qc.invalidateQueries({ queryKey: ['sales_sources'] });
+      qc.invalidateQueries({ queryKey: ['dashboard_metrics'] });
+      qc.invalidateQueries({ queryKey: ['reports'] });
       setEditing(null);
     },
   });
@@ -525,6 +531,9 @@ export default function Sales() {
       qc.invalidateQueries({ queryKey: ['sales_today_live'] });
       qc.invalidateQueries({ queryKey: ['sales_yesterday_live'] });
       qc.invalidateQueries({ queryKey: ['sales_month_live'] });
+      qc.invalidateQueries({ queryKey: ['sales_sources'] });
+      qc.invalidateQueries({ queryKey: ['dashboard_metrics'] });
+      qc.invalidateQueries({ queryKey: ['reports'] });
       setDeleting(null);
     },
   });

@@ -4,6 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { supabase } from '@/api/supabaseClient';
 import { useLanguage } from '@/lib/LanguageContext';
 import { useTenant } from '@/lib/TenantContext';
+import { useSalesSources } from '@/hooks/useSalesSources';
 import { getDateRange, computeDashboardMetrics, formatCurrency, formatPct, formatDate } from '@/lib/helpers';
 import PageHeader from '@/components/shared/PageHeader';
 import KPICard from '@/components/shared/KPICard';
@@ -37,6 +38,7 @@ export default function Dashboard() {
   const { t, currency } = useLanguage();
   const { branches, ownerFilter } = useTenant();
   const { role } = useRole();
+  const { revenueSources } = useSalesSources();
   const [rangeType, setRangeType] = useState('month');
   const [branch, setBranch] = useState('all');
   const [customFrom, setCustomFrom] = useState(format(new Date(), 'yyyy-MM-dd'));
@@ -124,7 +126,7 @@ export default function Dashboard() {
   const totalWasteLoss = useMemo(() => filteredWaste.reduce((s, w) => s + (w.total_loss || 0), 0), [filteredWaste]);
 
   // ── Correct profit = Sales - Purchase Cost - Expenses (NOT wallet balance) ──
-  const metrics = useMemo(() => computeDashboardMetrics(filteredSales, filteredPurchases, filteredExpenses), [filteredSales, filteredPurchases, filteredExpenses]);
+  const metrics = useMemo(() => computeDashboardMetrics(filteredSales, filteredPurchases, filteredExpenses, rangeType, revenueSources), [filteredSales, filteredPurchases, filteredExpenses, rangeType, revenueSources]);
 
   // ── Previous period comparison ────────────────────────────────────────
   const prevRange = useMemo(() => {
@@ -136,7 +138,7 @@ export default function Dashboard() {
   const prevSales = useMemo(() => allSales.filter(s => s.date >= prevFrom && s.date <= prevTo && (branch === 'all' || s.branch === branch)), [allSales, prevFrom, prevTo, branch]);
   const prevPurchases = useMemo(() => allPurchases.filter(p => p.date >= prevFrom && p.date <= prevTo && (branch === 'all' || p.branch === branch)), [allPurchases, prevFrom, prevTo, branch]);
   const prevExpenses = useMemo(() => allExpenses.filter(e => e.date >= prevFrom && e.date <= prevTo && (branch === 'all' || e.branch === branch || e.branch === 'all')), [allExpenses, prevFrom, prevTo, branch]);
-  const prevMetrics = useMemo(() => computeDashboardMetrics(prevSales, prevPurchases, prevExpenses), [prevSales, prevPurchases, prevExpenses]);
+  const prevMetrics = useMemo(() => computeDashboardMetrics(prevSales, prevPurchases, prevExpenses, rangeType, revenueSources), [prevSales, prevPurchases, prevExpenses, rangeType, revenueSources]);
 
   // ── Treasury wallet balances — separate from P&L, never mixed into profit ──
   const walletBalances = useMemo(() => {

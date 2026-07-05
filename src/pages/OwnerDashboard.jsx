@@ -512,18 +512,29 @@ export default function OwnerDashboard() {
   // ── MEMOIZED CALCULATIONS ─────────────────────────────────────────────────────
 
   const sumSales = useCallback((arr) =>
-     (arr || []).reduce((s, r) => s + getSaleCash(r) + getSaleNetwork(r) + (Number(r.credit) || 0), 0), []);
+     (arr || []).reduce((s, r) => s + (calculateSalesRevenue(r, revenueSources)?.total || 0), 0), [revenueSources]);
 
   const sumPurchaseCost = useCallback((arr) =>
      (arr || []).reduce((s, p) => s + ((p.qty || 0) * (p.used_price || p.current_price || 0)), 0), []);
 
   // ── Section 1: Executive Summary ──────────────────────────────────────────────
   const execSummary = useMemo(() => {
-    const cashSalesToday =  (todaySales || []).reduce((s, r) => s + (Number(r.restaurant_cash) || Number(r.cash) || 0), 0);
-    const networkSalesToday =  (todaySales || []).reduce((s, r) =>
-      s + (Number(r.restaurant_network) || Number(r.network) || 0), 0);
-    const creditSalesToday =  (todaySales || []).reduce((s, r) => s + (Number(r.credit) || 0), 0);
-    const salesToday = cashSalesToday + networkSalesToday + creditSalesToday;
+    const todayRevenue = (todaySales || []).reduce((acc, r) => {
+      const rev = calculateSalesRevenue(r, revenueSources);
+      return {
+        cash: acc.cash + rev.cash,
+        network: acc.network + rev.network,
+        credit: acc.credit + rev.credit,
+        custom: acc.custom + rev.customSources,
+        total: acc.total + rev.total
+      };
+    }, { cash: 0, network: 0, credit: 0, custom: 0, total: 0 });
+
+    const cashSalesToday = todayRevenue.cash;
+    const networkSalesToday = todayRevenue.network;
+    const creditSalesToday = todayRevenue.credit;
+    const customSalesToday = todayRevenue.custom;
+    const salesToday = todayRevenue.total;
 
     // Today's Purchases = approved supplier invoices for today (filtered by branch)
     const purchasesToday = supplierInvoices
@@ -583,13 +594,13 @@ export default function OwnerDashboard() {
       .reduce((s, r) => s + (Number(r.cash_difference) || 0), 0);
 
     return {
-      salesToday, cashSalesToday, networkSalesToday, creditSalesToday,
+      salesToday, cashSalesToday, networkSalesToday, creditSalesToday, customSalesToday,
       purchasesToday, grossProfit, netProfit,
       cashInRegister, networkBalance, networkToday, networkYesterday, networkMonth, customerCredit,
       inventoryValue, supplierPayables,
       ownerCapitalToday, cashShortageToday, cashOverageToday,
     };
-  }, [todaySales, yesterdaySales, todayExpenses, supplierInvoices, customerDebts, inventory, today, monthSales, walletTransactions, monthStart, selectedBranch]);
+  }, [todaySales, yesterdaySales, todayExpenses, supplierInvoices, customerDebts, inventory, today, monthSales, walletTransactions, monthStart, selectedBranch, revenueSources]);
 
   // ── Section 2: Operating Result (NEVER REMOVE) ───────────────────────────────
   const operatingResult = useMemo(() => {
@@ -616,7 +627,7 @@ export default function OwnerDashboard() {
   // ── Section 4: Sales Analytics ────────────────────────────────────────────────
   const salesAnalytics = useMemo(() => {
     const calcSales = (arr) =>  (arr || []).reduce((s, r) =>
-      s + getSaleCash(r) + getSaleNetwork(r) + (Number(r.credit) || 0), 0);
+      s + (calculateSalesRevenue(r, revenueSources)?.total || 0), 0);
 
     const todayAmt     = execSummary.salesToday;
     const yesterdayAmt = calcSales(yesterdaySales);
@@ -635,14 +646,14 @@ export default function OwnerDashboard() {
     const dailyTotals = {};
     monthSales.forEach(r => {
       const d = r.date;
-      dailyTotals[d] = (dailyTotals[d] || 0) + getSaleCash(r) + getSaleNetwork(r) + (Number(r.credit) || 0);
+      dailyTotals[d] = (dailyTotals[d] || 0) + (calculateSalesRevenue(r, revenueSources)?.total || 0);
     });
     const dailyArr = Object.values(dailyTotals);
     const highestDay = dailyArr.length > 0 ? Math.max(...dailyArr) : 0;
     const lowestDay  = dailyArr.length > 0 ? Math.min(...dailyArr) : 0;
 
     return { todayAmt, yesterdayAmt, weekAmt, monthAmt, yearAmt, weekGrowth, monthGrowth, avgDailySales, highestDay, lowestDay };
-  }, [execSummary, yesterdaySales, weekSales, monthSales, yearSales, prevWeekSales, prevMonthSales]);
+  }, [execSummary, yesterdaySales, weekSales, monthSales, yearSales, prevWeekSales, prevMonthSales, revenueSources]);
 
   // ── Section 5: Purchase Analytics ────────────────────────────────────────────
   const purchaseAnalytics = useMemo(() => {
