@@ -228,8 +228,52 @@ export function computePaymentAnalytics(sales, revenueSources = []) {
   const yStart    = yearStartStr();
   const yEnd      = yearEndStr();
 
+  /**
+   * Resolves a clean display name for a custom sales source entry.
+   * Priority: name_ar > name_en (embedded in JSON) > revenueSources config name > source_key (never UUID).
+   * A UUID is detected as a string matching the UUID v4 pattern.
+   */
+  function resolveSourceLabel(entry, srcConfig) {
+    // 1. Prefer multilingual names embedded in the JSON entry (written by ERPSalesWorkspace)
+    if (entry.name_ar && entry.name_ar.trim()) return entry.name_ar.trim();
+    if (entry.name_en && entry.name_en.trim()) return entry.name_en.trim();
+    // 2. Fall back to revenueSources config
+    if (srcConfig) {
+      if (srcConfig.name_ar && srcConfig.name_ar.trim()) return srcConfig.name_ar.trim();
+      if (srcConfig.name_en && srcConfig.name_en.trim()) return srcConfig.name_en.trim();
+      if (srcConfig.name_fa && srcConfig.name_fa.trim()) return srcConfig.name_fa.trim();
+      if (srcConfig.name && srcConfig.name.trim()) return srcConfig.name.trim();
+      if (srcConfig.label && srcConfig.label.trim()) return srcConfig.label.trim();
+      // Use system_key only if it's not a UUID
+      const sk = srcConfig.system_key || srcConfig.source_key || '';
+      if (sk && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sk)) return sk;
+    }
+    // 3. Use source_key from entry if not a UUID
+    const entryKey = entry.source_key || '';
+    if (entryKey && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(entryKey)) return entryKey;
+    // 4. Last resort: use 'Other Source' rather than exposing a UUID
+    return 'Other Source';
+  }
+
+  /**
+   * Builds a stable lookup key for grouping source amounts across time periods.
+   * Uses source_id (UUID) as the stable key so amounts aggregate correctly
+   * even if display names differ between records.
+   */
+  function resolveSourceKey(entry, srcConfig) {
+    // Prefer the stable UUID id from config
+    if (srcConfig?.id) return srcConfig.id;
+    // Fall back to source_id from entry
+    if (entry.source_id) return entry.source_id;
+    // Fall back to source_key if not a UUID
+    const sk = entry.source_key || '';
+    if (sk && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sk)) return sk;
+    // Last resort: use the display label as key
+    return resolveSourceLabel(entry, srcConfig);
+  }
+
   function sumBySource(arr) {
-    const result = { cash: 0, network: 0, credit: 0, customSources: {}, total: 0 };
+    const result = { cash: 0, network: 0, credit: 0, customSources: {}, customLabels: {}, total: 0 };
     arr.forEach(s => {
       const rev = calculateSalesRevenue(s, revenueSources);
       result.cash    += rev.cash;
@@ -245,12 +289,17 @@ export function computePaymentAnalytics(sales, revenueSources = []) {
           if (!Array.isArray(entries)) entries = [entries];
           entries.forEach(e => {
             if (!e) return;
-            const srcId = e.source_id || e.source_key || 'other';
-            const srcConfig = revenueSources.find(r => r.id === srcId || r.source_key === srcId);
-            const srcLabel = srcConfig?.name || srcConfig?.label || srcId;
-            if (!srcConfig || srcConfig.included_in_revenue !== false) {
-              result.customSources[srcLabel] = (result.customSources[srcLabel] || 0) + Number(e.amount || 0);
-            }
+            const srcConfig = revenueSources.find(r =>
+              r.id === (e.source_id || e.source_key) ||
+              r.source_key === (e.source_id || e.source_key)
+            );
+            // Skip sources excluded from revenue
+            if (srcConfig && srcConfig.included_in_revenue === false) return;
+            const stableKey = resolveSourceKey(e, srcConfig);
+            const displayLabel = resolveSourceLabel(e, srcConfig);
+            result.customSources[stableKey] = (result.customSources[stableKey] || 0) + Number(e.amount || 0);
+            // Store the best label we've seen for this key
+            if (!result.customLabels[stableKey]) result.customLabels[stableKey] = displayLabel;
           });
         } catch (_) {}
       }
@@ -263,15 +312,15 @@ export function computePaymentAnalytics(sales, revenueSources = []) {
   const monthData     = sumBySource(filterByDate(sales, mStart, mEnd));
   const yearData      = sumBySource(filterByDate(sales, yStart, yEnd));
 
-  // Collect all custom source names
-  const allCustomNames = new Set([
+  // Collect all stable custom source keys seen across all periods
+  const allCustomKeys = new Set([
     ...Object.keys(todayData.customSources),
     ...Object.keys(yesterdayData.customSources),
     ...Object.keys(monthData.customSources),
     ...Object.keys(yearData.customSources),
   ]);
 
-  // Build per-source rows
+  // Build per-source rows — use stable key internally, clean label for display
   const buildRow = (name, key, data) => ({
     name,
     key,
@@ -286,12 +335,21 @@ export function computePaymentAnalytics(sales, revenueSources = []) {
     buildRow('Cash',    'cash',    { today: todayData.cash,    yesterday: yesterdayData.cash,    month: monthData.cash,    year: yearData.cash }),
     buildRow('Network', 'network', { today: todayData.network, yesterday: yesterdayData.network, month: monthData.network, year: yearData.network }),
     buildRow('Credit',  'credit',  { today: todayData.credit,  yesterday: yesterdayData.credit,  month: monthData.credit,  year: yearData.credit }),
-    ...[...allCustomNames].map(name => buildRow(name, name, {
-      today:     todayData.customSources[name]     || 0,
-      yesterday: yesterdayData.customSources[name] || 0,
-      month:     monthData.customSources[name]     || 0,
-      year:      yearData.customSources[name]      || 0,
-    })),
+    ...[...allCustomKeys].map(stableKey => {
+      // Resolve best display label: prefer month data (most records), then today, yesterday, year
+      const label =
+        monthData.customLabels[stableKey] ||
+        todayData.customLabels[stableKey] ||
+        yesterdayData.customLabels[stableKey] ||
+        yearData.customLabels[stableKey] ||
+        stableKey;
+      return buildRow(label, stableKey, {
+        today:     todayData.customSources[stableKey]     || 0,
+        yesterday: yesterdayData.customSources[stableKey] || 0,
+        month:     monthData.customSources[stableKey]     || 0,
+        year:      yearData.customSources[stableKey]      || 0,
+      });
+    }),
   ].filter(s => s.month > 0 || s.today > 0 || s.yesterday > 0);
 
   // Payment mix for donut chart

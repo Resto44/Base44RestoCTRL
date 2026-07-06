@@ -156,7 +156,12 @@ export default function Expenses() {
       }
       return exp;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['expenses'] }); setShowForm(false); }
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['expenses'] });
+      qc.invalidateQueries({ queryKey: ['expenses_today'] });
+      qc.invalidateQueries({ queryKey: ['expenses_month'] });
+      setShowForm(false);
+    }
   });
   const updateMut = useMutation({
     mutationFn: async ({ id, data }) => {
@@ -164,14 +169,28 @@ export default function Expenses() {
       await notif.expense({ branch: data.branch_key, amount: data.amount, category: data.category_id, action: 'update' });
       return exp;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['expenses'] }); setEditing(null); }
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['expenses'] });
+      qc.invalidateQueries({ queryKey: ['expenses_today'] });
+      qc.invalidateQueries({ queryKey: ['expenses_month'] });
+      setEditing(null);
+    }
   });
   const deleteMut = useMutation({
     mutationFn: async (expense) => {
       await base44.entities.Expense.delete(expense.id);
       await notif.expense({ branch: expense.branch_key, amount: expense.amount, category: expense.category_id, action: 'delete' });
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['expenses'] }); setDeleting(null); }
+    onSuccess: () => {
+      // Invalidate all expense-related query keys used by Expenses page, Dashboard, and Reports
+      qc.invalidateQueries({ queryKey: ['expenses'] });
+      qc.invalidateQueries({ queryKey: ['expenses_today'] });
+      qc.invalidateQueries({ queryKey: ['expenses_month'] });
+      // Also invalidate dashboard profit/summary queries that depend on expenses
+      qc.invalidateQueries({ queryKey: ['sales_today'] });
+      qc.invalidateQueries({ queryKey: ['sales_month'] });
+      setDeleting(null);
+    }
   });
 
   const filtered = filterBranch === 'all' ? expenses : expenses.filter(e => e.branch_key === filterBranch || e.branch_key === 'all');

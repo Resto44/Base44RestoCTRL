@@ -302,7 +302,7 @@ export default function Reports() {
           <KPICard label={t('yesterday')}    value={fmtC(executive.yesterdaySales, currency)} icon={DollarSign}  color="slate" />
           <KPICard label={t('this_month')}   value={fmtC(executive.monthSales, currency)}    icon={BarChart3}   color="blue" />
           <KPICard label={t('year_sales')}   value={fmtC(executive.yearSales, currency)}     icon={TrendingUp}  color="purple" />
-          <KPICard label={t('sales_growth_pct')} value={executive.salesGrowth !== null ? `${executive.salesGrowth >= 0 ? '+' : ''}${executive.salesGrowth.toFixed(1)}%` : '—'} icon={executive.salesGrowth >= 0 ? TrendingUp : TrendingDown} color={executive.salesGrowth >= 0 ? 'green' : 'red'} />
+          <KPICard label={t('sales_growth_pct')} value={executive.salesGrowth != null ? `${executive.salesGrowth >= 0 ? '+' : ''}${executive.salesGrowth.toFixed(1)}%` : '—'} icon={executive.salesGrowth != null && executive.salesGrowth >= 0 ? TrendingUp : TrendingDown} color={executive.salesGrowth != null && executive.salesGrowth >= 0 ? 'green' : 'red'} />
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
           <KPICard label={t('gross_profit')}     value={fmtC(executive.grossProfit, currency)}  icon={Target}      color="green" />
@@ -465,29 +465,46 @@ export default function Reports() {
       </Section>
 
       {/* ── 4. ADDITIONAL SALES SOURCES ──────────────────────────────────── */}
-      {payment.sources.filter(s => !['cash', 'network', 'credit'].includes(s.key)).length > 0 && (
-        <Section title={t('additional_sources')} icon={ShoppingCart}>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-            {payment.sources
-              .filter(s => !['cash', 'network', 'credit'].includes(s.key))
-              .map((src, i) => {
+      <Section title={t('additional_sources')} icon={ShoppingCart}>
+        {(() => {
+          const additionalSrcs = (payment?.sources || []).filter(s => !['cash', 'network', 'credit'].includes(s.key));
+          if (isLoading) {
+            return (
+              <div className="flex items-center justify-center py-6">
+                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+              </div>
+            );
+          }
+          if (additionalSrcs.length === 0) {
+            return (
+              <div className="py-6 text-center">
+                <ShoppingCart className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground">{t('no_additional_sources') || 'No additional sales sources recorded for this period.'}</p>
+                <p className="text-xs text-muted-foreground/60 mt-1">Configure sources in Settings → Sales Sources</p>
+              </div>
+            );
+          }
+          return (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+              {additionalSrcs.map((src, i) => {
                 const growth = src.yesterday > 0
                   ? ((src.today - src.yesterday) / src.yesterday) * 100
                   : src.today > 0 ? 100 : 0;
                 return (
                   <KPICard
-                    key={src.key}
-                    label={src.name}
-                    value={fmtC(src.today, currency)}
-                    sub={`${t('yesterday')}: ${fmtC(src.yesterday, currency)} · ${t('this_month')}: ${fmtC(src.month, currency)}`}
+                    key={src.key || src.name || i}
+                    label={src.name || '—'}
+                    value={fmtC(src.today || 0, currency)}
+                    sub={`${t('yesterday')}: ${fmtC(src.yesterday || 0, currency)} · ${t('this_month')}: ${fmtC(src.month || 0, currency)}`}
                     trend={growth}
                     color={['blue', 'green', 'amber', 'purple', 'cyan'][i % 5]}
                   />
                 );
               })}
-          </div>
-        </Section>
-      )}
+            </div>
+          );
+        })()}
+      </Section>
 
       {/* ── 5. NETWORK ANALYTICS ─────────────────────────────────────────── */}
       <Section title={t('network_analytics_section')} icon={Wifi}>
