@@ -334,8 +334,11 @@ export default function OwnerDashboard() {
     if (!activeRestaurant?.id) return null;
     const baseFilter = { restaurant_id: activeRestaurant.id };
     if (selectedBranch === 'all') return baseFilter;
-    return { ...baseFilter, branch: selectedBranch };
-  }, [activeRestaurant, selectedBranch]);
+    // Map internal branch ID to the 'branch' text field in daily_sales
+    const branchObj = (branches || []).find(b => (b.key || b.id) === selectedBranch);
+    const branchKey = branchObj?.key || selectedBranch;
+    return { ...baseFilter, branch: branchKey };
+  }, [activeRestaurant, selectedBranch, branches]);
 
   // Branch display info for the badge
   const selectedBranchLabel = useMemo(() => {
@@ -552,11 +555,14 @@ export default function OwnerDashboard() {
     const salesToday = todayRevenue.total;
 
     // Today's Purchases = approved supplier invoices for today (filtered by branch)
+    const branchObj = (branches || []).find(b => (b.key || b.id) === selectedBranch);
+    const branchKey = branchObj?.key || selectedBranch;
+
     const purchasesToday = supplierInvoices
       .filter(inv => {
         const isApproved = ['approved', 'auto_approved'].includes(inv.approval_status) || ['approved', 'paid', 'partial'].includes(inv.status);
         const isToday = inv.date === today;
-        const isBranchMatch = selectedBranch === 'all' || inv.branch === selectedBranch;
+        const isBranchMatch = selectedBranch === 'all' || inv.branch === branchKey;
         return isApproved && isToday && isBranchMatch;
       })
       .reduce((s, inv) => s + (Number(inv.total_amount) || 0), 0);
@@ -696,8 +702,11 @@ export default function OwnerDashboard() {
     const catMap = {};
     (expenseCategories || []).forEach(c => { catMap[c.id] = c; });
 
+    const branchObj = (branches || []).find(b => (b.key || b.id) === selectedBranch);
+    const branchKey = branchObj?.key || selectedBranch;
+
     const filtered = monthExpenses.filter(e => {
-      const isBranchMatch = selectedBranch === 'all' || e.branch_key === selectedBranch || e.branch_key === 'all';
+      const isBranchMatch = selectedBranch === 'all' || e.branch_key === branchKey || e.branch_key === 'all';
       return isBranchMatch;
     });
 
@@ -717,10 +726,13 @@ export default function OwnerDashboard() {
 
     // Monthly Net Profit = Month Sales - Month Purchases - Total Monthly Expenses
     const monthSalesAmt = salesAnalytics.monthAmt;
+    const branchPurchObj = (branches || []).find(b => (b.key || b.id) === selectedBranch);
+    const branchPurchKey = branchPurchObj?.key || selectedBranch;
+
     const monthPurchasesAmt = supplierInvoices
       .filter(inv => {
         const isApproved = ['approved', 'auto_approved'].includes(inv.approval_status) || ['approved', 'paid', 'partial'].includes(inv.status);
-        const isBranchMatch = selectedBranch === 'all' || inv.branch === selectedBranch;
+        const isBranchMatch = selectedBranch === 'all' || inv.branch === branchPurchKey;
         return isApproved && isBranchMatch && inv.date >= monthStart && inv.date <= today;
       })
       .reduce((s, inv) => s + (Number(inv.total_amount) || 0), 0);
@@ -756,9 +768,12 @@ export default function OwnerDashboard() {
   // ── Section 5: Purchase Analytics ────────────────────────────────────────────
   const purchaseAnalytics = useMemo(() => {
     // Filter approved invoices for analytics (respecting branch selection)
+    const branchPurchAnObj = (branches || []).find(b => (b.key || b.id) === selectedBranch);
+    const branchPurchAnKey = branchPurchAnObj?.key || selectedBranch;
+
     const approvedInvoicesForBranch = supplierInvoices.filter(inv => {
       const isApproved = ['approved', 'auto_approved'].includes(inv.approval_status) || ['approved', 'paid', 'partial'].includes(inv.status);
-      const isBranchMatch = selectedBranch === 'all' || inv.branch === selectedBranch;
+      const isBranchMatch = selectedBranch === 'all' || inv.branch === branchPurchAnKey;
       return isApproved && isBranchMatch;
     });
 
