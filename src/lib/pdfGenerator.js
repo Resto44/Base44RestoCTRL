@@ -612,7 +612,7 @@ export async function generateUltimatePDF({
   const branchMetrics = branches.map(b => {
     const bs = fSales.filter(s => s.branch === b.key);
     const bp = fPurch.filter(p => p.branch === b.key);
-    const be = fExp.filter(e => e.branch === b.key || e.branch === 'all');
+    const be = fExp.filter(e => e.branch_key === b.key || e.branch_key === 'all');
     const m = computeDashboardMetrics(bs, bp, be, rangeType, revenueSources);
     return { key: b.key, name: b.label, ...m };
   });
@@ -937,8 +937,9 @@ export async function generateUltimatePDF({
   // Expense by category
   const expByCat = {};
   fExp.forEach(e => {
-    if (!expByCat[e.category]) expByCat[e.category] = 0;
-    expByCat[e.category] += safeNum(e.amount);
+    const catKey = e.category_id || e.category || 'other';
+    if (!expByCat[catKey]) expByCat[catKey] = 0;
+    expByCat[catKey] += safeNum(e.amount);
   });
   const catLabels = {
     rent: l.rent, salaries: l.salaries, utilities: l.utilities, other: l.other,
@@ -977,8 +978,8 @@ export async function generateUltimatePDF({
   const eHeaders = [l.date, l.branch, l.expenses, l.amount];
   const eRows = fExp.slice(0, 20).map(e => [
     e.date,
-    e.branch === 'all' ? l.branch : (branches.find(b => b.key === e.branch)?.label || e.branch),
-    (catLabels[e.category] || e.category || '').slice(0, 18),
+    e.branch_key === 'all' ? l.branch : (branches.find(b => b.key === e.branch_key)?.label || e.branch_key),
+    (catLabels[e.category_id] || e.category_id || '').slice(0, 18),
     formatCurrency(safeNum(e.amount), currency),
   ]);
   y = await drawTable(doc, eHeaders, eRows, ML, y, [28, 40, 45, 33], dir, null);

@@ -65,21 +65,15 @@ export function computeDashboardMetrics(sales, purchases, expenses = [], rangeTy
   const totalPurchaseCost = purchases.reduce((s, r) => s + (Number(r.total_amount) || (r.qty || 0) * (r.used_price || r.current_price || 0)), 0);
   const totalAdditionalSources = totalCustomSources;
 
-  // Separate fixed vs variable expenses
-  const isShortRange = rangeType === 'day' || rangeType === 'week';
-  const variableExpenses = expenses.filter(e => !e._is_fixed);
-  const fixedExpenses    = expenses.filter(e => !!e._is_fixed);
+  // Expenses Calculation: One source of truth (expenses table)
+  // We sum all expenses provided in the array.
+  const totalExpenses = (expenses || []).reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const totalExpensesAll = totalExpenses;
 
-  const totalVariableExpenses = variableExpenses.reduce((s, r) => s + (r.amount || 0), 0);
-  const totalFixedExpenses    = fixedExpenses.reduce((s, r) => s + (r.amount || 0), 0);
-
-  // On short ranges (day/week), exclude fixed expenses from net profit
-  const totalExpenses = isShortRange
-    ? totalVariableExpenses
-    : totalVariableExpenses + totalFixedExpenses;
-
-  // Always report the full expense total for display purposes
-  const totalExpensesAll = totalVariableExpenses + totalFixedExpenses;
+  // Optional: still identify fixed expenses if needed for legacy display, but don't use them for Net Profit logic differentiation
+  const fixedExpenses = (expenses || []).filter(e => !!e._is_fixed);
+  const totalFixedExpenses = fixedExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const totalVariableExpenses = totalExpenses - totalFixedExpenses;
 
   const grossProfit = totalSales - totalPurchaseCost;
   const netProfit = totalSales - totalPurchaseCost - totalExpenses;

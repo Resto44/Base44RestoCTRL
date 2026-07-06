@@ -609,7 +609,7 @@ export default function OwnerDashboard() {
 
     return {
       salesToday, cashSalesToday, networkSalesToday, creditSalesToday, customSalesToday,
-      purchasesToday, grossProfit, netProfit,
+      purchasesToday, expensesToday, grossProfit, netProfit,
       cashInRegister, networkBalance, networkToday, networkYesterday, networkMonth, customerCredit,
       inventoryValue, supplierPayables,
       ownerCapitalToday, cashShortageToday, cashOverageToday,
@@ -670,26 +670,15 @@ export default function OwnerDashboard() {
   }, [execSummary, yesterdaySales, weekSales, monthSales, yearSales, prevWeekSales, prevMonthSales, revenueSources]);
 
   // ── Monthly Fixed Expenses ─────────────────────────────────────────────────────
-  const monthlyFixedExpenses = useMemo(() => {
-    // Build category map: category_id -> is_fixed
-    const catMap = {};
-    expenseCategories.forEach(c => {
-      if (c.id) catMap[c.id] = !!c.is_fixed;
+  // Total Monthly Expenses: SUM all expenses in current month (respecting branch filter)
+  const totalMonthlyExpenses = useMemo(() => {
+    const filtered = monthExpenses.filter(e => {
+      const isBranchMatch = selectedBranch === 'all' || e.branch_key === selectedBranch || e.branch_key === 'all';
+      return isBranchMatch;
     });
-
-    // Tag each month expense with _is_fixed
-    const tagged = monthExpenses.map(e => ({
-      ...e,
-      _is_fixed: catMap[e.category_id] ?? catMap[e.expense_category_id] ?? false,
-    }));
-
-    // Sum only fixed expenses for current month
-    const total = tagged
-      .filter(e => e._is_fixed)
-      .reduce((s, e) => s + (Number(e.amount) || 0), 0);
-
-    // Monthly Net Profit = Month Sales - Month Purchases - Fixed Monthly Expenses
-    // Compute month purchases inline (approved invoices for current month)
+    const total = filtered.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    
+    // Monthly Net Profit = Month Sales - Month Purchases - Total Monthly Expenses
     const monthSalesAmt = salesAnalytics.monthAmt;
     const monthPurchasesAmt = supplierInvoices
       .filter(inv => {
@@ -700,8 +689,8 @@ export default function OwnerDashboard() {
       .reduce((s, inv) => s + (Number(inv.total_amount) || 0), 0);
     const monthNetProfit = monthSalesAmt - monthPurchasesAmt - total;
 
-    return { total, monthNetProfit, taggedExpenses: tagged };
-  }, [monthExpenses, expenseCategories, salesAnalytics.monthAmt, supplierInvoices, selectedBranch, monthStart, today]);
+    return { total, monthNetProfit };
+  }, [monthExpenses, salesAnalytics.monthAmt, supplierInvoices, selectedBranch, monthStart, today]);
 
   // ── Additional Sales Sources (dynamic, no hardcoded names) ───────────────────
   const additionalSources = useMemo(() => {
@@ -916,13 +905,22 @@ export default function OwnerDashboard() {
               <MetricCard title="Gross Profit"       value={fmt(execSummary.grossProfit)}      subtitle="Sales − Purchases"          icon={execSummary.grossProfit >= 0 ? TrendingUp : TrendingDown} color={execSummary.grossProfit >= 0 ? 'green' : 'red'} onClick={() => navigate('/profit-loss')} />
               <MetricCard title="Net Profit"         value={fmt(execSummary.netProfit)}        subtitle="Sales − Purchases − Expenses" icon={execSummary.netProfit >= 0 ? TrendingUp : TrendingDown} color={execSummary.netProfit >= 0 ? 'green' : 'red'} onClick={() => navigate('/profit-loss')} />
               <MetricCard title="Cash in Register"   value={fmt(execSummary.cashInRegister)}   subtitle="Latest closing cash"        icon={Banknote}      color="blue"   onClick={() => navigate('/sales')} />
-              {/* MONTHLY FIXED EXPENSES — fills the empty space next to Cash in Register */}
+              {/* TODAY EXPENSES KPI */}
               <MetricCard
-                title="Monthly Fixed Expenses"
-                value={fmt(monthlyFixedExpenses.total)}
-                subtitle={`Month Net: ${fmt(monthlyFixedExpenses.monthNetProfit)}`}
+                title="Today Expenses"
+                value={fmt(execSummary.expensesToday || 0)}
+                subtitle="Daily operating expenses"
                 icon={Receipt}
-                color={monthlyFixedExpenses.total > 0 ? 'red' : 'green'}
+                color="amber"
+                onClick={() => navigate('/expenses')}
+              />
+              {/* TOTAL MONTHLY EXPENSES — fills the empty space next to Cash in Register */}
+              <MetricCard
+                title="Total Monthly Expenses"
+                value={fmt(totalMonthlyExpenses.total)}
+                subtitle={`Month Net: ${fmt(totalMonthlyExpenses.monthNetProfit)}`}
+                icon={Receipt}
+                color={totalMonthlyExpenses.total > 0 ? 'red' : 'green'}
                 onClick={() => navigate('/expenses')}
               />
               {/* NETWORK BALANCE — 3-column row: Today / Yesterday / Month */}

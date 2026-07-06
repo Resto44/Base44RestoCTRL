@@ -377,7 +377,7 @@ export function computeBranchPerformance(branches, sales, purchases, expenses, r
 
     const bSales     = mSales.filter(s => s.branch === bKey);
     const bPurchases = mPurchases.filter(p => p.branch === bKey);
-    const bExpenses  = mExpenses.filter(e => e.branch === bKey || e.branch === 'all');
+    const bExpenses  = mExpenses.filter(e => e.branch_key === bKey || e.branch_key === 'all');
 
     const m = computeDashboardMetrics(bSales, bPurchases, bExpenses, 'month', revenueSources);
 
