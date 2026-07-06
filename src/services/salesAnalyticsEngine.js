@@ -87,7 +87,8 @@ export function computeExecutiveSummary(sales, purchases, expenses, revenueSourc
   const yearExpenses   = filterByDate(taggedExpenses, yStart, yEnd);
   const todayExpenses  = filterByDate(taggedExpenses, today, today);
 
-  const todayMetrics     = computeDashboardMetrics(todaySales, [], todayExpenses, 'day', revenueSources);
+  const realDaysInMonth = new Date().getMonth() === 1 ? (new Date().getFullYear() % 4 === 0 ? 29 : 28) : [3, 5, 8, 10].includes(new Date().getMonth()) ? 30 : 31;
+  const todayMetrics     = computeDashboardMetrics(todaySales, [], todayExpenses, 'day', revenueSources, 1, realDaysInMonth);
   const yesterdayMetrics = computeDashboardMetrics(yesterdaySales, [], [], 'day', revenueSources);
   const monthMetrics     = computeDashboardMetrics(monthSales, monthPurchases, monthExpenses, 'month', revenueSources);
   const yearMetrics      = computeDashboardMetrics(yearSales, yearPurchases, yearExpenses, 'year', revenueSources);

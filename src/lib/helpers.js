@@ -94,7 +94,7 @@ export function computeDashboardMetrics(
 
   if (rangeType === 'day' || rangeType === 'week') {
     // Prorate: daily allocation = monthly_fixed / real_days_in_month
-    const realDaysInMonth = daysInMonth || 30;
+    const realDaysInMonth = daysInMonth || (new Date().getMonth() === 1 ? (new Date().getFullYear() % 4 === 0 ? 29 : 28) : [3, 5, 8, 10].includes(new Date().getMonth()) ? 30 : 31);
     const periodDays = rangeType === 'day' ? (daysInPeriod || 1) : (daysInPeriod || 7);
     fixedDeduction = (totalFixedExpenses / realDaysInMonth) * periodDays;
     fixedExpensesExcluded = totalFixedExpenses > 0;
