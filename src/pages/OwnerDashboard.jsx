@@ -41,6 +41,7 @@ import { useAuth } from '@/lib/AuthContext';
 import { useNetworkSettlement } from '@/hooks/useNetworkSettlement';
 import { useNotify } from '@/lib/useNotify';
 import { getSaleCash, getSaleNetwork, calculateSalesRevenue } from '@/lib/helpers';
+import { computeAdditionalSources } from '@/services/salesAnalyticsEngine';
 import { useSalesSources } from '@/hooks/useSalesSources';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -62,6 +63,7 @@ import {
   Scale, Target, Zap, ChevronRight, ArrowUpRight, ArrowDownRight,
   CheckCircle2, XCircle, AlertCircle,
   LayoutDashboard, Layers, Clock, MapPin, Globe, ChevronDown,
+  Building2,
 } from 'lucide-react';
 import {
   format, startOfMonth, startOfWeek, startOfYear,
@@ -444,6 +446,16 @@ export default function OwnerDashboard() {
     select: (d) => d.filter(e => e.date >= monthStart),
   });
 
+  // Expense categories — needed to tag fixed vs variable expenses
+  const { data: expenseCategories = [] } = useQuery({
+    queryKey: ['expense_categories_dash'],
+    queryFn: () => base44.entities.ExpenseCategory
+      ? base44.entities.ExpenseCategory.list('sort_order', 500)
+      : Promise.resolve([]),
+    staleTime: 300000,
+    enabled,
+  });
+
   const { data: supplierInvoices = [] } = useQuery({
     queryKey: ['supplier_invoices_dash', branchFilter, selectedBranch, today],
     queryFn: () => base44.entities.SupplierInvoice.filter(branchFilter || {}, '-date', 500),
@@ -657,6 +669,64 @@ export default function OwnerDashboard() {
     return { todayAmt, yesterdayAmt, weekAmt, monthAmt, yearAmt, weekGrowth, monthGrowth, avgDailySales, highestDay, lowestDay };
   }, [execSummary, yesterdaySales, weekSales, monthSales, yearSales, prevWeekSales, prevMonthSales, revenueSources]);
 
+  // ── Monthly Fixed Expenses ─────────────────────────────────────────────────────
+  const monthlyFixedExpenses = useMemo(() => {
+    // Build category map: category_id -> is_fixed
+    const catMap = {};
+    expenseCategories.forEach(c => {
+      if (c.id) catMap[c.id] = !!c.is_fixed;
+    });
+
+    // Tag each month expense with _is_fixed
+    const tagged = monthExpenses.map(e => ({
+      ...e,
+      _is_fixed: catMap[e.category_id] ?? catMap[e.expense_category_id] ?? false,
+    }));
+
+    // Sum only fixed expenses for current month
+    const total = tagged
+      .filter(e => e._is_fixed)
+      .reduce((s, e) => s + (Number(e.amount) || 0), 0);
+
+    // Monthly Net Profit = Month Sales - Month Purchases - Fixed Monthly Expenses
+    // Compute month purchases inline (approved invoices for current month)
+    const monthSalesAmt = salesAnalytics.monthAmt;
+    const monthPurchasesAmt = supplierInvoices
+      .filter(inv => {
+        const isApproved = ['approved', 'auto_approved'].includes(inv.approval_status) || ['approved', 'paid', 'partial'].includes(inv.status);
+        const isBranchMatch = selectedBranch === 'all' || inv.branch === selectedBranch;
+        return isApproved && isBranchMatch && inv.date >= monthStart && inv.date <= today;
+      })
+      .reduce((s, inv) => s + (Number(inv.total_amount) || 0), 0);
+    const monthNetProfit = monthSalesAmt - monthPurchasesAmt - total;
+
+    return { total, monthNetProfit, taggedExpenses: tagged };
+  }, [monthExpenses, expenseCategories, salesAnalytics.monthAmt, supplierInvoices, selectedBranch, monthStart, today]);
+
+  // ── Additional Sales Sources (dynamic, no hardcoded names) ───────────────────
+  const additionalSources = useMemo(() => {
+    // Use all month+today+yesterday sales for the branch-filtered data
+    // computeAdditionalSources auto-detects from sales_sources_json
+    const allSalesForSources = [
+      ...monthSales,
+      // todaySales and yesterdaySales may already be in monthSales; dedup by id
+    ];
+    const seenIds = new Set(monthSales.map(s => s.id));
+    todaySales.forEach(s => { if (!seenIds.has(s.id)) allSalesForSources.push(s); });
+    yesterdaySales.forEach(s => { if (!seenIds.has(s.id)) allSalesForSources.push(s); });
+
+    // Get all custom (non-system) sources with today/yesterday/month/growth
+    const sources = computeAdditionalSources(allSalesForSources, revenueSources);
+
+    // Add growth % calculation
+    return sources.map(src => ({
+      ...src,
+      growth: src.yesterday > 0
+        ? ((src.today - src.yesterday) / src.yesterday) * 100
+        : src.today > 0 ? 100 : 0,
+    }));
+  }, [monthSales, todaySales, yesterdaySales, revenueSources]);
+
   // ── Section 5: Purchase Analytics ────────────────────────────────────────────
   const purchaseAnalytics = useMemo(() => {
     // Filter approved invoices for analytics (respecting branch selection)
@@ -846,6 +916,15 @@ export default function OwnerDashboard() {
               <MetricCard title="Gross Profit"       value={fmt(execSummary.grossProfit)}      subtitle="Sales − Purchases"          icon={execSummary.grossProfit >= 0 ? TrendingUp : TrendingDown} color={execSummary.grossProfit >= 0 ? 'green' : 'red'} onClick={() => navigate('/profit-loss')} />
               <MetricCard title="Net Profit"         value={fmt(execSummary.netProfit)}        subtitle="Sales − Purchases − Expenses" icon={execSummary.netProfit >= 0 ? TrendingUp : TrendingDown} color={execSummary.netProfit >= 0 ? 'green' : 'red'} onClick={() => navigate('/profit-loss')} />
               <MetricCard title="Cash in Register"   value={fmt(execSummary.cashInRegister)}   subtitle="Latest closing cash"        icon={Banknote}      color="blue"   onClick={() => navigate('/sales')} />
+              {/* MONTHLY FIXED EXPENSES — fills the empty space next to Cash in Register */}
+              <MetricCard
+                title="Monthly Fixed Expenses"
+                value={fmt(monthlyFixedExpenses.total)}
+                subtitle={`Month Net: ${fmt(monthlyFixedExpenses.monthNetProfit)}`}
+                icon={Receipt}
+                color={monthlyFixedExpenses.total > 0 ? 'red' : 'green'}
+                onClick={() => navigate('/expenses')}
+              />
               {/* NETWORK BALANCE — 3-column row: Today / Yesterday / Month */}
               <div className="col-span-2 grid grid-cols-3 gap-2">
                 <MetricCard title="Network Today"     value={fmt(execSummary.networkToday)}     subtitle="POS/Network today"          icon={Wifi}  color="cyan"   onClick={() => navigate('/network-management')} />
@@ -918,6 +997,43 @@ export default function OwnerDashboard() {
           </div>
         </section>
       </WidgetErrorBoundary>
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          SECTION 4B — ADDITIONAL SALES SOURCES
+          Dynamic cards — no hardcoded names — reads from sales_sources_json
+          Respects branch filter and included_in_dashboard_kpi flag
+      ══════════════════════════════════════════════════════════════════════ */}
+      {additionalSources.length > 0 && (
+        <WidgetErrorBoundary>
+          <section>
+            <SectionHeader
+              icon={Building2}
+              title="Additional Sales Sources"
+              subtitle="Delivery, Catering, Talabat, HungerStation & custom channels"
+              color="purple"
+              action={{ label: 'Reports', onClick: () => navigate('/reports') }}
+            />
+            <div className="grid grid-cols-2 gap-3">
+              {additionalSources.map((src, i) => {
+                const colors = ['purple', 'cyan', 'orange', 'indigo', 'green', 'amber', 'blue', 'red'];
+                const color = colors[i % colors.length];
+                return (
+                  <MetricCard
+                    key={src.key || src.name}
+                    title={src.name}
+                    value={fmt(src.today)}
+                    subtitle={`Yesterday: ${fmt(src.yesterday)} · Month: ${fmt(src.month)}`}
+                    icon={ShoppingBag}
+                    color={color}
+                    trend={src.growth}
+                    trendLabel="vs yesterday"
+                  />
+                );
+              })}
+            </div>
+          </section>
+        </WidgetErrorBoundary>
+      )}
 
       {/* ══════════════════════════════════════════════════════════════════════
           SECTION 5 — PURCHASE ANALYTICS

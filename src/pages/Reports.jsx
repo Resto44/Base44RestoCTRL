@@ -465,20 +465,26 @@ export default function Reports() {
       </Section>
 
       {/* ── 4. ADDITIONAL SALES SOURCES ──────────────────────────────────── */}
-      {payment.sources.filter(s => !['Cash', 'Network', 'Credit'].includes(s.name)).length > 0 && (
+      {payment.sources.filter(s => !['cash', 'network', 'credit'].includes(s.key)).length > 0 && (
         <Section title={t('additional_sources')} icon={ShoppingCart}>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
             {payment.sources
-              .filter(s => !['Cash', 'Network', 'Credit'].includes(s.name))
-              .map((src, i) => (
-                <KPICard
-                  key={src.key}
-                  label={src.name}
-                  value={fmtC(src.month, currency)}
-                  sub={`${t('today')}: ${fmtC(src.today, currency)}`}
-                  color={['blue', 'green', 'amber', 'purple', 'cyan'][i % 5]}
-                />
-              ))}
+              .filter(s => !['cash', 'network', 'credit'].includes(s.key))
+              .map((src, i) => {
+                const growth = src.yesterday > 0
+                  ? ((src.today - src.yesterday) / src.yesterday) * 100
+                  : src.today > 0 ? 100 : 0;
+                return (
+                  <KPICard
+                    key={src.key}
+                    label={src.name}
+                    value={fmtC(src.today, currency)}
+                    sub={`${t('yesterday')}: ${fmtC(src.yesterday, currency)} · ${t('this_month')}: ${fmtC(src.month, currency)}`}
+                    trend={growth}
+                    color={['blue', 'green', 'amber', 'purple', 'cyan'][i % 5]}
+                  />
+                );
+              })}
           </div>
         </Section>
       )}
