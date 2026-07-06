@@ -40,7 +40,7 @@ import { useRole } from '@/lib/RoleContext';
 import { useAuth } from '@/lib/AuthContext';
 import { useNetworkSettlement } from '@/hooks/useNetworkSettlement';
 import { useNotify } from '@/lib/useNotify';
-import { getSaleCash, getSaleNetwork, calculateSalesRevenue } from '@/lib/helpers';
+import { getSaleCash, getSaleNetwork, calculateSalesRevenue, computeDashboardMetrics } from '@/lib/helpers';
 import { computeAdditionalSources } from '@/services/salesAnalyticsEngine';
 import { useSalesSources } from '@/hooks/useSalesSources';
 import { Card, CardContent } from '@/components/ui/card';
@@ -67,7 +67,7 @@ import {
 } from 'lucide-react';
 import {
   format, startOfMonth, startOfWeek, startOfYear,
-  subDays, subWeeks, subMonths,
+  subDays, subWeeks, subMonths, getDaysInMonth,
 } from 'date-fns';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -560,7 +560,25 @@ export default function OwnerDashboard() {
       })
       .reduce((s, inv) => s + (Number(inv.total_amount) || 0), 0);
 
-    const expensesToday =  (todayExpenses || []).reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    // Tag each today expense with _is_fixed from its category
+    const catMap = {};
+    (expenseCategories || []).forEach(c => { catMap[c.id] = c; });
+    const taggedTodayExpenses = (todayExpenses || []).map(e => ({
+      ...e,
+      _is_fixed: !!(catMap[e.category_id]?.is_fixed),
+    }));
+
+    // Prorate fixed expenses: daily allocation = monthly_fixed / real_days_in_month
+    const realDaysInMonth = getDaysInMonth(new Date());
+    const fixedTodayExpenses = taggedTodayExpenses.filter(e => e._is_fixed);
+    const variableTodayExpenses = taggedTodayExpenses.filter(e => !e._is_fixed);
+    const totalFixedMonthly = fixedTodayExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    const totalVariableToday = variableTodayExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    // Daily fixed cost allocation = monthly fixed amount / days in month
+    const dailyFixedAllocation = totalFixedMonthly > 0 ? totalFixedMonthly / realDaysInMonth : 0;
+    const expensesToday = totalVariableToday + dailyFixedAllocation;
+    const expensesTodayRaw = (todayExpenses || []).reduce((s, e) => s + (Number(e.amount) || 0), 0);
+
     // KPI FIX: Net Profit = (Cash + Network + Credit) - Purchases - Expenses
     const grossProfit = salesToday - purchasesToday;
     const netProfit   = salesToday - purchasesToday - expensesToday;
@@ -609,12 +627,14 @@ export default function OwnerDashboard() {
 
     return {
       salesToday, cashSalesToday, networkSalesToday, creditSalesToday, customSalesToday,
-      purchasesToday, expensesToday, grossProfit, netProfit,
+      purchasesToday, expensesToday, expensesTodayRaw,
+      dailyFixedAllocation, totalVariableToday, realDaysInMonth,
+      grossProfit, netProfit,
       cashInRegister, networkBalance, networkToday, networkYesterday, networkMonth, customerCredit,
       inventoryValue, supplierPayables,
       ownerCapitalToday, cashShortageToday, cashOverageToday,
     };
-  }, [todaySales, yesterdaySales, todayExpenses, supplierInvoices, customerDebts, inventory, today, monthSales, walletTransactions, monthStart, selectedBranch, revenueSources]);
+  }, [todaySales, yesterdaySales, todayExpenses, expenseCategories, supplierInvoices, customerDebts, inventory, today, monthSales, walletTransactions, monthStart, selectedBranch, revenueSources]);
 
   // ── Section 2: Operating Result (NEVER REMOVE) ───────────────────────────────
   const operatingResult = useMemo(() => {
@@ -669,15 +689,31 @@ export default function OwnerDashboard() {
     return { todayAmt, yesterdayAmt, weekAmt, monthAmt, yearAmt, weekGrowth, monthGrowth, avgDailySales, highestDay, lowestDay };
   }, [execSummary, yesterdaySales, weekSales, monthSales, yearSales, prevWeekSales, prevMonthSales, revenueSources]);
 
-  // ── Monthly Fixed Expenses ─────────────────────────────────────────────────────
-  // Total Monthly Expenses: SUM all expenses in current month (respecting branch filter)
+  // ── Monthly Expenses (Fixed + Variable) ──────────────────────────────────────
+  // Total Monthly Expenses = Full monthly fixed expenses + all daily expenses in current month
   const totalMonthlyExpenses = useMemo(() => {
+    const catMap = {};
+    (expenseCategories || []).forEach(c => { catMap[c.id] = c; });
+
     const filtered = monthExpenses.filter(e => {
       const isBranchMatch = selectedBranch === 'all' || e.branch_key === selectedBranch || e.branch_key === 'all';
       return isBranchMatch;
     });
-    const total = filtered.reduce((s, e) => s + (Number(e.amount) || 0), 0);
-    
+
+    // Tag each expense with is_fixed from its category
+    const tagged = filtered.map(e => ({
+      ...e,
+      _is_fixed: !!(catMap[e.category_id]?.is_fixed),
+    }));
+
+    // Fixed monthly expenses: use FULL amount (not prorated) for monthly total
+    const fixedExpenses = tagged.filter(e => e._is_fixed);
+    const variableExpenses = tagged.filter(e => !e._is_fixed);
+    const totalFixed = fixedExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    const totalVariable = variableExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    // Total Monthly Expenses = Full fixed expenses + all variable/daily expenses
+    const total = totalFixed + totalVariable;
+
     // Monthly Net Profit = Month Sales - Month Purchases - Total Monthly Expenses
     const monthSalesAmt = salesAnalytics.monthAmt;
     const monthPurchasesAmt = supplierInvoices
@@ -689,8 +725,8 @@ export default function OwnerDashboard() {
       .reduce((s, inv) => s + (Number(inv.total_amount) || 0), 0);
     const monthNetProfit = monthSalesAmt - monthPurchasesAmt - total;
 
-    return { total, monthNetProfit };
-  }, [monthExpenses, salesAnalytics.monthAmt, supplierInvoices, selectedBranch, monthStart, today]);
+    return { total, totalFixed, totalVariable, monthNetProfit, monthPurchasesAmt };
+  }, [monthExpenses, expenseCategories, salesAnalytics.monthAmt, supplierInvoices, selectedBranch, monthStart, today]);
 
   // ── Additional Sales Sources (dynamic, no hardcoded names) ───────────────────
   const additionalSources = useMemo(() => {
@@ -724,33 +760,42 @@ export default function OwnerDashboard() {
       const isBranchMatch = selectedBranch === 'all' || inv.branch === selectedBranch;
       return isApproved && isBranchMatch;
     });
-    const todayAmt = execSummary.purchasesToday;
-    
+
     const startOfW = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
     const startOfM = format(startOfMonth(new Date()), 'yyyy-MM-dd');
+
+    // Today's approved purchases — amount + invoice count
+    const todayInvoicesList = approvedInvoicesForBranch.filter(inv => inv.date === today);
+    const todayAmt = todayInvoicesList.reduce((s, inv) => s + (Number(inv.total_amount) || 0), 0);
+    const todayCount = todayInvoicesList.length;
 
     const weekAmt = approvedInvoicesForBranch
       .filter(inv => inv.date >= startOfW && inv.date <= today)
       .reduce((s, inv) => s + (Number(inv.total_amount) || 0), 0);
-      
-    const monthAmt = approvedInvoicesForBranch
-      .filter(inv => inv.date >= startOfM && inv.date <= today)
-      .reduce((s, inv) => s + (Number(inv.total_amount) || 0), 0);
 
+    // Monthly approved purchases — amount + invoice count
+    const monthInvoicesList = approvedInvoicesForBranch.filter(inv => inv.date >= startOfM && inv.date <= today);
+    const monthAmt = monthInvoicesList.reduce((s, inv) => s + (Number(inv.total_amount) || 0), 0);
+    const monthCount = monthInvoicesList.length;
+
+    // Supplier ranking by total purchase amount (all approved, branch-filtered)
     const supplierMap = {};
     approvedInvoicesForBranch.forEach(inv => {
       const name = inv.supplier_name || 'Unknown';
-      supplierMap[name] = (supplierMap[name] || 0) + (Number(inv.total_amount) || 0);
+      if (!supplierMap[name]) supplierMap[name] = { amount: 0, count: 0 };
+      supplierMap[name].amount += (Number(inv.total_amount) || 0);
+      supplierMap[name].count += 1;
     });
     const supplierRanking = Object.entries(supplierMap)
+      .map(([name, v]) => [name, v.amount, v.count])
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 3);
+      .slice(0, 5);
 
     const allAmounts = approvedInvoicesForBranch.map(inv => Number(inv.total_amount) || 0);
     const largestPurchase = allAmounts.length > 0 ? Math.max(...allAmounts) : 0;
     const avgPurchase     = allAmounts.length > 0 ? allAmounts.reduce((s, v) => s + v, 0) / allAmounts.length : 0;
 
-    return { todayAmt, weekAmt, monthAmt, supplierRanking, largestPurchase, avgPurchase };
+    return { todayAmt, todayCount, weekAmt, monthAmt, monthCount, supplierRanking, largestPurchase, avgPurchase };
   }, [execSummary, supplierInvoices, selectedBranch, today]);
 
   // ── Section 6: Inventory Analytics ───────────────────────────────────────────
@@ -905,20 +950,22 @@ export default function OwnerDashboard() {
               <MetricCard title="Gross Profit"       value={fmt(execSummary.grossProfit)}      subtitle="Sales − Purchases"          icon={execSummary.grossProfit >= 0 ? TrendingUp : TrendingDown} color={execSummary.grossProfit >= 0 ? 'green' : 'red'} onClick={() => navigate('/profit-loss')} />
               <MetricCard title="Net Profit"         value={fmt(execSummary.netProfit)}        subtitle="Sales − Purchases − Expenses" icon={execSummary.netProfit >= 0 ? TrendingUp : TrendingDown} color={execSummary.netProfit >= 0 ? 'green' : 'red'} onClick={() => navigate('/profit-loss')} />
               <MetricCard title="Cash in Register"   value={fmt(execSummary.cashInRegister)}   subtitle="Latest closing cash"        icon={Banknote}      color="blue"   onClick={() => navigate('/sales')} />
-              {/* TODAY EXPENSES KPI */}
+              {/* TODAY EXPENSES KPI — variable + prorated daily fixed */}
               <MetricCard
                 title="Today Expenses"
                 value={fmt(execSummary.expensesToday || 0)}
-                subtitle="Daily operating expenses"
+                subtitle={execSummary.dailyFixedAllocation > 0
+                  ? `Var ${fmt(execSummary.totalVariableToday)} + Fixed/day ${fmt(execSummary.dailyFixedAllocation)}`
+                  : 'Daily operating expenses'}
                 icon={Receipt}
                 color="amber"
                 onClick={() => navigate('/expenses')}
               />
-              {/* TOTAL MONTHLY EXPENSES — fills the empty space next to Cash in Register */}
+              {/* TOTAL MONTHLY EXPENSES — full fixed + all variable */}
               <MetricCard
-                title="Total Monthly Expenses"
+                title="Monthly Expenses"
                 value={fmt(totalMonthlyExpenses.total)}
-                subtitle={`Month Net: ${fmt(totalMonthlyExpenses.monthNetProfit)}`}
+                subtitle={`Fixed ${fmt(totalMonthlyExpenses.totalFixed)} · Var ${fmt(totalMonthlyExpenses.totalVariable)}`}
                 icon={Receipt}
                 color={totalMonthlyExpenses.total > 0 ? 'red' : 'green'}
                 onClick={() => navigate('/expenses')}
@@ -1038,24 +1085,52 @@ export default function OwnerDashboard() {
       ══════════════════════════════════════════════════════════════════════ */}
       <WidgetErrorBoundary>
         <section>
-          <SectionHeader icon={ShoppingCart} title="Purchase Analytics" subtitle="Procurement overview" color="amber" action={{ label: 'Purchases', onClick: () => navigate('/enterprise-purchases') }} />
+          <SectionHeader icon={ShoppingCart} title="Purchase Analytics" subtitle="Approved invoices · branch-filtered" color="amber" action={{ label: 'Purchases', onClick: () => navigate('/enterprise-purchases') }} />
           <div className="grid grid-cols-2 gap-3">
-            <MetricCard title="Today's Purchases"  value={fmt(purchaseAnalytics.todayAmt)}          icon={ShoppingCart}  color="amber" />
-            <MetricCard title="Weekly Purchases"   value={fmt(purchaseAnalytics.weekAmt)}            icon={Activity}      color="blue" />
-            <MetricCard title="Monthly Purchases"  value={fmt(purchaseAnalytics.monthAmt)}           icon={BarChart3}     color="purple" />
-            <MetricCard title="Largest Purchase"   value={fmt(purchaseAnalytics.largestPurchase)}    icon={ArrowUpRight}  color="red" />
-            <MetricCard title="Average Purchase"   value={fmt(purchaseAnalytics.avgPurchase)}        icon={Target}        color="slate" />
+            {/* A) Today's Purchases Card — approved invoices only */}
+            <MetricCard
+              title="Today's Purchases"
+              value={fmt(purchaseAnalytics.todayAmt)}
+              subtitle={`${purchaseAnalytics.todayCount} invoice${purchaseAnalytics.todayCount !== 1 ? 's' : ''} · approved`}
+              icon={ShoppingCart}
+              color="amber"
+              large
+              onClick={() => navigate('/enterprise-purchases')}
+            />
+            {/* B) Monthly Purchases Card — with branch filter */}
+            <MetricCard
+              title="Monthly Purchases"
+              value={fmt(purchaseAnalytics.monthAmt)}
+              subtitle={`${purchaseAnalytics.monthCount} invoices · ${selectedBranch === 'all' ? 'All branches' : selectedBranchLabel}`}
+              icon={BarChart3}
+              color="purple"
+              large
+              onClick={() => navigate('/enterprise-purchases')}
+            />
+            <MetricCard title="Weekly Purchases"  value={fmt(purchaseAnalytics.weekAmt)}         icon={Activity}     color="blue" />
+            <MetricCard title="Largest Invoice"   value={fmt(purchaseAnalytics.largestPurchase)} icon={ArrowUpRight} color="red" />
+            <MetricCard title="Avg Invoice"       value={fmt(purchaseAnalytics.avgPurchase)}     icon={Target}       color="slate" />
+            {/* Monthly Net Profit = Month Sales − Month Purchases − Monthly Expenses */}
+            <MetricCard
+              title="Month Net Profit"
+              value={fmt(totalMonthlyExpenses.monthNetProfit)}
+              subtitle="Sales − Purch − Exp"
+              icon={totalMonthlyExpenses.monthNetProfit >= 0 ? TrendingUp : TrendingDown}
+              color={totalMonthlyExpenses.monthNetProfit >= 0 ? 'green' : 'red'}
+              onClick={() => navigate('/reports')}
+            />
           </div>
           {purchaseAnalytics.supplierRanking.length > 0 && (
             <Card className="mt-3">
               <CardContent className="p-4">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Supplier Ranking</p>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Supplier Ranking (Approved)</p>
                 <div className="space-y-1.5">
-                  {purchaseAnalytics.supplierRanking.map(([name, amount], i) => (
+                  {purchaseAnalytics.supplierRanking.map(([name, amount, count], i) => (
                     <div key={name} className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className={`w-5 h-5 rounded-full text-[10px] font-black flex items-center justify-center text-white ${i === 0 ? 'bg-amber-500' : i === 1 ? 'bg-slate-400' : 'bg-orange-400'}`}>{i + 1}</span>
-                        <span className="text-xs font-medium text-foreground truncate max-w-[120px]">{name}</span>
+                        <span className={`w-5 h-5 rounded-full text-[10px] font-black flex items-center justify-center text-white ${i === 0 ? 'bg-amber-500' : i === 1 ? 'bg-slate-400' : i === 2 ? 'bg-orange-400' : 'bg-gray-400'}`}>{i + 1}</span>
+                        <span className="text-xs font-medium text-foreground truncate max-w-[110px]">{name}</span>
+                        <span className="text-[10px] text-muted-foreground">{count}x</span>
                       </div>
                       <span className="text-xs font-bold text-amber-600">{fmt(amount)}</span>
                     </div>

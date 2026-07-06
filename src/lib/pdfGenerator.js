@@ -4,7 +4,7 @@
  * All charts rendered via Canvas API (bar/line/pie)
  */
 import jsPDF from 'jspdf';
-import { computeDashboardMetrics, buildDailyProfitTrend, formatCurrency, formatPct } from './helpers';
+import { computeDashboardMetrics, buildDailyProfitTrend, formatCurrency, formatPct, tagExpensesWithCategories } from './helpers';
 import { computeBranchSettlements } from '../components/treasury/BranchSettlementLedger';
 
 // ─── Color palette ────────────────────────────────────────────────────────────
@@ -573,7 +573,7 @@ export async function generateUltimatePDF({
   sales = [], purchases = [], expenses = [], rangeType, fromStr, toStr,
   t, lang, currency, branches = [], dir,
   brandSettings = null, inventory = [], supplierInvoices = [],
-  walletTransactions = [], revenueSources = [],
+  walletTransactions = [], revenueSources = [], expenseCategories = [],
 }) {
   const isRTL = dir === 'rtl';
   const l = L(lang);
@@ -602,7 +602,12 @@ export async function generateUltimatePDF({
   // Filter data by date range
   const fSales = sales.filter(s => s.date >= fromStr && s.date <= toStr);
   const fPurch = purchases.filter(p => p.date >= fromStr && p.date <= toStr);
-  const fExp = expenses.filter(e => e.date >= fromStr && e.date <= toStr);
+  // Tag expenses with _is_fixed from categories for correct proration
+  const taggedExpenses = tagExpensesWithCategories(
+    expenses.filter(e => e.date >= fromStr && e.date <= toStr),
+    expenseCategories
+  );
+  const fExp = taggedExpenses;
 
   // Compute metrics with safe values
   const metrics = computeDashboardMetrics(fSales, fPurch, fExp, rangeType, revenueSources);

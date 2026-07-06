@@ -88,8 +88,9 @@ export default function ScheduledReports() {
   });
 
   // KPI summary using engine
+  // Note: expenseCategories not fetched here; fixed-expense proration will be skipped (treated as variable)
   const weekKPIs = useMemo(() =>
-    computeExecutiveSummary(sales, purchases, expenses, revenueSources, walletTransactions),
+    computeExecutiveSummary(sales, purchases, expenses, revenueSources, walletTransactions, []),
     [sales, purchases, expenses, revenueSources, walletTransactions]
   );
   const dr = getDateRange('week');

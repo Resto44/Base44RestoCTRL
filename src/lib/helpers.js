@@ -232,3 +232,70 @@ export function buildDailyProfitTrend(sales, purchases, revenueSources = []) {
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, v]) => ({ date, profit: (v.sales || 0) - (v.cost || 0), sales: v.sales || 0, cost: v.cost || 0 }));
 }
+
+/**
+ * tagExpensesWithCategories
+ *
+ * Tags each expense record with `_is_fixed = true` when its category
+ * has `is_fixed = true`. This is required before passing expenses to
+ * `computeDashboardMetrics` so that fixed-expense daily proration works.
+ *
+ * @param {Array} expenses - Raw expense records from Supabase
+ * @param {Array} categories - ExpenseCategory records with `id` and `is_fixed`
+ * @returns {Array} expenses with `_is_fixed` property set
+ */
+export function tagExpensesWithCategories(expenses = [], categories = []) {
+  if (!categories || categories.length === 0) return expenses;
+  const catMap = {};
+  categories.forEach(c => {
+    if (c && c.id) catMap[c.id] = c;
+  });
+  return expenses.map(e => ({
+    ...e,
+    _is_fixed: !!(catMap[e.category_id]?.is_fixed || catMap[e.expense_category_id]?.is_fixed),
+  }));
+}
+
+/**
+ * computePurchaseKPIs
+ *
+ * Computes purchase KPIs from approved supplier invoices.
+ * Respects branch filter and date range.
+ *
+ * @param {Array} invoices - SupplierInvoice records
+ * @param {string} branchKey - 'all' or specific branch key
+ * @param {string} todayStr - 'yyyy-MM-dd' string for today
+ * @param {string} monthStartStr - 'yyyy-MM-dd' string for month start
+ * @returns {Object} { todayAmt, todayCount, monthAmt, monthCount, supplierRanking }
+ */
+export function computePurchaseKPIs(invoices = [], branchKey = 'all', todayStr = '', monthStartStr = '') {
+  const approved = invoices.filter(inv => {
+    const isApproved = ['approved', 'auto_approved'].includes(inv.approval_status)
+      || ['approved', 'paid', 'partial'].includes(inv.status);
+    const isBranchMatch = branchKey === 'all' || inv.branch === branchKey;
+    return isApproved && isBranchMatch;
+  });
+
+  const todayList = approved.filter(inv => inv.date === todayStr);
+  const todayAmt = todayList.reduce((s, inv) => s + (Number(inv.total_amount) || 0), 0);
+  const todayCount = todayList.length;
+
+  const monthList = approved.filter(inv => inv.date >= monthStartStr && inv.date <= todayStr);
+  const monthAmt = monthList.reduce((s, inv) => s + (Number(inv.total_amount) || 0), 0);
+  const monthCount = monthList.length;
+
+  // Supplier ranking
+  const supplierMap = {};
+  approved.forEach(inv => {
+    const name = inv.supplier_name || 'Unknown';
+    if (!supplierMap[name]) supplierMap[name] = { amount: 0, count: 0 };
+    supplierMap[name].amount += (Number(inv.total_amount) || 0);
+    supplierMap[name].count += 1;
+  });
+  const supplierRanking = Object.entries(supplierMap)
+    .map(([name, v]) => ({ name, amount: v.amount, count: v.count }))
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, 5);
+
+  return { todayAmt, todayCount, monthAmt, monthCount, supplierRanking };
+}

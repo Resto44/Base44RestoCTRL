@@ -178,19 +178,33 @@ export default function Expenses() {
   });
   const deleteMut = useMutation({
     mutationFn: async (expense) => {
-      await base44.entities.Expense.delete(expense.id);
-      await notif.expense({ branch: expense.branch_key, amount: expense.amount, category: expense.category_id, action: 'delete' });
+      if (!expense?.id) throw new Error('Cannot delete expense: missing id');
+      console.log('[Expenses] deleteMut called for expense.id:', expense.id);
+      const result = await base44.entities.Expense.delete(expense.id);
+      console.log('[Expenses] delete result:', result);
+      try {
+        await notif.expense({ branch: expense.branch_key, amount: expense.amount, category: expense.category_id, action: 'delete' });
+      } catch (notifErr) {
+        console.warn('[Expenses] notif.expense() failed (non-fatal):', notifErr?.message);
+      }
+      return result;
     },
     onSuccess: () => {
-      // Invalidate all expense-related query keys used by Expenses page, Dashboard, and Reports
+      // Invalidate all expense-related query keys
       qc.invalidateQueries({ queryKey: ['expenses'] });
       qc.invalidateQueries({ queryKey: ['expenses_today'] });
       qc.invalidateQueries({ queryKey: ['expenses_month'] });
-      // Also invalidate dashboard profit/summary queries that depend on expenses
+      // Invalidate dashboard KPI queries that depend on expenses
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+      qc.invalidateQueries({ queryKey: ['reports'] });
+      // Also invalidate sales/profit queries that embed expense data
       qc.invalidateQueries({ queryKey: ['sales_today'] });
       qc.invalidateQueries({ queryKey: ['sales_month'] });
       setDeleting(null);
-    }
+    },
+    onError: (err) => {
+      console.error('[Expenses] deleteMut error:', err?.code, err?.message, err?.details, err);
+    },
   });
 
   const filtered = filterBranch === 'all' ? expenses : expenses.filter(e => e.branch_key === filterBranch || e.branch_key === 'all');

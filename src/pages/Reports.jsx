@@ -177,12 +177,22 @@ export default function Reports() {
     queryFn: () => base44.entities.BrandSettings.list(),
   });
 
+  // Expense categories — needed for fixed vs variable proration
+  const { data: expenseCategories = [] } = useQuery({
+    queryKey: ['expense_categories_reports'],
+    queryFn: () => base44.entities.ExpenseCategory
+      ? base44.entities.ExpenseCategory.list('sort_order', 500)
+      : Promise.resolve([]),
+    staleTime: 300000,
+    enabled: hasFilter,
+  });
+
   const isLoading = loadingSales || loadingPurchases || loadingExpenses || loadingSources;
 
   // ── Analytics computations (all from engine) ───────────────────────────────
   const executive = useMemo(
-    () => computeExecutiveSummary(sales, purchases, expenses, revenueSources, walletTransactions),
-    [sales, purchases, expenses, revenueSources, walletTransactions]
+    () => computeExecutiveSummary(sales, purchases, expenses, revenueSources, walletTransactions, expenseCategories),
+    [sales, purchases, expenses, revenueSources, walletTransactions, expenseCategories]
   );
 
   const performance = useMemo(
@@ -201,18 +211,18 @@ export default function Reports() {
   );
 
   const branchPerf = useMemo(
-    () => computeBranchPerformance(branches, sales, purchases, expenses, revenueSources),
-    [branches, sales, purchases, expenses, revenueSources]
+    () => computeBranchPerformance(branches, sales, purchases, expenses, revenueSources, expenseCategories),
+    [branches, sales, purchases, expenses, revenueSources, expenseCategories]
   );
 
   const cost = useMemo(
-    () => computeCostControl(sales, purchases, expenses, revenueSources),
-    [sales, purchases, expenses, revenueSources]
+    () => computeCostControl(sales, purchases, expenses, revenueSources, expenseCategories),
+    [sales, purchases, expenses, revenueSources, expenseCategories]
   );
 
   const profit = useMemo(
-    () => computeProfitAnalysis(sales, purchases, expenses, revenueSources),
-    [sales, purchases, expenses, revenueSources]
+    () => computeProfitAnalysis(sales, purchases, expenses, revenueSources, expenseCategories),
+    [sales, purchases, expenses, revenueSources, expenseCategories]
   );
 
   const inventorySummary = useMemo(() => buildInventorySummary(inventory), [inventory]);
@@ -244,6 +254,7 @@ export default function Reports() {
         supplierInvoices: purchases,
         walletTransactions,
         revenueSources,
+        expenseCategories,
       });
       setPdfStatus('done');
       setTimeout(() => setPdfStatus('idle'), 3000);
@@ -252,7 +263,7 @@ export default function Reports() {
       setPdfError(e.message || 'Generation failed');
       setPdfStatus('error');
     }
-  }, [sales, purchases, expenses, branches, inventory, walletTransactions, revenueSources, brandSettingsList, t, lang, currency, dir]);
+  }, [sales, purchases, expenses, branches, inventory, walletTransactions, revenueSources, expenseCategories, brandSettingsList, t, lang, currency, dir]);
 
   // ── Loading state ──────────────────────────────────────────────────────────
   if (isLoading) {

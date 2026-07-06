@@ -16,6 +16,7 @@ import {
   computeBranchMetrics,
   buildDailyProfitTrend,
   formatDate,
+  tagExpensesWithCategories,
 } from '@/lib/helpers';
 
 import {
@@ -61,7 +62,7 @@ export function filterByBranch(arr, branchKey) {
  * @param {Array} walletTransactions - for network settlement
  * @returns {Object} executiveSummary
  */
-export function computeExecutiveSummary(sales, purchases, expenses, revenueSources = [], walletTransactions = []) {
+export function computeExecutiveSummary(sales, purchases, expenses, revenueSources = [], walletTransactions = [], expenseCategories = []) {
   const today = todayStr();
   const yesterday = yesterdayStr();
   const mStart = monthStartStr();
@@ -78,15 +79,19 @@ export function computeExecutiveSummary(sales, purchases, expenses, revenueSourc
   const prevMonthSales = filterByDate(sales, pmStart, pmEnd);
 
   const monthPurchases = filterByDate(purchases, mStart, mEnd);
-  const monthExpenses  = filterByDate(expenses, mStart, mEnd);
   const yearPurchases  = filterByDate(purchases, yStart, yEnd);
-  const yearExpenses   = filterByDate(expenses, yStart, yEnd);
 
-  const todayMetrics     = computeDashboardMetrics(todaySales, [], [], 'day', revenueSources);
+  // Tag expenses with _is_fixed from categories for correct proration
+  const taggedExpenses = tagExpensesWithCategories(expenses, expenseCategories);
+  const monthExpenses  = filterByDate(taggedExpenses, mStart, mEnd);
+  const yearExpenses   = filterByDate(taggedExpenses, yStart, yEnd);
+  const todayExpenses  = filterByDate(taggedExpenses, today, today);
+
+  const todayMetrics     = computeDashboardMetrics(todaySales, [], todayExpenses, 'day', revenueSources);
   const yesterdayMetrics = computeDashboardMetrics(yesterdaySales, [], [], 'day', revenueSources);
   const monthMetrics     = computeDashboardMetrics(monthSales, monthPurchases, monthExpenses, 'month', revenueSources);
   const yearMetrics      = computeDashboardMetrics(yearSales, yearPurchases, yearExpenses, 'year', revenueSources);
-  const prevMonthMetrics = computeDashboardMetrics(prevMonthSales, filterByDate(purchases, pmStart, pmEnd), filterByDate(expenses, pmStart, pmEnd), 'month', revenueSources);
+  const prevMonthMetrics = computeDashboardMetrics(prevMonthSales, filterByDate(purchases, pmStart, pmEnd), filterByDate(taggedExpenses, pmStart, pmEnd), 'month', revenueSources);
 
   // Sales Growth % (month vs prev month)
   const salesGrowth = prevMonthMetrics.totalSales > 0
@@ -115,7 +120,16 @@ export function computeExecutiveSummary(sales, purchases, expenses, revenueSourc
     netMargin:        monthMetrics.netMargin,
     avgDailyRevenue,
     avgTicket,
+    // Today expense breakdown (for KPI cards)
+    todayExpenses:         todayMetrics.totalExpenses,
+    todayExpensesFixed:    todayMetrics.fixedDeduction,
+    todayExpensesVariable: todayMetrics.totalVariableExpenses,
+    // Monthly expense breakdown
+    monthExpenses:         monthMetrics.totalExpensesAll,
+    monthExpensesFixed:    monthMetrics.totalFixedExpenses,
+    monthExpensesVariable: monthMetrics.totalVariableExpenses,
     // raw for downstream use
+    todayMetrics,
     monthMetrics,
     yearMetrics,
     prevMonthMetrics,
@@ -421,13 +435,15 @@ export function computeNetworkAnalytics(sales, walletTransactions = []) {
  * @param {Array} revenueSources
  * @returns {Array} branchPerformance sorted by profit desc
  */
-export function computeBranchPerformance(branches, sales, purchases, expenses, revenueSources = []) {
+export function computeBranchPerformance(branches, sales, purchases, expenses, revenueSources = [], expenseCategories = []) {
   const mStart = monthStartStr();
   const mEnd   = monthEndStr();
 
   const mSales     = filterByDate(sales, mStart, mEnd);
   const mPurchases = filterByDate(purchases, mStart, mEnd);
-  const mExpenses  = filterByDate(expenses, mStart, mEnd);
+  // Tag expenses with _is_fixed before filtering
+  const taggedExpenses = tagExpensesWithCategories(expenses, expenseCategories);
+  const mExpenses  = filterByDate(taggedExpenses, mStart, mEnd);
 
   const result = (branches || []).map(branch => {
     const bKey = branch.key || branch.id || branch;
@@ -463,14 +479,15 @@ export function computeBranchPerformance(branches, sales, purchases, expenses, r
  * @param {Array} revenueSources
  * @returns {Object} costControl
  */
-export function computeCostControl(sales, purchases, expenses, revenueSources = []) {
+export function computeCostControl(sales, purchases, expenses, revenueSources = [], expenseCategories = []) {
   const mStart = monthStartStr();
   const mEnd   = monthEndStr();
   const pmStart = prevMonthStartStr();
   const pmEnd   = prevMonthEndStr();
 
-  const m  = computeDashboardMetrics(filterByDate(sales, mStart, mEnd), filterByDate(purchases, mStart, mEnd), filterByDate(expenses, mStart, mEnd), 'month', revenueSources);
-  const pm = computeDashboardMetrics(filterByDate(sales, pmStart, pmEnd), filterByDate(purchases, pmStart, pmEnd), filterByDate(expenses, pmStart, pmEnd), 'month', revenueSources);
+  const taggedExpenses = tagExpensesWithCategories(expenses, expenseCategories);
+  const m  = computeDashboardMetrics(filterByDate(sales, mStart, mEnd), filterByDate(purchases, mStart, mEnd), filterByDate(taggedExpenses, mStart, mEnd), 'month', revenueSources);
+  const pm = computeDashboardMetrics(filterByDate(sales, pmStart, pmEnd), filterByDate(purchases, pmStart, pmEnd), filterByDate(taggedExpenses, pmStart, pmEnd), 'month', revenueSources);
 
   const foodCostPct     = m.totalSales > 0 ? (m.totalPurchaseCost / m.totalSales) * 100 : 0;
   const purchaseRatio   = m.totalSales > 0 ? (m.totalPurchaseCost / m.totalSales) * 100 : 0;
@@ -499,14 +516,15 @@ export function computeCostControl(sales, purchases, expenses, revenueSources = 
  * @param {Array} revenueSources
  * @returns {Object} profitAnalysis
  */
-export function computeProfitAnalysis(sales, purchases, expenses, revenueSources = []) {
+export function computeProfitAnalysis(sales, purchases, expenses, revenueSources = [], expenseCategories = []) {
   const mStart = monthStartStr();
   const mEnd   = monthEndStr();
   const yStart = yearStartStr();
   const yEnd   = yearEndStr();
 
-  const monthM = computeDashboardMetrics(filterByDate(sales, mStart, mEnd), filterByDate(purchases, mStart, mEnd), filterByDate(expenses, mStart, mEnd), 'month', revenueSources);
-  const yearM  = computeDashboardMetrics(filterByDate(sales, yStart, yEnd), filterByDate(purchases, yStart, yEnd), filterByDate(expenses, yStart, yEnd), 'year', revenueSources);
+  const taggedExpenses = tagExpensesWithCategories(expenses, expenseCategories);
+  const monthM = computeDashboardMetrics(filterByDate(sales, mStart, mEnd), filterByDate(purchases, mStart, mEnd), filterByDate(taggedExpenses, mStart, mEnd), 'month', revenueSources);
+  const yearM  = computeDashboardMetrics(filterByDate(sales, yStart, yEnd), filterByDate(purchases, yStart, yEnd), filterByDate(taggedExpenses, yStart, yEnd), 'year', revenueSources);
 
   // Profit trend (daily for current month)
   const profitTrend = buildDailyProfitTrend(filterByDate(sales, mStart, mEnd), filterByDate(purchases, mStart, mEnd), revenueSources);
@@ -538,15 +556,15 @@ export function computeProfitAnalysis(sales, purchases, expenses, revenueSources
  * @param {Array} walletTransactions
  * @returns {Object} pdfPayload
  */
-export function buildPDFPayload(sales, purchases, expenses, inventory, branches, revenueSources = [], walletTransactions = []) {
+export function buildPDFPayload(sales, purchases, expenses, inventory, branches, revenueSources = [], walletTransactions = [], expenseCategories = []) {
   return {
-    executive:   computeExecutiveSummary(sales, purchases, expenses, revenueSources, walletTransactions),
+    executive:   computeExecutiveSummary(sales, purchases, expenses, revenueSources, walletTransactions, expenseCategories),
     performance: computeSalesPerformance(sales, revenueSources),
     payment:     computePaymentAnalytics(sales, revenueSources),
     network:     computeNetworkAnalytics(sales, walletTransactions),
-    branches:    computeBranchPerformance(branches, sales, purchases, expenses, revenueSources),
-    cost:        computeCostControl(sales, purchases, expenses, revenueSources),
-    profit:      computeProfitAnalysis(sales, purchases, expenses, revenueSources),
+    branches:    computeBranchPerformance(branches, sales, purchases, expenses, revenueSources, expenseCategories),
+    cost:        computeCostControl(sales, purchases, expenses, revenueSources, expenseCategories),
+    profit:      computeProfitAnalysis(sales, purchases, expenses, revenueSources, expenseCategories),
     inventory:   buildInventorySummary(inventory),
     generatedAt: new Date().toISOString(),
   };
