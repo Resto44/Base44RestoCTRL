@@ -40,7 +40,8 @@ import { useRole } from '@/lib/RoleContext';
 import { useAuth } from '@/lib/AuthContext';
 import { useNetworkSettlement } from '@/hooks/useNetworkSettlement';
 import { useNotify } from '@/lib/useNotify';
-import { getSaleCash, getSaleNetwork } from '@/lib/helpers';
+import { getSaleCash, getSaleNetwork, calculateSalesRevenue } from '@/lib/helpers';
+import { useSalesSources } from '@/hooks/useSalesSources';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -318,6 +319,7 @@ export default function OwnerDashboard() {
   const notif = useNotify();
   const qc = useQueryClient();
   const { autoSettle } = useNetworkSettlement({ orgId, user, currency });
+  const { revenueSources } = useSalesSources();
 
   // ── BRANCH SELECTION STATE ────────────────────────────────────────────────
   // 'all' means aggregate all branches; any other value is a branch key/id
