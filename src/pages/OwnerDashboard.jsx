@@ -331,10 +331,11 @@ export default function OwnerDashboard() {
   // When 'all' is selected: use ownerFilter as-is (all branches)
   // When a branch is selected: add branch key to the filter
   const branchFilter = useMemo(() => {
-    if (!ownerFilter) return null;
-    if (selectedBranch === 'all') return ownerFilter;
-    return { ...ownerFilter, branch: selectedBranch };
-  }, [ownerFilter, selectedBranch]);
+    if (!activeRestaurant?.id) return null;
+    const baseFilter = { restaurant_id: activeRestaurant.id };
+    if (selectedBranch === 'all') return baseFilter;
+    return { ...baseFilter, branch: selectedBranch };
+  }, [activeRestaurant, selectedBranch]);
 
   // Branch display info for the badge
   const selectedBranchLabel = useMemo(() => {
@@ -351,7 +352,7 @@ export default function OwnerDashboard() {
   const prevWeekStart  = format(subWeeks(new Date(), 1), 'yyyy-MM-dd');
   const prevMonthStart = format(subMonths(new Date(), 1), 'yyyy-MM-dd');
 
-  const enabled = !!(ownerFilter?.created_by || ownerFilter?.branch);
+  const enabled = !!(activeRestaurant?.id);
 
   const fmt = useCallback((n) =>
     `${currency}${(n || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`, [currency]);
