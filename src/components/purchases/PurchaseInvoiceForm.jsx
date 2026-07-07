@@ -78,7 +78,7 @@ const emptyPayment = () => ({
   amount: 0,
   payment_method: 'cash',
   notes: '',
-  date: new Date().toISOString().split('T')[0],
+  date: format(new Date(), 'yyyy-MM-dd'),
 });
 
 const emptyAdditionalCost = () => ({
@@ -245,7 +245,7 @@ export default function PurchaseInvoiceForm({ invoice = null, onSuccess, onCance
     supplier_id: invoice?.supplier_id || '',
     supplier_name: invoice?.supplier_name || '',
     branch: invoice?.branch || '',
-    date: invoice?.date || new Date().toISOString().split('T')[0],
+    date: invoice?.date || format(new Date(), 'yyyy-MM-dd'),
     due_date: invoice?.due_date || '',
     currency: invoice?.currency || 'SAR',
     notes: invoice?.notes || '',

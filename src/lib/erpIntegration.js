@@ -4,6 +4,7 @@
  */
 
 import { base44 } from '@/api/base44Client';
+import { format } from 'date-fns';
 
 /**
  * Link Add Sale to Cash Register automatically
@@ -11,7 +12,7 @@ import { base44 } from '@/api/base44Client';
  */
 export async function linkSaleToCashRegister(saleData, saleId) {
   try {
-    const today = new Date().toISOString().split('T')[0];
+    const today = format(new Date(), 'yyyy-MM-dd');
     
     // Ensure sale has restaurant_id and organization_id
     if (!saleData.restaurant_id || !saleData.created_by) {

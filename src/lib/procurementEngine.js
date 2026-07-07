@@ -12,6 +12,7 @@
  */
 
 import { supabase } from '@/api/supabaseClient';
+import { format } from 'date-fns';
 
 // ── Approval Threshold ─────────────────────────────────────────────────────
 const AUTO_APPROVE_THRESHOLD = 5000;
@@ -444,15 +445,13 @@ export function getOverdueInfo(invoice) {
 
 // ── Procurement KPIs ───────────────────────────────────────────────────────
 export function computeProcurementKPIs(invoices = [], payments = []) {
-  const today = new Date().toISOString().split('T')[0];
+  const today = format(new Date(), 'yyyy-MM-dd');
   const thisMonthStart = today.substring(0, 7) + '-01';
 
   // KPI must include Approved supplier invoices only
   const approvedInvoices = invoices.filter(i => 
     ['approved', 'auto_approved'].includes(i.approval_status) || 
-    i.status === 'approved' || 
-    i.status === 'paid' || 
-    i.status === 'partial'
+    ['approved', 'paid', 'partial'].includes(i.status)
   );
 
   // Use invoice transaction date (purchase date), never created_at

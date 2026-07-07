@@ -243,10 +243,10 @@ export default function FinancialKPIs({ branch }) {
       if (!ownerFilter?.created_by) return [];
       const { data, error } = await supabase
         .from('supplier_invoices')
-        .select('id, total_amount, approval_status, branch, date')
+        .select('id, total_amount, approval_status, status, branch, date')
         .eq('created_by', ownerFilter.created_by)
         .eq('date', todayStr)
-        .in('approval_status', ['approved', 'auto_approved'])
+        .or(`approval_status.in.(approved,auto_approved),status.eq.approved`)
         .limit(200);
       if (error) return [];
       return data || [];

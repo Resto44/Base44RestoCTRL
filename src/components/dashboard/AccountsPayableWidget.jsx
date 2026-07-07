@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { format } from 'date-fns';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { useLanguage } from '@/lib/LanguageContext';
@@ -23,7 +24,7 @@ export default function AccountsPayableWidget() {
   });
 
   const allUnpaid = useMemo(() => [...invoices, ...partials], [invoices, partials]);
-  const today = new Date().toISOString().split('T')[0];
+  const today = format(new Date(), 'yyyy-MM-dd');
 
   const totalOwed = useMemo(() => allUnpaid.reduce((s, i) => s + (i.amount - (i.paid_amount || 0)), 0), [allUnpaid]);
   const overdueCount = useMemo(() => allUnpaid.filter(i => i.due_date && i.due_date < today).length, [allUnpaid, today]);
