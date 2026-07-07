@@ -560,12 +560,12 @@ export default function OwnerDashboard() {
 
     const purchasesToday = supplierInvoices
       .filter(inv => {
-        const isApproved = ['approved', 'auto_approved'].includes(inv.approval_status) || ['approved', 'paid', 'partial'].includes(inv.status);
+        const isApproved = ['approved', 'auto_approved'].includes(inv.approval_status) || ['approved', 'paid', 'partial', 'unpaid'].includes(inv.status) || !inv.approval_status;
         const isToday = inv.date === today;
         const isBranchMatch = selectedBranch === 'all' || inv.branch === branchKey;
         return isApproved && isToday && isBranchMatch;
       })
-      .reduce((s, inv) => s + (Number(inv.total_amount) || 0), 0);
+      .reduce((s, inv) => s + (Number(inv.total_amount || inv.amount) || 0), 0);
 
     // Tag each today expense with _is_fixed from its category
     const catMap = {};
@@ -731,11 +731,11 @@ export default function OwnerDashboard() {
 
     const monthPurchasesAmt = supplierInvoices
       .filter(inv => {
-        const isApproved = ['approved', 'auto_approved'].includes(inv.approval_status) || ['approved', 'paid', 'partial'].includes(inv.status);
+        const isApproved = ['approved', 'auto_approved'].includes(inv.approval_status) || ['approved', 'paid', 'partial', 'unpaid'].includes(inv.status) || !inv.approval_status;
         const isBranchMatch = selectedBranch === 'all' || inv.branch === branchPurchKey;
         return isApproved && isBranchMatch && inv.date >= monthStart && inv.date <= today;
       })
-      .reduce((s, inv) => s + (Number(inv.total_amount) || 0), 0);
+      .reduce((s, inv) => s + (Number(inv.total_amount || inv.amount) || 0), 0);
     const monthNetProfit = monthSalesAmt - monthPurchasesAmt - total;
 
     return { total, totalFixed, totalVariable, monthNetProfit, monthPurchasesAmt };
@@ -772,7 +772,7 @@ export default function OwnerDashboard() {
     const branchPurchAnKey = branchPurchAnObj?.key || selectedBranch;
 
     const approvedInvoicesForBranch = supplierInvoices.filter(inv => {
-      const isApproved = ['approved', 'auto_approved'].includes(inv.approval_status) || ['approved', 'paid', 'partial'].includes(inv.status);
+      const isApproved = ['approved', 'auto_approved'].includes(inv.approval_status) || ['approved', 'paid', 'partial', 'unpaid'].includes(inv.status) || !inv.approval_status;
       const isBranchMatch = selectedBranch === 'all' || inv.branch === branchPurchAnKey;
       return isApproved && isBranchMatch;
     });
@@ -782,16 +782,16 @@ export default function OwnerDashboard() {
 
     // Today's approved purchases — amount + invoice count
     const todayInvoicesList = approvedInvoicesForBranch.filter(inv => inv.date === today);
-    const todayAmt = todayInvoicesList.reduce((s, inv) => s + (Number(inv.total_amount) || 0), 0);
+    const todayAmt = todayInvoicesList.reduce((s, inv) => s + (Number(inv.total_amount || inv.amount) || 0), 0);
     const todayCount = todayInvoicesList.length;
 
     const weekAmt = approvedInvoicesForBranch
       .filter(inv => inv.date >= startOfW && inv.date <= today)
-      .reduce((s, inv) => s + (Number(inv.total_amount) || 0), 0);
+      .reduce((s, inv) => s + (Number(inv.total_amount || inv.amount) || 0), 0);
 
     // Monthly approved purchases — amount + invoice count
     const monthInvoicesList = approvedInvoicesForBranch.filter(inv => inv.date >= startOfM && inv.date <= today);
-    const monthAmt = monthInvoicesList.reduce((s, inv) => s + (Number(inv.total_amount) || 0), 0);
+    const monthAmt = monthInvoicesList.reduce((s, inv) => s + (Number(inv.total_amount || inv.amount) || 0), 0);
     const monthCount = monthInvoicesList.length;
 
     // Supplier ranking by total purchase amount (all approved, branch-filtered)
@@ -799,7 +799,7 @@ export default function OwnerDashboard() {
     approvedInvoicesForBranch.forEach(inv => {
       const name = inv.supplier_name || 'Unknown';
       if (!supplierMap[name]) supplierMap[name] = { amount: 0, count: 0 };
-      supplierMap[name].amount += (Number(inv.total_amount) || 0);
+      supplierMap[name].amount += (Number(inv.total_amount || inv.amount) || 0);
       supplierMap[name].count += 1;
     });
     const supplierRanking = Object.entries(supplierMap)
@@ -807,7 +807,7 @@ export default function OwnerDashboard() {
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5);
 
-    const allAmounts = approvedInvoicesForBranch.map(inv => Number(inv.total_amount) || 0);
+    const allAmounts = approvedInvoicesForBranch.map(inv => Number(inv.total_amount || inv.amount) || 0);
     const largestPurchase = allAmounts.length > 0 ? Math.max(...allAmounts) : 0;
     const avgPurchase     = allAmounts.length > 0 ? allAmounts.reduce((s, v) => s + v, 0) / allAmounts.length : 0;
 
