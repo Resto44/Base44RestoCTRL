@@ -22,6 +22,16 @@
       "type": "string",
       "description": "Hex color code"
     },
+    "is_fixed": {
+      "type": "boolean",
+      "default": false,
+      "description": "True = Fixed Monthly Expense (Rent, Salary, Subscription). False = Daily Operating Expense (Fuel, Supplies, etc)"
+    },
+    "expense_type": {
+      "type": "string",
+      "enum": ["fixed", "variable"],
+      "description": "fixed = monthly recurring, variable = daily operating"
+    },
     "is_active": {
       "type": "boolean",
       "default": true

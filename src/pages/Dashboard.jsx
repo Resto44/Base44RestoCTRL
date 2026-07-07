@@ -5,7 +5,7 @@ import { base44 } from '@/api/base44Client';
 import { useLanguage } from '@/lib/LanguageContext';
 import { useTenant } from '@/lib/TenantContext';
 import { useSalesSources } from '@/hooks/useSalesSources';
-import { getDateRange, computeDashboardMetrics, formatCurrency, formatPct, formatDate } from '@/lib/helpers';
+import { getDateRange, computeDashboardMetrics, tagExpensesWithCategories, formatCurrency, formatPct, formatDate } from '@/lib/helpers';
 import PageHeader from '@/components/shared/PageHeader';
 import KPICard from '@/components/shared/KPICard';
 import RiskBadge from '@/components/shared/RiskBadge';
@@ -35,7 +35,7 @@ import { useRole, ROLES } from '@/lib/RoleContext';
 export default function Dashboard() {
   const { user, isLoadingAuth } = useAuth();
   const { t, currency } = useLanguage();
-  const { branches, ownerFilter } = useTenant();
+  const { branches, ownerFilter, activeRestaurant } = useTenant();
   const { role } = useRole();
   const { revenueSources } = useSalesSources();
 
@@ -96,6 +96,19 @@ export default function Dashboard() {
     enabled: !!ownerFilter?.created_by,
   });
 
+  // Expense categories — needed for fixed vs variable expense tagging
+  const { data: expenseCategories = [] } = useQuery({
+    queryKey: ['expense_categories_admin', activeRestaurant?.id],
+    queryFn: () => base44.entities.ExpenseCategory
+      ? base44.entities.ExpenseCategory.filter(
+          activeRestaurant?.id ? { restaurant_id: activeRestaurant.id } : {},
+          'sort_order', 500
+        )
+      : Promise.resolve([]),
+    staleTime: 300000,
+    enabled: !!ownerFilter?.created_by,
+  });
+
   // ── Period-scoped data ────────────────────────────────────────────────
   const filteredSales = useMemo(() =>
     allSales.filter(s => s.date >= fromStr && s.date <= toStr && (branch === 'all' || s.branch === branch)),
@@ -114,7 +127,12 @@ export default function Dashboard() {
     [allWaste, fromStr, toStr, branch]
   );
 
-  const metrics = useMemo(() => computeDashboardMetrics(filteredSales, filteredPurchases, filteredExpenses, rangeType, revenueSources), [filteredSales, filteredPurchases, filteredExpenses, rangeType, revenueSources]);
+  // Tag expenses with _is_fixed flag from their category before computing metrics
+  const taggedFilteredExpenses = useMemo(() =>
+    tagExpensesWithCategories(filteredExpenses, expenseCategories),
+    [filteredExpenses, expenseCategories]
+  );
+  const metrics = useMemo(() => computeDashboardMetrics(filteredSales, filteredPurchases, taggedFilteredExpenses, rangeType, revenueSources), [filteredSales, filteredPurchases, taggedFilteredExpenses, rangeType, revenueSources]);
 
   const prevRange = useMemo(() => {
     const diffMs = dateRange.to - dateRange.from;
@@ -125,7 +143,11 @@ export default function Dashboard() {
   const prevSales = useMemo(() => allSales.filter(s => s.date >= prevFrom && s.date <= prevTo && (branch === 'all' || s.branch === branch)), [allSales, prevFrom, prevTo, branch]);
   const prevPurchases = useMemo(() => allPurchases.filter(p => p.date >= prevFrom && p.date <= prevTo && (branch === 'all' || p.branch === branch)), [allPurchases, prevFrom, prevTo, branch]);
   const prevExpenses = useMemo(() => allExpenses.filter(e => e.date >= prevFrom && e.date <= prevTo && (branch === 'all' || e.branch === branch || e.branch === 'all')), [allExpenses, prevFrom, prevTo, branch]);
-  const prevMetrics = useMemo(() => computeDashboardMetrics(prevSales, prevPurchases, prevExpenses, rangeType, revenueSources), [prevSales, prevPurchases, prevExpenses, rangeType, revenueSources]);
+  const taggedPrevExpenses = useMemo(() =>
+    tagExpensesWithCategories(prevExpenses, expenseCategories),
+    [prevExpenses, expenseCategories]
+  );
+  const prevMetrics = useMemo(() => computeDashboardMetrics(prevSales, prevPurchases, taggedPrevExpenses, rangeType, revenueSources), [prevSales, prevPurchases, taggedPrevExpenses, rangeType, revenueSources]);
 
   const walletBalances = useMemo(() => {
     const calc = (walletKey) => walletTx.filter(tx => tx.wallet === walletKey)

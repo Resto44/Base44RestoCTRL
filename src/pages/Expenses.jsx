@@ -67,14 +67,33 @@ function ExpenseForm({ initial, onSubmit, onCancel, categories }) {
           <Select value={form.category_id} onValueChange={v => set('category_id', v)}>
             <SelectTrigger><SelectValue placeholder="Select category..." /></SelectTrigger>
             <SelectContent>
-              {activeCats.map(c => (
-                <SelectItem key={c.id} value={c.id}>
-                  <span className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full shrink-0" style={{ background: c.color || '#888' }} />
-                    <span>{c.name}</span>
-                  </span>
-                </SelectItem>
-              ))}
+              {activeCats.filter(c => c.is_fixed === true).length > 0 && (
+                <>
+                  <div className="px-2 py-1 text-[10px] font-bold text-blue-600 uppercase tracking-wider">Fixed Monthly</div>
+                  {activeCats.filter(c => c.is_fixed === true).map(c => (
+                    <SelectItem key={c.id} value={c.id}>
+                      <span className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full shrink-0" style={{ background: c.color || '#888' }} />
+                        <span>{c.name}</span>
+                        <span className="text-[10px] text-blue-500">(Fixed)</span>
+                      </span>
+                    </SelectItem>
+                  ))}
+                </>
+              )}
+              {activeCats.filter(c => c.is_fixed !== true).length > 0 && (
+                <>
+                  <div className="px-2 py-1 text-[10px] font-bold text-amber-600 uppercase tracking-wider">Daily Operating</div>
+                  {activeCats.filter(c => c.is_fixed !== true).map(c => (
+                    <SelectItem key={c.id} value={c.id}>
+                      <span className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full shrink-0" style={{ background: c.color || '#888' }} />
+                        <span>{c.name}</span>
+                      </span>
+                    </SelectItem>
+                  ))}
+                </>
+              )}
             </SelectContent>
           </Select>
         )}

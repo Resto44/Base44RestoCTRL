@@ -451,10 +451,14 @@ export default function OwnerDashboard() {
   });
 
   // Expense categories — needed to tag fixed vs variable expenses
+  // IMPORTANT: filter by restaurant_id to avoid cross-restaurant category pollution
   const { data: expenseCategories = [] } = useQuery({
-    queryKey: ['expense_categories_dash'],
+    queryKey: ['expense_categories_dash', activeRestaurant?.id],
     queryFn: () => base44.entities.ExpenseCategory
-      ? base44.entities.ExpenseCategory.list('sort_order', 500)
+      ? base44.entities.ExpenseCategory.filter(
+          activeRestaurant?.id ? { restaurant_id: activeRestaurant.id } : {},
+          'sort_order', 500
+        )
       : Promise.resolve([]),
     staleTime: 300000,
     enabled,
@@ -567,22 +571,35 @@ export default function OwnerDashboard() {
       })
       .reduce((s, inv) => s + (Number(inv.total_amount || inv.amount) || 0), 0);
 
-    // Tag each today expense with _is_fixed from its category
+    // ── EXPENSE SEPARATION: Fixed Monthly vs Daily Operating ──────────────────
+    // Build category lookup map
     const catMap = {};
     (expenseCategories || []).forEach(c => { catMap[c.id] = c; });
+
+    const realDaysInMonth = getDaysInMonth(new Date());
+
+    // FIXED MONTHLY EXPENSES: sourced from monthExpenses (rent/salary entered once per month)
+    // Tag month expenses with _is_fixed flag
+    const taggedMonthExpenses = (monthExpenses || []).map(e => ({
+      ...e,
+      _is_fixed: !!(catMap[e.category_id]?.is_fixed || catMap[e.expense_category_id]?.is_fixed),
+    }));
+    const fixedMonthExpenses = taggedMonthExpenses.filter(e => e._is_fixed);
+    // Total monthly fixed = full amount (rent + salaries for the whole month)
+    const totalMonthlyFixed = fixedMonthExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    // Daily fixed allocation = monthly fixed / real calendar days in month
+    const dailyFixedAllocation = totalMonthlyFixed > 0 ? totalMonthlyFixed / realDaysInMonth : 0;
+
+
+    // DAILY OPERATING EXPENSES: only non-fixed expenses entered today
     const taggedTodayExpenses = (todayExpenses || []).map(e => ({
       ...e,
-      _is_fixed: !!(catMap[e.category_id]?.is_fixed),
+      _is_fixed: !!(catMap[e.category_id]?.is_fixed || catMap[e.expense_category_id]?.is_fixed),
     }));
-
-    // Prorate fixed expenses: daily allocation = monthly_fixed / real_days_in_month
-    const realDaysInMonth = getDaysInMonth(new Date());
-    const fixedTodayExpenses = taggedTodayExpenses.filter(e => e._is_fixed);
     const variableTodayExpenses = taggedTodayExpenses.filter(e => !e._is_fixed);
-    const totalFixedMonthly = fixedTodayExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
     const totalVariableToday = variableTodayExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
-    // Daily fixed cost allocation = monthly fixed amount / days in month
-    const dailyFixedAllocation = totalFixedMonthly > 0 ? totalFixedMonthly / realDaysInMonth : 0;
+
+    // TODAY TOTAL EXPENSE = daily variable + prorated daily fixed allocation
     const expensesToday = totalVariableToday + dailyFixedAllocation;
     const expensesTodayRaw = (todayExpenses || []).reduce((s, e) => s + (Number(e.amount) || 0), 0);
 
@@ -635,13 +652,13 @@ export default function OwnerDashboard() {
     return {
       salesToday, cashSalesToday, networkSalesToday, creditSalesToday, customSalesToday,
       purchasesToday, expensesToday, expensesTodayRaw,
-      dailyFixedAllocation, totalVariableToday, realDaysInMonth,
+      dailyFixedAllocation, totalVariableToday, totalMonthlyFixed, realDaysInMonth,
       grossProfit, netProfit,
       cashInRegister, networkBalance, networkToday, networkYesterday, networkMonth, customerCredit,
       inventoryValue, supplierPayables,
       ownerCapitalToday, cashShortageToday, cashOverageToday,
     };
-  }, [todaySales, yesterdaySales, todayExpenses, expenseCategories, supplierInvoices, customerDebts, inventory, today, monthSales, walletTransactions, monthStart, selectedBranch, revenueSources]);
+  }, [todaySales, yesterdaySales, todayExpenses, monthExpenses, expenseCategories, supplierInvoices, customerDebts, inventory, today, monthSales, walletTransactions, monthStart, selectedBranch, revenueSources]);
 
   // ── Section 2: Operating Result (NEVER REMOVE) ───────────────────────────────
   const operatingResult = useMemo(() => {

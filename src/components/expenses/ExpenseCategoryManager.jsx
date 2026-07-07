@@ -7,9 +7,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Plus, Pencil, Trash2, Tag, FolderOpen } from 'lucide-react';
+import { Plus, Pencil, Trash2, Tag, FolderOpen, Lock, Zap } from 'lucide-react';
 
 const COLOR_OPTIONS = ['#6366f1', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#84cc16'];
 
@@ -17,6 +18,7 @@ function CategoryForm({ initial, onSubmit, onCancel, lang }) {
   const [form, setForm] = useState({
     name: initial?.name || '',
     color: initial?.color || '#6366f1',
+    is_fixed: initial?.is_fixed === true,
     is_active: initial?.is_active !== false,
   });
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
@@ -27,6 +29,53 @@ function CategoryForm({ initial, onSubmit, onCancel, lang }) {
         <Label>Category Name *</Label>
         <Input value={form.name} onChange={e => set('name', e.target.value)} placeholder="e.g. Rent" />
       </div>
+
+      {/* ── Expense Type Toggle ── */}
+      <div>
+        <Label className="mb-1 block">Expense Type *</Label>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => set('is_fixed', true)}
+            className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all ${
+              form.is_fixed
+                ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/40'
+                : 'border-border bg-card hover:bg-muted/60'
+            }`}
+          >
+            <Lock className={`w-5 h-5 ${form.is_fixed ? 'text-blue-600' : 'text-muted-foreground'}`} />
+            <span className={`text-xs font-bold ${form.is_fixed ? 'text-blue-700 dark:text-blue-300' : 'text-muted-foreground'}`}>
+              Fixed Monthly
+            </span>
+            <span className="text-[10px] text-muted-foreground text-center leading-tight">
+              Rent · Salary · Subscription
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => set('is_fixed', false)}
+            className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all ${
+              !form.is_fixed
+                ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/40'
+                : 'border-border bg-card hover:bg-muted/60'
+            }`}
+          >
+            <Zap className={`w-5 h-5 ${!form.is_fixed ? 'text-amber-600' : 'text-muted-foreground'}`} />
+            <span className={`text-xs font-bold ${!form.is_fixed ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground'}`}>
+              Daily Operating
+            </span>
+            <span className="text-[10px] text-muted-foreground text-center leading-tight">
+              Fuel · Supplies · Daily costs
+            </span>
+          </button>
+        </div>
+        <p className="text-[10px] text-muted-foreground mt-1.5">
+          {form.is_fixed
+            ? '⚡ Fixed expenses are entered once/month. Daily cost = Monthly ÷ Days in month.'
+            : '⚡ Daily expenses are counted in full on the day they are entered.'}
+        </p>
+      </div>
+
       <div>
         <Label>Color</Label>
         <div className="flex flex-wrap gap-1.5 mt-1">
@@ -79,6 +128,8 @@ export default function ExpenseCategoryManager({ onClose }) {
       const payload = { 
         name: d.name,
         color: d.color,
+        is_fixed: !!d.is_fixed,
+        expense_type: d.is_fixed ? 'fixed' : 'variable',
         is_active: d.is_active,
         restaurant_id: activeRestaurantId 
       };
@@ -86,6 +137,7 @@ export default function ExpenseCategoryManager({ onClose }) {
     },
     onSuccess: () => { 
       qc.invalidateQueries({ queryKey: ['expense_categories'] }); 
+      qc.invalidateQueries({ queryKey: ['expense_categories_dash'] });
       setShowForm(false); 
     }
   });
@@ -94,15 +146,29 @@ export default function ExpenseCategoryManager({ onClose }) {
       return base44.entities.ExpenseCategory.update(id, {
         name: data.name,
         color: data.color,
+        is_fixed: !!data.is_fixed,
+        expense_type: data.is_fixed ? 'fixed' : 'variable',
         is_active: data.is_active
       });
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['expense_categories'] }); setEditing(null); }
+    onSuccess: () => { 
+      qc.invalidateQueries({ queryKey: ['expense_categories'] }); 
+      qc.invalidateQueries({ queryKey: ['expense_categories_dash'] });
+      setEditing(null); 
+    }
   });
   const deleteMut = useMutation({
     mutationFn: id => base44.entities.ExpenseCategory.delete(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['expense_categories'] }); setDeleting(null); }
+    onSuccess: () => { 
+      qc.invalidateQueries({ queryKey: ['expense_categories'] }); 
+      qc.invalidateQueries({ queryKey: ['expense_categories_dash'] });
+      setDeleting(null); 
+    }
   });
+
+  // Split categories into fixed and variable for display
+  const fixedCategories = categories.filter(c => c.is_fixed === true);
+  const variableCategories = categories.filter(c => c.is_fixed !== true);
 
   return (
     <div className="space-y-3">
@@ -129,20 +195,59 @@ export default function ExpenseCategoryManager({ onClose }) {
           </Button>
         </Card>
       ) : (
-        <div className="space-y-1.5">
-          {categories.map(cat => (
-            <div key={cat.id} className={`flex items-center gap-2 p-2 rounded-lg border bg-card ${!cat.is_active ? 'opacity-50' : ''}`}>
-              <span className="w-3 h-3 rounded-full shrink-0" style={{ background: cat.color || '#888' }} />
-              <span className="flex-1 text-sm font-medium">{cat.name}</span>
-              {!cat.is_active && <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Inactive</span>}
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditing(cat)}>
-                <Pencil className="w-3.5 h-3.5" />
-              </Button>
-              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setDeleting(cat)}>
-                <Trash2 className="w-3.5 h-3.5" />
-              </Button>
+        <div className="space-y-3">
+          {/* Fixed Monthly Expenses */}
+          {fixedCategories.length > 0 && (
+            <div>
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <Lock className="w-3.5 h-3.5 text-blue-600" />
+                <span className="text-xs font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wider">Fixed Monthly</span>
+                <span className="text-[10px] text-muted-foreground bg-blue-100 dark:bg-blue-900/40 px-1.5 py-0.5 rounded-full">{fixedCategories.length}</span>
+              </div>
+              <div className="space-y-1.5">
+                {fixedCategories.map(cat => (
+                  <div key={cat.id} className={`flex items-center gap-2 p-2 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20 ${!cat.is_active ? 'opacity-50' : ''}`}>
+                    <span className="w-3 h-3 rounded-full shrink-0" style={{ background: cat.color || '#888' }} />
+                    <span className="flex-1 text-sm font-medium">{cat.name}</span>
+                    <Badge variant="outline" className="text-[10px] border-blue-300 text-blue-700 dark:text-blue-300">Fixed</Badge>
+                    {!cat.is_active && <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Inactive</span>}
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditing(cat)}>
+                      <Pencil className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setDeleting(cat)}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
             </div>
-          ))}
+          )}
+
+          {/* Daily Operating Expenses */}
+          {variableCategories.length > 0 && (
+            <div>
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <Zap className="w-3.5 h-3.5 text-amber-600" />
+                <span className="text-xs font-semibold text-amber-700 dark:text-amber-300 uppercase tracking-wider">Daily Operating</span>
+                <span className="text-[10px] text-muted-foreground bg-amber-100 dark:bg-amber-900/40 px-1.5 py-0.5 rounded-full">{variableCategories.length}</span>
+              </div>
+              <div className="space-y-1.5">
+                {variableCategories.map(cat => (
+                  <div key={cat.id} className={`flex items-center gap-2 p-2 rounded-lg border bg-card ${!cat.is_active ? 'opacity-50' : ''}`}>
+                    <span className="w-3 h-3 rounded-full shrink-0" style={{ background: cat.color || '#888' }} />
+                    <span className="flex-1 text-sm font-medium">{cat.name}</span>
+                    {!cat.is_active && <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Inactive</span>}
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditing(cat)}>
+                      <Pencil className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setDeleting(cat)}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
