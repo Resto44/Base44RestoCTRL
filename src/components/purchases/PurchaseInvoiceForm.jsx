@@ -31,6 +31,7 @@ import {
   Plus, Trash2, Receipt, Package, Truck, AlertCircle, CheckCircle2,
   Clock, Upload, Paperclip, ScanLine, ChevronDown, ChevronUp, DollarSign
 } from 'lucide-react';
+import { format } from 'date-fns';
 import {
   calcLineTotal, calcInvoiceTotals, computeApprovalStatus,
   createPurchaseInvoice, updatePurchaseInvoice, addInvoicePayment
