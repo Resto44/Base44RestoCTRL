@@ -55,6 +55,7 @@ import {
   createSalesInvoice,
   generateAndUploadPDF,
 } from '@/lib/salesInvoiceService';
+import { computeProcurementKPIs, getOverdueInfo } from '@/lib/procurementEngine';
 import {
   TrendingUp, TrendingDown, DollarSign, ShoppingCart, Package,
   Users, Truck, AlertTriangle, Wifi, Plus, CreditCard, Wallet,
@@ -636,9 +637,15 @@ export default function OwnerDashboard() {
     const inventoryValue =  (inventory || []).reduce((s, item) =>
       s + ((item.quantity || 0) * (item.unit_cost || item.avg_cost || item.cost_price || 0)), 0);
 
-    const supplierPayables = supplierInvoices
-      .filter(inv => (['approved', 'auto_approved'].includes(inv.approval_status) || ['approved', 'paid', 'partial'].includes(inv.status)) && inv.status !== 'paid' && inv.status !== 'cancelled')
-      .reduce((s, inv) => s + Math.max(0, (inv.total_amount || 0) - (inv.paid_amount || 0)), 0);
+    // USE EXACT SAME HELPER AS PROCUREMENT DASHBOARD FOR PAYABLES
+    // branchObj and branchKey already defined above in this memo
+    const branchFilteredForPayables = selectedBranch === 'all' 
+      ? supplierInvoices 
+      : supplierInvoices.filter(inv => inv.branch === branchKey);
+    const payablesKpis = computeProcurementKPIs(branchFilteredForPayables, []);
+    const supplierPayables = payablesKpis.outstandingPayables;
+    
+
 
     const ownerCapitalToday =  (todaySales || []).reduce((s, r) => s + (Number(r.owner_cash_injection) || 0), 0);
 
@@ -784,39 +791,37 @@ export default function OwnerDashboard() {
 
   // ── Section 5: Purchase Analytics ────────────────────────────────────────────
   const purchaseAnalytics = useMemo(() => {
-    // Filter approved invoices for analytics (respecting branch selection)
+    // Filter invoices by branch for procurement KPIs
     const branchPurchAnObj = (branches || []).find(b => (b.key || b.id) === selectedBranch);
     const branchPurchAnKey = branchPurchAnObj?.key || selectedBranch;
 
-    const approvedInvoicesForBranch = supplierInvoices.filter(inv => {
-      const isApproved = ['approved', 'auto_approved'].includes(inv.approval_status) || ['approved', 'paid', 'partial', 'unpaid'].includes(inv.status) || !inv.approval_status;
-      const isBranchMatch = selectedBranch === 'all' || inv.branch === branchPurchAnKey;
-      return isApproved && isBranchMatch;
-    });
+    // Filter by branch to match Procurement Dashboard
+    const branchFilteredInvoices = selectedBranch === 'all' 
+      ? supplierInvoices 
+      : supplierInvoices.filter(inv => inv.branch === branchPurchAnKey);
 
+    // USE EXACT SAME HELPER AS PROCUREMENT DASHBOARD
+    const kpis = computeProcurementKPIs(branchFilteredInvoices, []);
+
+
+
+    // Calculate additional metrics for backward compatibility
     const startOfW = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
-    const startOfM = format(startOfMonth(new Date()), 'yyyy-MM-dd');
-
-    // Today's approved purchases — amount + invoice count
-    const todayInvoicesList = approvedInvoicesForBranch.filter(inv => inv.date === today);
-    const todayAmt = todayInvoicesList.reduce((s, inv) => s + (Number(inv.total_amount || inv.amount) || 0), 0);
-    const todayCount = todayInvoicesList.length;
+    const approvedInvoicesForBranch = branchFilteredInvoices.filter(inv => 
+      ['approved', 'auto_approved'].includes(inv.approval_status) || 
+      ['approved', 'paid', 'partial'].includes(inv.status)
+    );
 
     const weekAmt = approvedInvoicesForBranch
       .filter(inv => inv.date >= startOfW && inv.date <= today)
-      .reduce((s, inv) => s + (Number(inv.total_amount || inv.amount) || 0), 0);
-
-    // Monthly approved purchases — amount + invoice count
-    const monthInvoicesList = approvedInvoicesForBranch.filter(inv => inv.date >= startOfM && inv.date <= today);
-    const monthAmt = monthInvoicesList.reduce((s, inv) => s + (Number(inv.total_amount || inv.amount) || 0), 0);
-    const monthCount = monthInvoicesList.length;
+      .reduce((s, inv) => s + (Number(inv.total_amount) || 0), 0);
 
     // Supplier ranking by total purchase amount (all approved, branch-filtered)
     const supplierMap = {};
     approvedInvoicesForBranch.forEach(inv => {
       const name = inv.supplier_name || 'Unknown';
       if (!supplierMap[name]) supplierMap[name] = { amount: 0, count: 0 };
-      supplierMap[name].amount += (Number(inv.total_amount || inv.amount) || 0);
+      supplierMap[name].amount += (Number(inv.total_amount) || 0);
       supplierMap[name].count += 1;
     });
     const supplierRanking = Object.entries(supplierMap)
@@ -824,12 +829,23 @@ export default function OwnerDashboard() {
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5);
 
-    const allAmounts = approvedInvoicesForBranch.map(inv => Number(inv.total_amount || inv.amount) || 0);
+    const allAmounts = approvedInvoicesForBranch.map(inv => Number(inv.total_amount) || 0);
     const largestPurchase = allAmounts.length > 0 ? Math.max(...allAmounts) : 0;
     const avgPurchase     = allAmounts.length > 0 ? allAmounts.reduce((s, v) => s + v, 0) / allAmounts.length : 0;
 
-    return { todayAmt, todayCount, weekAmt, monthAmt, monthCount, supplierRanking, largestPurchase, avgPurchase };
-  }, [execSummary, supplierInvoices, selectedBranch, today]);
+    return { 
+      todayAmt: kpis.purchasesToday, 
+      todayCount: approvedInvoicesForBranch.filter(inv => inv.date === today).length,
+      weekAmt, 
+      monthAmt: kpis.purchasesThisMonth, 
+      monthCount: approvedInvoicesForBranch.filter(inv => inv.date >= format(startOfMonth(new Date()), 'yyyy-MM-dd') && inv.date <= today).length,
+      supplierRanking, 
+      largestPurchase, 
+      avgPurchase,
+      outstandingPayables: kpis.outstandingPayables,
+      overduePayables: kpis.overduePayables,
+    };
+  }, [supplierInvoices, selectedBranch, today, branches]);
 
   // ── Section 6: Inventory Analytics ───────────────────────────────────────────
   const inventoryAnalytics = useMemo(() => {
@@ -1143,6 +1159,24 @@ export default function OwnerDashboard() {
             <MetricCard title="Weekly Purchases"  value={fmt(purchaseAnalytics.weekAmt)}         icon={Activity}     color="blue" />
             <MetricCard title="Largest Invoice"   value={fmt(purchaseAnalytics.largestPurchase)} icon={ArrowUpRight} color="red" />
             <MetricCard title="Avg Invoice"       value={fmt(purchaseAnalytics.avgPurchase)}     icon={Target}       color="slate" />
+            {/* Supplier Payables = unpaid approved invoices */}
+            <MetricCard
+              title="Supplier Payables"
+              value={fmt(purchaseAnalytics.outstandingPayables)}
+              subtitle="Unpaid approved invoices"
+              icon={CreditCard}
+              color="orange"
+              onClick={() => navigate('/enterprise-purchases')}
+            />
+            {/* Overdue Payables */}
+            <MetricCard
+              title="Overdue Payables"
+              value={fmt(purchaseAnalytics.overduePayables)}
+              subtitle="Past due date"
+              icon={AlertTriangle}
+              color={purchaseAnalytics.overduePayables > 0 ? 'red' : 'green'}
+              onClick={() => navigate('/enterprise-purchases')}
+            />
             {/* Monthly Net Profit = Month Sales − Month Purchases − Monthly Expenses */}
             <MetricCard
               title="Month Net Profit"
