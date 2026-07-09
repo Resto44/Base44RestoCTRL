@@ -466,10 +466,16 @@ export default function OwnerDashboard() {
   });
 
   const { data: supplierInvoices = [] } = useQuery({
-    queryKey: ['supplier_invoices_dash', branchFilter, selectedBranch, today],
-    queryFn: () => base44.entities.SupplierInvoice.filter(branchFilter || {}, '-date', 500),
+    queryKey: ['supplier_invoices', ownerFilter],
+    queryFn: async () => {
+      let q = supabase.from('supplier_invoices').select('*').order('date', { ascending: false }).limit(5000);
+      if (ownerFilter?.created_by) q = q.eq('created_by', ownerFilter.created_by);
+      const { data, error } = await q;
+      if (error) { console.warn('[OwnerDashboard] supplier_invoices fetch error:', error.message); return []; }
+      return data || [];
+    },
     staleTime: 15000,
-    enabled,
+    enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
   });
 
   const { data: customerDebts = [] } = useQuery({
