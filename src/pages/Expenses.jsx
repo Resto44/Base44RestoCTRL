@@ -198,8 +198,13 @@ export default function Expenses() {
   const deleteMut = useMutation({
     mutationFn: async (expense) => {
       if (!expense?.id) throw new Error('Cannot delete expense: missing id');
-      const { error } = await supabase.from('expenses').delete().eq('id', expense.id);
-      if (error) throw error;
+      console.log('Attempting to delete expense:', expense.id);
+      const { data, error } = await supabase.from('expenses').delete().eq('id', expense.id).select();
+      if (error) {
+        console.error('Delete expense error:', error);
+        throw error;
+      }
+      console.log('Deleted expense data:', data);
       try {
         await notif.expense({ branch: expense.branch_key, amount: expense.amount, category: expense.category_id, action: 'delete' });
       } catch (notifErr) {
