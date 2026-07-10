@@ -299,3 +299,107 @@ export function computePurchaseKPIs(invoices = [], branchKey = 'all', todayStr =
 
   return { todayAmt, todayCount, monthAmt, monthCount, supplierRanking };
 }
+
+/**
+ * computeProductQuantityAnalytics
+ *
+ * Computes product quantity consumption from supplier invoice items (JSONB).
+ * Each supplier_invoice has an `items` array with:
+ *   { product_id, product_name, unit, quantity, unit_cost, line_total, ... }
+ *
+ * @param {Array}  invoices      - SupplierInvoice records (with items JSONB)
+ * @param {string} branchKey     - 'all' or specific branch key
+ * @param {string} todayStr      - 'yyyy-MM-dd' string for today
+ * @param {string} monthStartStr - 'yyyy-MM-dd' string for start of month
+ * @returns {Object} {
+ *   todayProducts:   [{ productName, productId, totalQuantity, unit, totalCost }],
+ *   monthlyProducts: [{ productName, productId, totalQuantity, unit, totalCost }],
+ *   topConsumedToday,   // product with highest quantity today
+ *   topConsumedMonth,   // product with highest quantity this month
+ *   highestCostToday,   // product with highest cost today
+ *   highestCostMonth,   // product with highest cost this month
+ *   weeklyTrend,        // [{ date, totalQuantity, totalCost }] last 7 days
+ * }
+ */
+export function computeProductQuantityAnalytics(
+  invoices = [],
+  branchKey = 'all',
+  todayStr = '',
+  monthStartStr = ''
+) {
+  // Filter by branch (all invoices count for consumption, no approval filter needed)
+  const branchFiltered = branchKey === 'all'
+    ? invoices
+    : invoices.filter(inv => inv.branch === branchKey);
+
+  // Aggregate items from a list of invoices into product totals
+  function aggregateItems(invList) {
+    const productMap = {};
+    invList.forEach(inv => {
+      const items = Array.isArray(inv.items) ? inv.items : [];
+      items.forEach(item => {
+        if (!item) return;
+        const name = (item.product_name || '').trim() || 'Unknown Product';
+        const pid  = item.product_id || name;
+        const qty  = Number(item.quantity) || 0;
+        const cost = Number(item.line_total) || (qty * (Number(item.unit_cost) || 0));
+        const unit = (item.unit || '').trim() || 'unit';
+        if (!productMap[pid]) {
+          productMap[pid] = { productName: name, productId: pid, totalQuantity: 0, unit, totalCost: 0 };
+        }
+        productMap[pid].totalQuantity += qty;
+        productMap[pid].totalCost     += cost;
+        // Keep most descriptive unit
+        if (unit && unit !== 'unit') productMap[pid].unit = unit;
+      });
+    });
+    return Object.values(productMap).sort((a, b) => b.totalQuantity - a.totalQuantity);
+  }
+
+  // Today's invoices
+  const todayInvs   = branchFiltered.filter(inv => inv.date === todayStr);
+  const todayProducts = aggregateItems(todayInvs);
+
+  // Monthly invoices
+  const monthInvs      = branchFiltered.filter(inv => inv.date >= monthStartStr && inv.date <= todayStr);
+  const monthlyProducts = aggregateItems(monthInvs);
+
+  // Top consumed (by quantity)
+  const topConsumedToday = todayProducts[0] || null;
+  const topConsumedMonth = monthlyProducts[0] || null;
+
+  // Highest cost product
+  const highestCostToday = todayProducts.length > 0
+    ? [...todayProducts].sort((a, b) => b.totalCost - a.totalCost)[0]
+    : null;
+  const highestCostMonth = monthlyProducts.length > 0
+    ? [...monthlyProducts].sort((a, b) => b.totalCost - a.totalCost)[0]
+    : null;
+
+  // Weekly trend — last 7 days, daily totals
+  const weeklyTrend = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(todayStr + 'T00:00:00');
+    d.setDate(d.getDate() - i);
+    const dateStr = d.toISOString().slice(0, 10);
+    const dayInvs  = branchFiltered.filter(inv => inv.date === dateStr);
+    const dayItems = dayInvs.flatMap(inv => Array.isArray(inv.items) ? inv.items : []);
+    const totalQuantity = dayItems.reduce((s, it) => s + (Number(it?.quantity) || 0), 0);
+    const totalCost     = dayItems.reduce((s, it) => {
+      const qty  = Number(it?.quantity) || 0;
+      const cost = Number(it?.line_total) || (qty * (Number(it?.unit_cost) || 0));
+      return s + cost;
+    }, 0);
+    weeklyTrend.push({ date: dateStr, totalQuantity, totalCost });
+  }
+
+  return {
+    todayProducts,
+    monthlyProducts,
+    topConsumedToday,
+    topConsumedMonth,
+    highestCostToday,
+    highestCostMonth,
+    weeklyTrend,
+  };
+}

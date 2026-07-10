@@ -26,7 +26,7 @@ import {
   TrendingUp, TrendingDown, Minus, DollarSign, BarChart3,
   ShoppingCart, CreditCard, Wifi, Building2, AlertTriangle,
   FileText, Loader2, CheckCircle2, ArrowUpRight, ArrowDownRight,
-  ChevronDown, ChevronUp, Activity, Target,
+  ChevronDown, ChevronUp, Activity, Target, Package,
 } from 'lucide-react';
 import {
   computeExecutiveSummary,
@@ -41,7 +41,8 @@ import {
   buildPDFPayload,
 } from '@/services/salesAnalyticsEngine';
 import { generateUltimatePDF } from '@/lib/pdfGenerator';
-import { formatCurrency, formatPct, formatDate, getDateRange } from '@/lib/helpers';
+import { formatCurrency, formatPct, formatDate, getDateRange, computeProductQuantityAnalytics } from '@/lib/helpers';
+import { format, startOfMonth } from 'date-fns';
 
 // ─── Color palette ────────────────────────────────────────────────────────────
 const COLORS = ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16'];
@@ -231,6 +232,13 @@ export default function Reports() {
     () => generateRecommendations(executive, cost, branchPerf),
     [executive, cost, branchPerf]
   );
+
+  // ── Product Quantity Analytics ─────────────────────────────────────────────
+  const productQtyAnalytics = useMemo(() => {
+    const today = format(new Date(), 'yyyy-MM-dd');
+    const monthStart = format(startOfMonth(new Date()), 'yyyy-MM-dd');
+    return computeProductQuantityAnalytics(purchases, 'all', today, monthStart);
+  }, [purchases]);
 
   // ── PDF Generation ─────────────────────────────────────────────────────────
   const [pdfStatus, setPdfStatus] = useState('idle'); // idle | generating | done | error
@@ -668,7 +676,84 @@ export default function Reports() {
         )}
       </Section>
 
-      {/* ── 9. PDF ERP REPORT ────────────────────────────────────────────── */}
+      {/* ── 9. PRODUCT CONSUMPTION ANALYTICS ────────────────────────────── */}
+      <Section title="Product Consumption Analytics" icon={Package}>
+        <div className="grid grid-cols-2 gap-2 mb-3">
+          {productQtyAnalytics.topConsumedMonth && (
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-2.5">
+              <p className="text-[10px] font-semibold text-purple-600 uppercase tracking-wider mb-1">Top Consumed (Month)</p>
+              <p className="text-xs font-bold text-foreground truncate">{productQtyAnalytics.topConsumedMonth.productName}</p>
+              <p className="text-sm font-black text-purple-700">
+                {productQtyAnalytics.topConsumedMonth.totalQuantity % 1 === 0
+                  ? productQtyAnalytics.topConsumedMonth.totalQuantity
+                  : productQtyAnalytics.topConsumedMonth.totalQuantity.toFixed(2)
+                } {productQtyAnalytics.topConsumedMonth.unit}
+              </p>
+            </div>
+          )}
+          {productQtyAnalytics.highestCostMonth && (
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-2.5">
+              <p className="text-[10px] font-semibold text-orange-600 uppercase tracking-wider mb-1">Highest Cost (Month)</p>
+              <p className="text-xs font-bold text-foreground truncate">{productQtyAnalytics.highestCostMonth.productName}</p>
+              <p className="text-sm font-black text-orange-700">{fmtC(productQtyAnalytics.highestCostMonth.totalCost, currency)}</p>
+            </div>
+          )}
+        </div>
+        {productQtyAnalytics.monthlyProducts.length > 0 && (
+          <div className="mb-3">
+            <p className="text-xs font-semibold text-muted-foreground mb-2">Monthly Product Consumption</p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="text-left py-1.5 px-2 font-semibold">#</th>
+                    <th className="text-left py-1.5 px-2 font-semibold">Product</th>
+                    <th className="text-right py-1.5 px-2 font-semibold">Qty</th>
+                    <th className="text-right py-1.5 px-2 font-semibold">Unit</th>
+                    <th className="text-right py-1.5 px-2 font-semibold">Total Cost</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {productQtyAnalytics.monthlyProducts.slice(0, 15).map((p, i) => (
+                    <tr key={p.productId} className={i % 2 === 0 ? 'bg-muted/20' : ''}>
+                      <td className="py-1.5 px-2 text-muted-foreground">{i + 1}</td>
+                      <td className="py-1.5 px-2 font-medium truncate max-w-[120px]">{p.productName}</td>
+                      <td className="py-1.5 px-2 text-right font-bold text-purple-700">
+                        {p.totalQuantity % 1 === 0 ? p.totalQuantity : p.totalQuantity.toFixed(2)}
+                      </td>
+                      <td className="py-1.5 px-2 text-right text-muted-foreground">{p.unit}</td>
+                      <td className="py-1.5 px-2 text-right font-semibold">{fmtC(p.totalCost, currency)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+        {productQtyAnalytics.todayProducts.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground mb-2">Today's Product Usage</p>
+            <div className="space-y-1.5">
+              {productQtyAnalytics.todayProducts.slice(0, 8).map((p) => (
+                <div key={p.productId} className="flex items-center justify-between px-2 py-1.5 rounded-lg bg-purple-50/60 border border-purple-100">
+                  <div>
+                    <p className="text-xs font-semibold text-foreground">{p.productName}</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      <span className="font-bold text-purple-700">{p.totalQuantity % 1 === 0 ? p.totalQuantity : p.totalQuantity.toFixed(2)}</span> {p.unit}
+                    </p>
+                  </div>
+                  <p className="text-xs font-bold">{fmtC(p.totalCost, currency)}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {productQtyAnalytics.todayProducts.length === 0 && productQtyAnalytics.monthlyProducts.length === 0 && (
+          <p className="text-xs text-muted-foreground text-center py-4">No product consumption data. Add purchase invoices with line items.</p>
+        )}
+      </Section>
+
+      {/* ── 10. PDF ERP REPORT ───────────────────────────────────────────── */}
       <Section title={t('generate_pdf_report')} icon={FileText}>
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">

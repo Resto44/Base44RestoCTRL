@@ -489,6 +489,13 @@ function L(lang) {
     stockLevel: 'سطح موجودی',
     threshold: 'حد پایین',
     profitTrend: 'روند سود',
+    productConsumption: 'تحلیل مصرف محصولات',
+    todayUsage: 'مصرف امروز',
+    monthlyUsage: 'مصرف ماهانه',
+    topConsumed: 'پرمصرف‌ترین',
+    highestCost: 'پرهزینه‌ترین',
+    unit: 'واحد',
+    weeklyQtyTrend: 'روند هفتگی مقدار',
   };
 
   const ar = {
@@ -528,6 +535,13 @@ function L(lang) {
     generatedOn: 'تم الإنشاء في', page: 'صفحة', of: 'من',
     supplier: 'المورد', invoice: 'فاتورة', amount: 'المبلغ', status: 'الحالة',
     stockLevel: 'مستوى المخزون', threshold: 'الحد الأدنى', profitTrend: 'اتجاه الربح',
+    productConsumption: 'تحليل استهلاك المنتجات',
+    todayUsage: 'الاستهلاك اليوم',
+    monthlyUsage: 'الاستهلاك الشهري',
+    topConsumed: 'الأكثر استهلاكاً',
+    highestCost: 'الأعلى تكلفة',
+    unit: 'الوحدة',
+    weeklyQtyTrend: 'الاتجاه الأسبوعي للكميات',
   };
 
   const en = {
@@ -563,6 +577,13 @@ function L(lang) {
     generatedOn: 'Generated on', page: 'Page', of: 'of',
     supplier: 'Supplier', invoice: 'Invoice', amount: 'Amount', status: 'Status',
     stockLevel: 'Stock Level', threshold: 'Threshold', profitTrend: 'Profit Trend',
+    productConsumption: 'Product Consumption Analytics',
+    todayUsage: "Today's Usage",
+    monthlyUsage: 'Monthly Usage',
+    topConsumed: 'Top Consumed',
+    highestCost: 'Highest Cost',
+    unit: 'Unit',
+    weeklyQtyTrend: '7-Day Quantity Trend',
   };
 
   return lang === 'fa' ? fa : lang === 'ar' ? ar : en;
@@ -585,7 +606,7 @@ export async function generateUltimatePDF({
   const W = 210;
   const ML = 14;
   const TW = W - ML * 2;
-  const TOTAL_PAGES = 11;
+  const TOTAL_PAGES = 12;
 
   // Override primary color from brand settings
   const primaryHex = brandSettings?.primary_color;
@@ -1294,5 +1315,99 @@ export async function generateUltimatePDF({
   await addFooter(doc, brandName, 11, TOTAL_PAGES, fromStr, toStr, dir, W);
 
   // ─── Save ─────────────────────────────────────────────────────────────────
-  doc.save(`executive-report-${fromStr}-${toStr}.pdf`);
+  // ─────────────────────────────────────────────────────────────────────────
+  // PAGE 12: Product Consumption Analytics
+  // ─────────────────────────────────────────────────────────────────────────
+  doc.addPage();
+  y = await drawHeader(l.productConsumption);
+
+  // Compute product analytics from supplierInvoices items
+  {
+    const productMap12 = {};
+    const todayMap12   = {};
+    const reportEnd    = toStr;
+
+    supplierInvoices.forEach(inv => {
+      const invDate = inv.date || '';
+      if (invDate < fromStr || invDate > toStr) return;
+      const items = Array.isArray(inv.items) ? inv.items : [];
+      items.forEach(item => {
+        if (!item) return;
+        const name = (item.product_name || '').trim() || 'Unknown';
+        const pid  = item.product_id || name;
+        const qty  = Number(item.quantity) || 0;
+        const cost = Number(item.line_total) || (qty * (Number(item.unit_cost) || 0));
+        const unit = (item.unit || '').trim() || 'unit';
+        if (!productMap12[pid]) productMap12[pid] = { name, unit, qty: 0, cost: 0 };
+        productMap12[pid].qty  += qty;
+        productMap12[pid].cost += cost;
+        if (unit && unit !== 'unit') productMap12[pid].unit = unit;
+        if (invDate === reportEnd) {
+          if (!todayMap12[pid]) todayMap12[pid] = { name, unit, qty: 0, cost: 0 };
+          todayMap12[pid].qty  += qty;
+          todayMap12[pid].cost += cost;
+        }
+      });
+    });
+
+    const monthlyList12 = Object.values(productMap12).sort((a, b) => b.qty - a.qty);
+    const todayList12   = Object.values(todayMap12).sort((a, b) => b.qty - a.qty);
+    const topConsumed12 = monthlyList12[0] || null;
+    const highestCost12 = monthlyList12.length > 0 ? [...monthlyList12].sort((a, b) => b.cost - a.cost)[0] : null;
+
+    // Highlight cards
+    if (topConsumed12 || highestCost12) {
+      const cardW12 = (TW - 4) / 2;
+      if (topConsumed12) {
+        doc.setFillColor(243, 232, 255);
+        doc.roundedRect(ML, y, cardW12, 18, 2, 2, 'F');
+        await txt(doc, l.topConsumed, ML + 3, y + 5, { size: 7, color: [109, 40, 217] }, dir);
+        await txt(doc, topConsumed12.name.slice(0, 20), ML + 3, y + 10, { size: 8, bold: true, color: C.dark }, dir);
+        await txt(doc, String(topConsumed12.qty % 1 === 0 ? topConsumed12.qty : topConsumed12.qty.toFixed(2)) + ' ' + topConsumed12.unit, ML + 3, y + 15, { size: 9, bold: true, color: [109, 40, 217] }, dir);
+      }
+      if (highestCost12) {
+        const cx12 = ML + cardW12 + 4;
+        doc.setFillColor(255, 237, 213);
+        doc.roundedRect(cx12, y, cardW12, 18, 2, 2, 'F');
+        await txt(doc, l.highestCost, cx12 + 3, y + 5, { size: 7, color: [194, 65, 12] }, dir);
+        await txt(doc, highestCost12.name.slice(0, 20), cx12 + 3, y + 10, { size: 8, bold: true, color: C.dark }, dir);
+        await txt(doc, formatCurrency(highestCost12.cost, currency), cx12 + 3, y + 15, { size: 9, bold: true, color: [194, 65, 12] }, dir);
+      }
+      y += 22;
+    }
+
+    // Monthly product table
+    if (monthlyList12.length > 0) {
+      y = await sectionHeader(doc, l.monthlyUsage, y, dir, W, ML);
+      const mHeaders12 = ['#', l.product, l.qty, l.unit, l.cost];
+      const mRows12 = monthlyList12.slice(0, 15).map((p, i) => [
+        String(i + 1),
+        p.name.slice(0, 22),
+        String(p.qty % 1 === 0 ? p.qty : p.qty.toFixed(2)),
+        p.unit,
+        formatCurrency(p.cost, currency),
+      ]);
+      y = await drawTable(doc, mHeaders12, mRows12, ML, y, [10, 60, 20, 22, 30], dir, null);
+    } else {
+      await txt(doc, l.noData, ML + 5, y + 10, { size: 8, color: C.muted }, dir);
+      y += 18;
+    }
+
+    // Today's usage table
+    if (todayList12.length > 0) {
+      y = await sectionHeader(doc, l.todayUsage, y, dir, W, ML);
+      const tHeaders12 = [l.product, l.qty, l.unit, l.cost];
+      const tRows12 = todayList12.slice(0, 10).map(p => [
+        p.name.slice(0, 28),
+        String(p.qty % 1 === 0 ? p.qty : p.qty.toFixed(2)),
+        p.unit,
+        formatCurrency(p.cost, currency),
+      ]);
+      y = await drawTable(doc, tHeaders12, tRows12, ML, y, [70, 25, 25, 32], dir, null);
+    }
+  }
+
+  await addFooter(doc, brandName, 12, TOTAL_PAGES, fromStr, toStr, dir, W);
+
+    doc.save(`executive-report-${fromStr}-${toStr}.pdf`);
 }

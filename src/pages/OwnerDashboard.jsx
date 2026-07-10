@@ -40,7 +40,7 @@ import { useRole } from '@/lib/RoleContext';
 import { useAuth } from '@/lib/AuthContext';
 import { useNetworkSettlement } from '@/hooks/useNetworkSettlement';
 import { useNotify } from '@/lib/useNotify';
-import { getSaleCash, getSaleNetwork, calculateSalesRevenue, computeDashboardMetrics } from '@/lib/helpers';
+import { getSaleCash, getSaleNetwork, calculateSalesRevenue, computeDashboardMetrics, computeProductQuantityAnalytics } from '@/lib/helpers';
 import { computeAdditionalSources } from '@/services/salesAnalyticsEngine';
 import { useSalesSources } from '@/hooks/useSalesSources';
 import { Card, CardContent } from '@/components/ui/card';
@@ -853,6 +853,13 @@ export default function OwnerDashboard() {
     };
   }, [supplierInvoices, selectedBranch, today, branches]);
 
+  // ── Section 5b: Product Quantity Analytics (ERP) ──────────────────────────────
+  const productQuantityAnalytics = useMemo(() => {
+    const branchObj = (branches || []).find(b => (b.key || b.id) === selectedBranch);
+    const branchKey = branchObj?.key || selectedBranch;
+    return computeProductQuantityAnalytics(supplierInvoices, branchKey, today, monthStart);
+  }, [supplierInvoices, selectedBranch, today, monthStart, branches]);
+
   // ── Section 6: Inventory Analytics ───────────────────────────────────────────
   const inventoryAnalytics = useMemo(() => {
     const inventoryValue = execSummary.inventoryValue;
@@ -1208,6 +1215,155 @@ export default function OwnerDashboard() {
                       <span className="text-xs font-bold text-amber-600">{fmt(amount)}</span>
                     </div>
                   ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </section>
+      </WidgetErrorBoundary>
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          SECTION 5b — PRODUCT CONSUMPTION ANALYTICS (ERP)
+      ══════════════════════════════════════════════════════════════════════ */}
+      <WidgetErrorBoundary>
+        <section>
+          <SectionHeader
+            icon={BarChart3}
+            title="Product Consumption Analytics"
+            subtitle={`Purchase items · ${selectedBranch === 'all' ? 'All branches' : selectedBranchLabel}`}
+            color="purple"
+            action={{ label: 'Purchases', onClick: () => navigate('/enterprise-purchases') }}
+          />
+
+          {/* ── Today Product Usage ─────────────────────────────────────────── */}
+          <div className="mb-3">
+            <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <Clock className="w-3 h-3" /> Today's Product Usage
+            </p>
+            {productQuantityAnalytics.todayProducts.length === 0 ? (
+              <Card className="border-dashed border-border/60">
+                <CardContent className="p-4 text-center">
+                  <Package className="w-6 h-6 text-muted-foreground/40 mx-auto mb-1" />
+                  <p className="text-xs text-muted-foreground">No purchase items recorded today</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-2">
+                {productQuantityAnalytics.todayProducts.slice(0, 8).map((p) => (
+                  <div key={p.productId} className="flex items-center justify-between bg-purple-50/60 dark:bg-purple-950/20 border border-purple-100 dark:border-purple-900/40 rounded-xl px-3 py-2.5">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="w-7 h-7 rounded-lg bg-purple-100 dark:bg-purple-900/50 flex items-center justify-center shrink-0">
+                        <Package className="w-3.5 h-3.5 text-purple-600" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-foreground truncate max-w-[140px]">{p.productName}</p>
+                        <p className="text-[10px] text-muted-foreground">
+                          <span className="font-bold text-purple-700 dark:text-purple-400">{p.totalQuantity % 1 === 0 ? p.totalQuantity : p.totalQuantity.toFixed(2)}</span>
+                          {' '}{p.unit}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-xs font-bold text-foreground">{fmt(p.totalCost)}</p>
+                      <p className="text-[10px] text-muted-foreground">cost</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* ── Monthly Product Usage ───────────────────────────────────────── */}
+          <div className="mb-3">
+            <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <Activity className="w-3 h-3" /> This Month's Product Usage
+            </p>
+            {productQuantityAnalytics.monthlyProducts.length === 0 ? (
+              <Card className="border-dashed border-border/60">
+                <CardContent className="p-4 text-center">
+                  <Package className="w-6 h-6 text-muted-foreground/40 mx-auto mb-1" />
+                  <p className="text-xs text-muted-foreground">No purchase items recorded this month</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-1.5">
+                {productQuantityAnalytics.monthlyProducts.slice(0, 10).map((p, i) => (
+                  <div key={p.productId} className="flex items-center gap-2.5 px-3 py-2 rounded-xl border border-border/60 bg-background hover:bg-muted/30 transition-colors">
+                    <span className={`w-5 h-5 rounded-full text-[10px] font-black flex items-center justify-center text-white shrink-0 ${
+                      i === 0 ? 'bg-purple-500' : i === 1 ? 'bg-purple-400' : i === 2 ? 'bg-purple-300' : 'bg-gray-300'
+                    }`}>{i + 1}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-foreground truncate">{p.productName}</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        <span className="font-bold text-purple-700 dark:text-purple-400">{p.totalQuantity % 1 === 0 ? p.totalQuantity : p.totalQuantity.toFixed(2)}</span>
+                        {' '}{p.unit} this month
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-xs font-bold text-foreground">{fmt(p.totalCost)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* ── Highlights: Top Consumed & Highest Cost ─────────────────────── */}
+          {(productQuantityAnalytics.topConsumedMonth || productQuantityAnalytics.highestCostMonth) && (
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              {productQuantityAnalytics.topConsumedMonth && (
+                <Card className="border-purple-200 dark:border-purple-800 bg-purple-50/50 dark:bg-purple-950/20">
+                  <CardContent className="p-3">
+                    <p className="text-[10px] font-semibold text-purple-600 uppercase tracking-wider mb-1">Top Consumed</p>
+                    <p className="text-xs font-bold text-foreground truncate">{productQuantityAnalytics.topConsumedMonth.productName}</p>
+                    <p className="text-[11px] font-black text-purple-700 dark:text-purple-400">
+                      {productQuantityAnalytics.topConsumedMonth.totalQuantity % 1 === 0
+                        ? productQuantityAnalytics.topConsumedMonth.totalQuantity
+                        : productQuantityAnalytics.topConsumedMonth.totalQuantity.toFixed(2)
+                      } {productQuantityAnalytics.topConsumedMonth.unit}
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+              {productQuantityAnalytics.highestCostMonth && (
+                <Card className="border-orange-200 dark:border-orange-800 bg-orange-50/50 dark:bg-orange-950/20">
+                  <CardContent className="p-3">
+                    <p className="text-[10px] font-semibold text-orange-600 uppercase tracking-wider mb-1">Highest Cost</p>
+                    <p className="text-xs font-bold text-foreground truncate">{productQuantityAnalytics.highestCostMonth.productName}</p>
+                    <p className="text-[11px] font-black text-orange-700 dark:text-orange-400">{fmt(productQuantityAnalytics.highestCostMonth.totalCost)}</p>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
+
+          {/* ── Weekly Trend ─────────────────────────────────────────────────── */}
+          {productQuantityAnalytics.weeklyTrend.some(d => d.totalQuantity > 0) && (
+            <Card className="border-border/60">
+              <CardContent className="p-3">
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">7-Day Quantity Trend</p>
+                <div className="flex items-end gap-1 h-16">
+                  {productQuantityAnalytics.weeklyTrend.map((d) => {
+                    const maxQty = Math.max(...productQuantityAnalytics.weeklyTrend.map(x => x.totalQuantity), 1);
+                    const heightPct = maxQty > 0 ? (d.totalQuantity / maxQty) * 100 : 0;
+                    const isToday = d.date === today;
+                    return (
+                      <div key={d.date} className="flex-1 flex flex-col items-center gap-1">
+                        <div
+                          className={`w-full rounded-t-sm transition-all ${
+                            isToday ? 'bg-purple-500' : 'bg-purple-200 dark:bg-purple-800'
+                          }`}
+                          style={{ height: `${Math.max(heightPct, 4)}%` }}
+                          title={`${d.date}: ${d.totalQuantity} units, ${fmt(d.totalCost)}`}
+                        />
+                        <p className={`text-[8px] font-medium ${
+                          isToday ? 'text-purple-600 font-bold' : 'text-muted-foreground'
+                        }`}>
+                          {d.date.slice(8)}
+                        </p>
+                      </div>
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>
