@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
+import { base44, supabase } from '@/api/base44Client';
 import { useLanguage } from '@/lib/LanguageContext';
 import PageHeader from '@/components/shared/PageHeader';
 import BranchSelect from '@/components/shared/BranchSelect';
@@ -198,13 +198,25 @@ export default function Expenses() {
   const deleteMut = useMutation({
     mutationFn: async (expense) => {
       if (!expense?.id) throw new Error('Cannot delete expense: missing id');
-      console.log('Attempting to delete expense:', expense.id);
-      const { data, error } = await supabase.from('expenses').delete().eq('id', expense.id).select();
+      const expenseId = expense.id;
+      console.log('Attempting to delete expense:', expenseId);
+      const { data, error, status } = await supabase
+        .from("expenses")
+        .delete()
+        .eq("id", expenseId)
+        .select();
+
+      console.log("REAL DELETE RESULT", {
+        expenseId,
+        data,
+        error,
+        status
+      });
+
       if (error) {
         console.error('Delete expense error:', error);
         throw error;
       }
-      console.log('Deleted expense data:', data);
       try {
         await notif.expense({ branch: expense.branch_key, amount: expense.amount, category: expense.category_id, action: 'delete' });
       } catch (notifErr) {
