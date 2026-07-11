@@ -593,7 +593,14 @@ export default function OwnerDashboard() {
     }));
     const fixedMonthExpenses = taggedMonthExpenses.filter(e => e._is_fixed);
     // Total monthly fixed = full amount (rent + salaries for the whole month)
-    const totalMonthlyFixed = fixedMonthExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    // Filtered by branch in monthExpenses already, but ensuring it matches selectedBranch
+    // branchObj and branchKey are already declared above for purchasesToday
+
+    const filteredFixedMonthExpenses = fixedMonthExpenses.filter(e => {
+      return selectedBranch === 'all' || e.branch_key === branchKey || e.branch_key === 'all';
+    });
+
+    const totalMonthlyFixed = filteredFixedMonthExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
     // Daily fixed allocation = monthly fixed / real calendar days in month
     const dailyFixedAllocation = totalMonthlyFixed > 0 ? totalMonthlyFixed / realDaysInMonth : 0;
 
@@ -1012,12 +1019,12 @@ export default function OwnerDashboard() {
               <MetricCard title="Gross Profit"       value={fmt(execSummary.grossProfit)}      subtitle="Sales − Purchases"          icon={execSummary.grossProfit >= 0 ? TrendingUp : TrendingDown} color={execSummary.grossProfit >= 0 ? 'green' : 'red'} onClick={() => navigate('/profit-loss')} />
               <MetricCard title="Net Profit"         value={fmt(execSummary.netProfit)}        subtitle="Sales − Purchases − Expenses" icon={execSummary.netProfit >= 0 ? TrendingUp : TrendingDown} color={execSummary.netProfit >= 0 ? 'green' : 'red'} onClick={() => navigate('/profit-loss')} />
               <MetricCard title="Cash in Register"   value={fmt(execSummary.cashInRegister)}   subtitle="Latest closing cash"        icon={Banknote}      color="blue"   onClick={() => navigate('/sales')} />
-              {/* TODAY EXPENSES KPI — variable + prorated daily fixed */}
+              {/* DAILY EXPENSES KPI — variable + prorated daily fixed */}
               <MetricCard
-                title="Today Expenses"
+                title="Daily Expenses"
                 value={fmt(execSummary.expensesToday || 0)}
                 subtitle={execSummary.dailyFixedAllocation > 0
-                  ? `Var ${fmt(execSummary.totalVariableToday)} + Fixed/day ${fmt(execSummary.dailyFixedAllocation)}`
+                  ? `Variable Today + Daily Fixed Allocation`
                   : 'Daily operating expenses'}
                 icon={Receipt}
                 color="amber"
@@ -1026,10 +1033,10 @@ export default function OwnerDashboard() {
               {/* TOTAL MONTHLY EXPENSES — full fixed + all variable */}
               <MetricCard
                 title="Monthly Expenses"
-                value={fmt(totalMonthlyExpenses.total)}
-                subtitle={`Fixed ${fmt(totalMonthlyExpenses.totalFixed)} · Var ${fmt(totalMonthlyExpenses.totalVariable)}`}
+                value={fmt(execSummary.totalMonthlyFixed)}
+                subtitle={`Total Monthly Fixed Expenses`}
                 icon={Receipt}
-                color={totalMonthlyExpenses.total > 0 ? 'red' : 'green'}
+                color={execSummary.totalMonthlyFixed > 0 ? 'red' : 'green'}
                 onClick={() => navigate('/expenses')}
               />
               {/* NETWORK BALANCE — 3-column row: Today / Yesterday / Month */}
