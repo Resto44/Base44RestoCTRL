@@ -307,17 +307,25 @@ export function computePurchaseKPIs(invoices = [], branchKey = 'all', todayStr =
  * Each supplier_invoice has an `items` array with:
  *   { product_id, product_name, unit, quantity, unit_cost, line_total, ... }
  *
- * @param {Array}  invoices      - SupplierInvoice records (with items JSONB)
- * @param {string} branchKey     - 'all' or specific branch key
- * @param {string} todayStr      - 'yyyy-MM-dd' string for today
- * @param {string} monthStartStr - 'yyyy-MM-dd' string for start of month
+ * @param {Array}  invoices         - SupplierInvoice records (with items JSONB)
+ * @param {string} branchKey        - 'all' or specific branch key
+ * @param {string} todayStr         - 'yyyy-MM-dd' string for today
+ * @param {string} monthStartStr    - 'yyyy-MM-dd' string for start of current month
+ * @param {string} prevMonthStartStr - 'yyyy-MM-dd' string for start of previous month
+ * @param {string} prevMonthEndStr  - 'yyyy-MM-dd' string for end of previous month (exclusive)
  * @returns {Object} {
- *   todayProducts:   [{ productName, productId, totalQuantity, unit, totalCost }],
- *   monthlyProducts: [{ productName, productId, totalQuantity, unit, totalCost }],
+ *   todayProducts:   [{ productName, productId, unit, totalQuantity, totalCost }],
+ *   monthlyProducts: [{ productName, productId, unit, totalQuantity, totalCost }],
+ *   prevMonthProducts: [{ productName, productId, unit, totalQuantity, totalCost }],
+ *   combinedProducts: [{ productName, productId, unit, todayQty, monthQty, prevMonthQty,
+ *                        monthCost, prevMonthCost, diff, trend }],
  *   topConsumedToday,   // product with highest quantity today
  *   topConsumedMonth,   // product with highest quantity this month
+ *   topConsumedPrevMonth, // product with highest quantity previous month
  *   highestCostToday,   // product with highest cost today
  *   highestCostMonth,   // product with highest cost this month
+ *   fastestGrowing,     // product with highest positive month-over-month growth
+ *   mostReduced,        // product with highest negative month-over-month change
  *   weeklyTrend,        // [{ date, totalQuantity, totalCost }] last 7 days
  * }
  */
@@ -325,7 +333,9 @@ export function computeProductQuantityAnalytics(
   invoices = [],
   branchKey = 'all',
   todayStr = '',
-  monthStartStr = ''
+  monthStartStr = '',
+  prevMonthStartStr = '',
+  prevMonthEndStr = ''
 ) {
   // Filter by branch (all invoices count for consumption, no approval filter needed)
   const branchFiltered = branchKey === 'all'
@@ -360,21 +370,59 @@ export function computeProductQuantityAnalytics(
   const todayInvs   = branchFiltered.filter(inv => inv.date === todayStr);
   const todayProducts = aggregateItems(todayInvs);
 
-  // Monthly invoices
+  // Monthly invoices (current month)
   const monthInvs      = branchFiltered.filter(inv => inv.date >= monthStartStr && inv.date <= todayStr);
   const monthlyProducts = aggregateItems(monthInvs);
 
-  // Top consumed (by quantity)
-  const topConsumedToday = todayProducts[0] || null;
-  const topConsumedMonth = monthlyProducts[0] || null;
+  // Previous month invoices
+  const prevMonthInvs = prevMonthStartStr
+    ? branchFiltered.filter(inv => inv.date >= prevMonthStartStr && inv.date < (prevMonthEndStr || monthStartStr))
+    : [];
+  const prevMonthProducts = aggregateItems(prevMonthInvs);
 
-  // Highest cost product
+  // Build combined product map: merge today + current month + prev month per product
+  const combinedMap = {};
+  const allProductIds = new Set([
+    ...todayProducts.map(p => p.productId),
+    ...monthlyProducts.map(p => p.productId),
+    ...prevMonthProducts.map(p => p.productId),
+  ]);
+  allProductIds.forEach(pid => {
+    const todayP     = todayProducts.find(p => p.productId === pid);
+    const monthP     = monthlyProducts.find(p => p.productId === pid);
+    const prevMonthP = prevMonthProducts.find(p => p.productId === pid);
+    const productName = (todayP || monthP || prevMonthP)?.productName || 'Unknown';
+    const unit        = (todayP || monthP || prevMonthP)?.unit || 'unit';
+    const todayQty     = todayP?.totalQuantity     || 0;
+    const monthQty     = monthP?.totalQuantity     || 0;
+    const prevMonthQty = prevMonthP?.totalQuantity || 0;
+    const monthCost     = monthP?.totalCost     || 0;
+    const prevMonthCost = prevMonthP?.totalCost || 0;
+    const diff = monthQty - prevMonthQty;
+    const trend = diff > 0 ? '↑' : diff < 0 ? '↓' : '→';
+    combinedMap[pid] = { productId: pid, productName, unit, todayQty, monthQty, prevMonthQty, monthCost, prevMonthCost, diff, trend };
+  });
+  // Sort by current month quantity descending
+  const combinedProducts = Object.values(combinedMap).sort((a, b) => b.monthQty - a.monthQty);
+
+  // Top consumed (by quantity)
+  const topConsumedToday     = todayProducts[0] || null;
+  const topConsumedMonth     = monthlyProducts[0] || null;
+  const topConsumedPrevMonth = prevMonthProducts[0] || null;
+
+  // Highest cost product (current month)
   const highestCostToday = todayProducts.length > 0
     ? [...todayProducts].sort((a, b) => b.totalCost - a.totalCost)[0]
     : null;
   const highestCostMonth = monthlyProducts.length > 0
     ? [...monthlyProducts].sort((a, b) => b.totalCost - a.totalCost)[0]
     : null;
+
+  // Fastest growing consumption (highest positive month-over-month diff)
+  const fastestGrowing = combinedProducts.filter(p => p.diff > 0).sort((a, b) => b.diff - a.diff)[0] || null;
+
+  // Most reduced consumption (highest negative month-over-month diff)
+  const mostReduced = combinedProducts.filter(p => p.diff < 0).sort((a, b) => a.diff - b.diff)[0] || null;
 
   // Weekly trend — last 7 days, daily totals
   const weeklyTrend = [];
@@ -396,10 +444,15 @@ export function computeProductQuantityAnalytics(
   return {
     todayProducts,
     monthlyProducts,
+    prevMonthProducts,
+    combinedProducts,
     topConsumedToday,
     topConsumedMonth,
+    topConsumedPrevMonth,
     highestCostToday,
     highestCostMonth,
+    fastestGrowing,
+    mostReduced,
     weeklyTrend,
   };
 }

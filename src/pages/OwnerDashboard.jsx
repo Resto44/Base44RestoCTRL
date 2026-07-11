@@ -341,6 +341,17 @@ export default function OwnerDashboard() {
     return { ...baseFilter, branch: branchKey };
   }, [activeRestaurant, selectedBranch, branches]);
 
+  // EXPENSE-SPECIFIC branch filter: expenses table uses 'branch_key' (not 'branch')
+  // This is the root cause fix for Task 1 — DO NOT merge with branchFilter
+  const expenseBranchFilter = useMemo(() => {
+    if (!activeRestaurant?.id) return null;
+    const baseFilter = { restaurant_id: activeRestaurant.id };
+    if (selectedBranch === 'all') return baseFilter;
+    const branchObj = (branches || []).find(b => (b.key || b.id) === selectedBranch);
+    const branchKey = branchObj?.key || selectedBranch;
+    return { ...baseFilter, branch_key: branchKey };
+  }, [activeRestaurant, selectedBranch, branches]);
+
   // Branch display info for the badge
   const selectedBranchLabel = useMemo(() => {
     if (selectedBranch === 'all') return 'All Branches';
@@ -437,18 +448,27 @@ export default function OwnerDashboard() {
   });
 
   const { data: todayExpenses = [] } = useQuery({
-    queryKey: ['expenses_today', branchFilter, today, selectedBranch],
-    queryFn: () => base44.entities.Expense.filter({ ...(branchFilter || {}), date: today }, '-date', 200),
+    queryKey: ['expenses_today', expenseBranchFilter, today, selectedBranch],
+    queryFn: () => base44.entities.Expense.filter({ ...(expenseBranchFilter || {}), date: today }, '-date', 200),
     staleTime: 15000,
     enabled,
   });
 
   const { data: monthExpenses = [] } = useQuery({
-    queryKey: ['expenses_month', branchFilter, monthStart, selectedBranch],
-    queryFn: () => base44.entities.Expense.filter(branchFilter || {}, '-date', 500),
+    queryKey: ['expenses_month', expenseBranchFilter, monthStart, selectedBranch],
+    queryFn: () => base44.entities.Expense.filter(expenseBranchFilter || {}, '-date', 500),
     staleTime: 60000,
     enabled,
     select: (d) => d.filter(e => e.date >= monthStart),
+  });
+
+  // Previous month expenses — needed for Product Consumption Analytics
+  const { data: prevMonthExpenses = [] } = useQuery({
+    queryKey: ['expenses_prev_month', expenseBranchFilter, prevMonthStart, monthStart, selectedBranch],
+    queryFn: () => base44.entities.Expense.filter(expenseBranchFilter || {}, '-date', 500),
+    staleTime: 120000,
+    enabled,
+    select: (d) => d.filter(e => e.date >= prevMonthStart && e.date < monthStart),
   });
 
   // Expense categories — needed to tag fixed vs variable expenses
@@ -596,9 +616,9 @@ export default function OwnerDashboard() {
     // Filtered by branch in monthExpenses already, but ensuring it matches selectedBranch
     // branchObj and branchKey are already declared above for purchasesToday
 
-    const filteredFixedMonthExpenses = fixedMonthExpenses.filter(e => {
-      return selectedBranch === 'all' || e.branch_key === branchKey || e.branch_key === 'all';
-    });
+    // DB query already filters by branch_key via expenseBranchFilter;
+    // no additional in-memory branch filter needed here.
+    const filteredFixedMonthExpenses = fixedMonthExpenses;
 
     const totalMonthlyFixed = filteredFixedMonthExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
     // Daily fixed allocation = monthly fixed / real calendar days in month
@@ -739,16 +759,11 @@ export default function OwnerDashboard() {
     const catMap = {};
     (expenseCategories || []).forEach(c => { catMap[c.id] = c; });
 
-    const branchObj = (branches || []).find(b => (b.key || b.id) === selectedBranch);
-    const branchKey = branchObj?.key || selectedBranch;
-
-    const filtered = monthExpenses.filter(e => {
-      const isBranchMatch = selectedBranch === 'all' || e.branch_key === branchKey || e.branch_key === 'all';
-      return isBranchMatch;
-    });
+    // DB query already filters by branch_key via expenseBranchFilter;
+    // no additional in-memory branch filter needed here.
 
     // Tag each expense with is_fixed from its category
-    const tagged = filtered.map(e => ({
+    const tagged = (monthExpenses || []).map(e => ({
       ...e,
       _is_fixed: !!(catMap[e.category_id]?.is_fixed),
     }));
@@ -864,8 +879,15 @@ export default function OwnerDashboard() {
   const productQuantityAnalytics = useMemo(() => {
     const branchObj = (branches || []).find(b => (b.key || b.id) === selectedBranch);
     const branchKey = branchObj?.key || selectedBranch;
-    return computeProductQuantityAnalytics(supplierInvoices, branchKey, today, monthStart);
-  }, [supplierInvoices, selectedBranch, today, monthStart, branches]);
+    return computeProductQuantityAnalytics(
+      supplierInvoices,
+      branchKey,
+      today,
+      monthStart,
+      prevMonthStart,
+      monthStart  // prevMonthEnd is exclusive = current monthStart
+    );
+  }, [supplierInvoices, selectedBranch, today, monthStart, prevMonthStart, branches]);
 
   // ── Section 6: Inventory Analytics ───────────────────────────────────────────
   const inventoryAnalytics = useMemo(() => {
@@ -1242,111 +1264,148 @@ export default function OwnerDashboard() {
             action={{ label: 'Purchases', onClick: () => navigate('/enterprise-purchases') }}
           />
 
-          {/* ── Today Product Usage ─────────────────────────────────────────── */}
-          <div className="mb-3">
-            <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
-              <Clock className="w-3 h-3" /> Today's Product Usage
-            </p>
-            {productQuantityAnalytics.todayProducts.length === 0 ? (
-              <Card className="border-dashed border-border/60">
-                <CardContent className="p-4 text-center">
-                  <Package className="w-6 h-6 text-muted-foreground/40 mx-auto mb-1" />
-                  <p className="text-xs text-muted-foreground">No purchase items recorded today</p>
+          {/* ── ERP KPI Summary Cards ───────────────────────────────────────── */}
+          <div className="grid grid-cols-2 gap-2 mb-3">
+            {productQuantityAnalytics.topConsumedToday && (
+              <Card className="border-purple-200 dark:border-purple-800 bg-purple-50/50 dark:bg-purple-950/20">
+                <CardContent className="p-3">
+                  <p className="text-[10px] font-semibold text-purple-600 uppercase tracking-wider mb-1">Top Today</p>
+                  <p className="text-xs font-bold text-foreground truncate">{productQuantityAnalytics.topConsumedToday.productName}</p>
+                  <p className="text-[11px] font-black text-purple-700 dark:text-purple-400">
+                    {productQuantityAnalytics.topConsumedToday.totalQuantity % 1 === 0
+                      ? productQuantityAnalytics.topConsumedToday.totalQuantity
+                      : productQuantityAnalytics.topConsumedToday.totalQuantity.toFixed(2)
+                    } {productQuantityAnalytics.topConsumedToday.unit}
+                  </p>
                 </CardContent>
               </Card>
-            ) : (
-              <div className="space-y-2">
-                {productQuantityAnalytics.todayProducts.slice(0, 8).map((p) => (
-                  <div key={p.productId} className="flex items-center justify-between bg-purple-50/60 dark:bg-purple-950/20 border border-purple-100 dark:border-purple-900/40 rounded-xl px-3 py-2.5">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <div className="w-7 h-7 rounded-lg bg-purple-100 dark:bg-purple-900/50 flex items-center justify-center shrink-0">
-                        <Package className="w-3.5 h-3.5 text-purple-600" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-xs font-semibold text-foreground truncate max-w-[140px]">{p.productName}</p>
-                        <p className="text-[10px] text-muted-foreground">
-                          <span className="font-bold text-purple-700 dark:text-purple-400">{p.totalQuantity % 1 === 0 ? p.totalQuantity : p.totalQuantity.toFixed(2)}</span>
-                          {' '}{p.unit}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-xs font-bold text-foreground">{fmt(p.totalCost)}</p>
-                      <p className="text-[10px] text-muted-foreground">cost</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
+            )}
+            {productQuantityAnalytics.topConsumedMonth && (
+              <Card className="border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20">
+                <CardContent className="p-3">
+                  <p className="text-[10px] font-semibold text-blue-600 uppercase tracking-wider mb-1">Top This Month</p>
+                  <p className="text-xs font-bold text-foreground truncate">{productQuantityAnalytics.topConsumedMonth.productName}</p>
+                  <p className="text-[11px] font-black text-blue-700 dark:text-blue-400">
+                    {productQuantityAnalytics.topConsumedMonth.totalQuantity % 1 === 0
+                      ? productQuantityAnalytics.topConsumedMonth.totalQuantity
+                      : productQuantityAnalytics.topConsumedMonth.totalQuantity.toFixed(2)
+                    } {productQuantityAnalytics.topConsumedMonth.unit}
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+            {productQuantityAnalytics.topConsumedPrevMonth && (
+              <Card className="border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/20">
+                <CardContent className="p-3">
+                  <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Top Prev Month</p>
+                  <p className="text-xs font-bold text-foreground truncate">{productQuantityAnalytics.topConsumedPrevMonth.productName}</p>
+                  <p className="text-[11px] font-black text-slate-600 dark:text-slate-400">
+                    {productQuantityAnalytics.topConsumedPrevMonth.totalQuantity % 1 === 0
+                      ? productQuantityAnalytics.topConsumedPrevMonth.totalQuantity
+                      : productQuantityAnalytics.topConsumedPrevMonth.totalQuantity.toFixed(2)
+                    } {productQuantityAnalytics.topConsumedPrevMonth.unit}
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+            {productQuantityAnalytics.highestCostMonth && (
+              <Card className="border-orange-200 dark:border-orange-800 bg-orange-50/50 dark:bg-orange-950/20">
+                <CardContent className="p-3">
+                  <p className="text-[10px] font-semibold text-orange-600 uppercase tracking-wider mb-1">Highest Cost</p>
+                  <p className="text-xs font-bold text-foreground truncate">{productQuantityAnalytics.highestCostMonth.productName}</p>
+                  <p className="text-[11px] font-black text-orange-700 dark:text-orange-400">{fmt(productQuantityAnalytics.highestCostMonth.totalCost)}</p>
+                </CardContent>
+              </Card>
+            )}
+            {productQuantityAnalytics.fastestGrowing && (
+              <Card className="border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/20">
+                <CardContent className="p-3">
+                  <p className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wider mb-1">Fastest Growing ↑</p>
+                  <p className="text-xs font-bold text-foreground truncate">{productQuantityAnalytics.fastestGrowing.productName}</p>
+                  <p className="text-[11px] font-black text-emerald-700 dark:text-emerald-400">
+                    +{productQuantityAnalytics.fastestGrowing.diff % 1 === 0
+                      ? productQuantityAnalytics.fastestGrowing.diff
+                      : productQuantityAnalytics.fastestGrowing.diff.toFixed(2)
+                    } {productQuantityAnalytics.fastestGrowing.unit}
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+            {productQuantityAnalytics.mostReduced && (
+              <Card className="border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20">
+                <CardContent className="p-3">
+                  <p className="text-[10px] font-semibold text-red-600 uppercase tracking-wider mb-1">Most Reduced ↓</p>
+                  <p className="text-xs font-bold text-foreground truncate">{productQuantityAnalytics.mostReduced.productName}</p>
+                  <p className="text-[11px] font-black text-red-700 dark:text-red-400">
+                    {productQuantityAnalytics.mostReduced.diff % 1 === 0
+                      ? productQuantityAnalytics.mostReduced.diff
+                      : productQuantityAnalytics.mostReduced.diff.toFixed(2)
+                    } {productQuantityAnalytics.mostReduced.unit}
+                  </p>
+                </CardContent>
+              </Card>
             )}
           </div>
 
-          {/* ── Monthly Product Usage ───────────────────────────────────────── */}
-          <div className="mb-3">
-            <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
-              <Activity className="w-3 h-3" /> This Month's Product Usage
-            </p>
-            {productQuantityAnalytics.monthlyProducts.length === 0 ? (
-              <Card className="border-dashed border-border/60">
-                <CardContent className="p-4 text-center">
-                  <Package className="w-6 h-6 text-muted-foreground/40 mx-auto mb-1" />
-                  <p className="text-xs text-muted-foreground">No purchase items recorded this month</p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="space-y-1.5">
-                {productQuantityAnalytics.monthlyProducts.slice(0, 10).map((p, i) => (
-                  <div key={p.productId} className="flex items-center gap-2.5 px-3 py-2 rounded-xl border border-border/60 bg-background hover:bg-muted/30 transition-colors">
-                    <span className={`w-5 h-5 rounded-full text-[10px] font-black flex items-center justify-center text-white shrink-0 ${
-                      i === 0 ? 'bg-purple-500' : i === 1 ? 'bg-purple-400' : i === 2 ? 'bg-purple-300' : 'bg-gray-300'
-                    }`}>{i + 1}</span>
-                    <div className="flex-1 min-w-0">
+          {/* ── Full ERP Product Table: Today / This Month / Prev Month / Diff / Trend ── */}
+          {productQuantityAnalytics.combinedProducts.length === 0 ? (
+            <Card className="border-dashed border-border/60">
+              <CardContent className="p-4 text-center">
+                <Package className="w-6 h-6 text-muted-foreground/40 mx-auto mb-1" />
+                <p className="text-xs text-muted-foreground">No purchase items recorded</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-2">
+              {/* Header row */}
+              <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-1 px-3 py-1">
+                <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">Product</p>
+                <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider text-right w-12">Today</p>
+                <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider text-right w-14">This Mo.</p>
+                <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider text-right w-14">Prev Mo.</p>
+                <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider text-right w-10">Trend</p>
+              </div>
+              {productQuantityAnalytics.combinedProducts.slice(0, 15).map((p) => {
+                const trendColor = p.trend === '↑' ? 'text-emerald-600' : p.trend === '↓' ? 'text-red-500' : 'text-muted-foreground';
+                const fmtQty = (q) => q % 1 === 0 ? String(q) : q.toFixed(1);
+                return (
+                  <div key={p.productId} className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-1 items-center px-3 py-2.5 rounded-xl border border-border/60 bg-background hover:bg-muted/30 transition-colors">
+                    <div className="min-w-0">
                       <p className="text-xs font-semibold text-foreground truncate">{p.productName}</p>
-                      <p className="text-[10px] text-muted-foreground">
-                        <span className="font-bold text-purple-700 dark:text-purple-400">{p.totalQuantity % 1 === 0 ? p.totalQuantity : p.totalQuantity.toFixed(2)}</span>
-                        {' '}{p.unit} this month
-                      </p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[9px] text-muted-foreground">{p.unit}</span>
+                        <span className="text-[9px] text-muted-foreground">Cost: {fmt(p.monthCost)}</span>
+                        {p.prevMonthCost > 0 && (
+                          <span className="text-[9px] text-muted-foreground">Prev: {fmt(p.prevMonthCost)}</span>
+                        )}
+                      </div>
                     </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-xs font-bold text-foreground">{fmt(p.totalCost)}</p>
+                    <div className="text-right w-12">
+                      <p className="text-[11px] font-bold text-purple-700 dark:text-purple-400">{p.todayQty > 0 ? fmtQty(p.todayQty) : '—'}</p>
+                    </div>
+                    <div className="text-right w-14">
+                      <p className="text-[11px] font-bold text-blue-700 dark:text-blue-400">{p.monthQty > 0 ? fmtQty(p.monthQty) : '—'}</p>
+                    </div>
+                    <div className="text-right w-14">
+                      <p className="text-[11px] font-semibold text-muted-foreground">{p.prevMonthQty > 0 ? fmtQty(p.prevMonthQty) : '—'}</p>
+                    </div>
+                    <div className="text-right w-10">
+                      <span className={`text-sm font-black ${trendColor}`}>{p.trend}</span>
+                      {p.diff !== 0 && (
+                        <p className={`text-[8px] font-semibold ${trendColor}`}>
+                          {p.diff > 0 ? '+' : ''}{fmtQty(p.diff)}
+                        </p>
+                      )}
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* ── Highlights: Top Consumed & Highest Cost ─────────────────────── */}
-          {(productQuantityAnalytics.topConsumedMonth || productQuantityAnalytics.highestCostMonth) && (
-            <div className="grid grid-cols-2 gap-2 mb-3">
-              {productQuantityAnalytics.topConsumedMonth && (
-                <Card className="border-purple-200 dark:border-purple-800 bg-purple-50/50 dark:bg-purple-950/20">
-                  <CardContent className="p-3">
-                    <p className="text-[10px] font-semibold text-purple-600 uppercase tracking-wider mb-1">Top Consumed</p>
-                    <p className="text-xs font-bold text-foreground truncate">{productQuantityAnalytics.topConsumedMonth.productName}</p>
-                    <p className="text-[11px] font-black text-purple-700 dark:text-purple-400">
-                      {productQuantityAnalytics.topConsumedMonth.totalQuantity % 1 === 0
-                        ? productQuantityAnalytics.topConsumedMonth.totalQuantity
-                        : productQuantityAnalytics.topConsumedMonth.totalQuantity.toFixed(2)
-                      } {productQuantityAnalytics.topConsumedMonth.unit}
-                    </p>
-                  </CardContent>
-                </Card>
-              )}
-              {productQuantityAnalytics.highestCostMonth && (
-                <Card className="border-orange-200 dark:border-orange-800 bg-orange-50/50 dark:bg-orange-950/20">
-                  <CardContent className="p-3">
-                    <p className="text-[10px] font-semibold text-orange-600 uppercase tracking-wider mb-1">Highest Cost</p>
-                    <p className="text-xs font-bold text-foreground truncate">{productQuantityAnalytics.highestCostMonth.productName}</p>
-                    <p className="text-[11px] font-black text-orange-700 dark:text-orange-400">{fmt(productQuantityAnalytics.highestCostMonth.totalCost)}</p>
-                  </CardContent>
-                </Card>
-              )}
+                );
+              })}
             </div>
           )}
 
           {/* ── Weekly Trend ─────────────────────────────────────────────────── */}
           {productQuantityAnalytics.weeklyTrend.some(d => d.totalQuantity > 0) && (
-            <Card className="border-border/60">
+            <Card className="border-border/60 mt-3">
               <CardContent className="p-3">
                 <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">7-Day Quantity Trend</p>
                 <div className="flex items-end gap-1 h-16">
