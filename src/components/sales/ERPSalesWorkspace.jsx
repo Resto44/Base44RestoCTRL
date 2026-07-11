@@ -543,7 +543,7 @@ export default function ERPSalesWorkspace({ initial, onSubmit, onCancel }) {
   });
 
   // ── Customers ─────────────────────────────────────────────────────────────
-  const { data: customers = [], isLoading: custLoading } = useQuery({
+  const { data: allCustomers = [], isLoading: custLoading } = useQuery({
     queryKey: ['customers_form', ownerFilter?.created_by, activeRestaurant?.id],
     queryFn: async () => {
       if (!ownerFilter?.created_by) return [];
@@ -567,6 +567,14 @@ export default function ERPSalesWorkspace({ initial, onSubmit, onCancel }) {
     staleTime: 0, // Always fresh
     enabled: !!ownerFilter?.created_by,
   });
+
+  // ── Filter customers by selected branch ──────────────────────────────────────
+  const customers = useMemo(() => {
+    if (!form.branch || form.branch === 'all') return allCustomers;
+    return allCustomers.filter(c =>
+      (c.branch === form.branch || c.branch_id === form.branch)
+    );
+  }, [allCustomers, form.branch]);
 
   // ── Approved Purchases ────────────────────────────────────────────────────
   const { data: approvedPurchasesForDate = [], isLoading: purchasesLoading } = useQuery({
@@ -1068,7 +1076,11 @@ export default function ERPSalesWorkspace({ initial, onSubmit, onCancel }) {
                 </div>
                 <div>
                   <Label className="text-[10px] text-muted-foreground uppercase font-bold mb-1 block">Branch</Label>
-                  <BranchSelect value={form.branch} onChange={v => set('branch', v)} />
+                  <BranchSelect value={form.branch} onChange={v => {
+                    set('branch', v);
+                    // Clear credit entries when branch changes (to avoid showing customers from previous branch)
+                    setCreditEntries([]);
+                  }} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
