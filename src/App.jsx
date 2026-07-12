@@ -125,12 +125,17 @@ const SerialNumbers       = lazy(() => import('@/pages/retail/SerialNumbers'));
 const Production          = lazy(() => import('@/pages/Production'));
 
 // ── Public pages (eager — shown before auth) ─────────────────────────────────
-import LandingPage         from '@/pages/LandingPage';
-import AuthPage            from '@/pages/AuthPage';
-import InvitePage          from '@/pages/InvitePage';
-import DriverInvitePage    from '@/pages/DriverInvitePage';
-import EmployeeInvitePage  from '@/pages/EmployeeInvitePage';
-import KitchenInvitePage   from '@/pages/KitchenInvitePage';
+import LandingPage            from '@/pages/LandingPage';
+import AuthPage               from '@/pages/AuthPage';
+import InvitePage             from '@/pages/InvitePage';
+import DriverInvitePage       from '@/pages/DriverInvitePage';
+import EmployeeInvitePage     from '@/pages/EmployeeInvitePage';
+import KitchenInvitePage      from '@/pages/KitchenInvitePage';
+import SupplierRegistration   from '@/pages/SupplierRegistration';
+
+// ── ERP SaaS New Pages ────────────────────────────────────────────────────────
+const OwnerApprovalCenter = lazy(() => import('@/pages/OwnerApprovalCenter'));
+const SupplierPortal      = lazy(() => import('@/pages/SupplierPortal'));
 
 // ── Shared page loading fallback ─────────────────────────────────────────────
 const PageLoader = () => (
@@ -313,6 +318,8 @@ const SubscribedRoutes = () => {
         <Route path="/branch-management" element={<RoleGuard permission="viewBrandSettings"><BranchManagement /></RoleGuard>} />
 
         <Route path="/approval-policy" element={<RoleGuard permission="viewBrandSettings"><ApprovalPolicy /></RoleGuard>} />
+        <Route path="/approval-center" element={<RoleGuard permission="manageSettings"><OwnerApprovalCenter /></RoleGuard>} />
+        <Route path="/supplier-portal" element={<RoleGuard permission="viewSuppliers"><SupplierPortal /></RoleGuard>} />
         <Route path="/sales-sources" element={<RoleGuard permission="viewBrandSettings"><SalesSources /></RoleGuard>} />
         <Route path="/telegram-settings" element={<RoleGuard permission="viewBrandSettings"><TelegramSettings /></RoleGuard>} />
         <Route path="/billing" element={<RoleGuard permission="viewBilling"><Billing /></RoleGuard>} />
@@ -491,6 +498,7 @@ function App() {
               <Route path="/employee-invite" element={<EmployeeInvitePage />} />
               <Route path="/auth/employee-login" element={<EmployeeInvitePage />} />
               <Route path="/kitchen-invite" element={<KitchenInvitePage />} />
+              <Route path="/supplier-registration" element={<SupplierRegistration />} />
               {/* All authenticated routes */}
               <Route path="*" element={<AuthenticatedApp />} />
             </Routes>

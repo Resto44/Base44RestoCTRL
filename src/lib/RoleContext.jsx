@@ -23,6 +23,7 @@ export const ROLES = {
   SPONSOR:  'sponsor',
   KITCHEN:  'kitchen',
   CUSTOMER: 'customer',
+  SUPPLIER: 'supplier',
 };
 
 // Which route each role lands on after login
@@ -34,6 +35,7 @@ export const ROLE_HOME = {
   [ROLES.SPONSOR]:  '/sponsor-dashboard',
   [ROLES.KITCHEN]:  '/kitchen-dashboard',
   [ROLES.CUSTOMER]: '/customer-dashboard',
+  [ROLES.SUPPLIER]: '/supplier-portal',
 };
 
 // Roles that must never be redirected to onboarding
@@ -43,7 +45,8 @@ export const NON_OWNER_ROLES = new Set([
   ROLES.DRIVER, 
   ROLES.SPONSOR, 
   ROLES.KITCHEN, 
-  ROLES.CUSTOMER
+  ROLES.CUSTOMER,
+  ROLES.SUPPLIER,
 ]);
 
 const RoleContext = createContext();
@@ -59,7 +62,7 @@ function buildCan(role) {
 
   return {
     // Dashboard
-    viewDashboard:      is(ROLES.MANAGER, ROLES.EMPLOYEE, ROLES.DRIVER, ROLES.SPONSOR, ROLES.KITCHEN, ROLES.CUSTOMER),
+    viewDashboard:      is(ROLES.MANAGER, ROLES.EMPLOYEE, ROLES.DRIVER, ROLES.SPONSOR, ROLES.KITCHEN, ROLES.CUSTOMER, ROLES.SUPPLIER),
     // Sales
     viewSales:          is(ROLES.MANAGER),
     // Purchases
@@ -82,7 +85,7 @@ function buildCan(role) {
     viewNetworkAnalytics: false,
     viewSponsorTreasury: is(ROLES.SPONSOR),
     // Suppliers
-    viewSuppliers:      is(ROLES.MANAGER),
+    viewSuppliers:      is(ROLES.MANAGER, ROLES.SUPPLIER),
     // Delivery
     viewDelivery:       is(ROLES.MANAGER, ROLES.DRIVER),
     // Brand / Settings

@@ -1,0 +1,25 @@
+{
+  "name": "SupplierInvite",
+  "table": "supplier_invites",
+  "description": "Tracks supplier self-registration requests and owner approval flow",
+  "fields": {
+    "id":               { "type": "uuid",      "primaryKey": true, "default": "gen_random_uuid()" },
+    "created_at":       { "type": "timestamp", "default": "now()" },
+    "updated_at":       { "type": "timestamp", "default": "now()" },
+    "supplier_name":    { "type": "string",    "required": true },
+    "contact_name":     { "type": "string" },
+    "email":            { "type": "string",    "required": true },
+    "phone":            { "type": "string" },
+    "products":         { "type": "string",    "description": "Comma-separated product categories" },
+    "notes":            { "type": "text" },
+    "restaurant_id":    { "type": "uuid",      "references": "restaurants.id" },
+    "owner_email":      { "type": "string" },
+    "invite_token":     { "type": "string",    "unique": true },
+    "token_expires_at": { "type": "timestamp" },
+    "status":           { "type": "string",    "default": "pending", "enum": ["pending", "approved", "rejected", "suspended"] },
+    "user_id":          { "type": "uuid",      "references": "auth.users.id", "nullable": true },
+    "approved_at":      { "type": "timestamp", "nullable": true },
+    "approved_by":      { "type": "string",    "nullable": true },
+    "rejection_reason": { "type": "string",    "nullable": true }
+  }
+}

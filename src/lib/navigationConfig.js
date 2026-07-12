@@ -18,7 +18,7 @@ import {
   Building2, Globe, Wallet, Receipt, FileText,
   TrendingUp, Zap, Network, AlertTriangle,
   Store, BookOpen, Boxes, ScanLine, Hash,
-  ClipboardList, ArrowLeftRight, Banknote,
+  ClipboardList, ArrowLeftRight, Banknote, Clock, Handshake,
 } from 'lucide-react';
 
 // ── Navigation Groups ─────────────────────────────────────────────────────────
@@ -367,6 +367,24 @@ export const ALL_NAV_ITEMS = [
     mode: 'all',
     group: NAV_GROUPS.ANALYTICS,
     permission: 'viewAlerts',
+  },
+
+  // ── APPROVALS & SUPPLIER PORTAL ─────────────────────────────────────────────
+  {
+    path: '/approval-center',
+    label: 'Approval Center',
+    icon: Clock,
+    mode: 'all',
+    group: NAV_GROUPS.SETTINGS,
+    permission: 'manageSettings',
+  },
+  {
+    path: '/supplier-portal',
+    label: 'Supplier Portal',
+    icon: Handshake,
+    mode: 'all',
+    group: NAV_GROUPS.CORE,
+    permission: 'viewSuppliers',
   },
 
   // ── SETTINGS (Shared) ──────────────────────────────────────────────────────

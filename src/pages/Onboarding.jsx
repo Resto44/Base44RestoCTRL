@@ -6,51 +6,68 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
-import { Check, ChevronRight, Building2, GitBranch, Globe, Zap, DollarSign, AlertCircle } from 'lucide-react';
+import { Check, ChevronRight, Building2, GitBranch, Globe, Zap, DollarSign, AlertCircle, Briefcase } from 'lucide-react';
 import { toast } from 'sonner';
 
 const CURRENCIES = ['SAR', 'ر.س', 'AED', '$', '€', '£', 'AFN', '؋'];
+
+const BUSINESS_TYPES = [
+  { value: 'restaurant', label: 'Restaurant', icon: '🍽️' },
+  { value: 'cafe',       label: 'Cafe',       icon: '☕' },
+  { value: 'retail',     label: 'Retail',     icon: '🛍️' },
+  { value: 'warehouse',  label: 'Warehouse',  icon: '🏭' },
+  { value: 'factory',    label: 'Factory',    icon: '⚙️' },
+  { value: 'pharmacy',   label: 'Pharmacy',   icon: '💊' },
+  { value: 'clinic',     label: 'Clinic',     icon: '🏥' },
+  { value: 'wholesale',  label: 'Wholesale',  icon: '📦' },
+  { value: 'services',   label: 'Services',   icon: '🔧' },
+  { value: 'other',      label: 'Other',      icon: '🏢' },
+];
+
 const LANGUAGES = [
-  { value: 'en', label: 'English', dir: 'ltr', welcome: 'Welcome', sub: "Let's set up your private restaurant workspace" },
-  { value: 'ar', label: 'العربية', dir: 'rtl', welcome: 'أهلاً وسهلاً', sub: 'لنقم بإعداد مساحة عمل مطعمك الخاصة' },
-  { value: 'fa', label: 'فارسی', dir: 'rtl', welcome: 'خوش آمدید', sub: 'بیایید فضای کاری خصوصی رستوران شما را راه‌اندازی کنیم' },
+  { value: 'en', label: 'English', dir: 'ltr', welcome: 'Welcome', sub: "Let's set up your business workspace" },
+  { value: 'ar', label: 'العربية', dir: 'rtl', welcome: 'أهلاً وسهلاً', sub: 'لنقم بإعداد مساحة عمل نشاطك التجاري' },
+  { value: 'fa', label: 'فارسی', dir: 'rtl', welcome: 'خوش آمدید', sub: 'بیایید فضای کاری کسب‌وکار شما را راه‌اندازی کنیم' },
 ];
 
 const LABELS = {
   en: {
-    step1: 'Language', step2: 'Restaurant', step3: 'Branch', step4: 'Currency',
-    restaurantLabel: 'Restaurant Name', restaurantPlaceholder: 'e.g. Al-Nakheel Grill',
+    step1: 'Language', step2: 'Business Type', step3: 'Business', step4: 'Branch', step5: 'Currency',
+    businessTypeLabel: 'Select Your Business Type',
+    restaurantLabel: 'Business Name', restaurantPlaceholder: 'e.g. Al-Nakheel Grill',
     addressLabel: 'Address (optional)', addressPlaceholder: 'City, Country',
     branchLabel: 'First Branch Name', branchPlaceholder: 'e.g. Main Branch',
     currencyLabel: 'Display Currency',
     summaryTitle: 'Your Setup Summary',
-    summaryRestaurant: 'Restaurant', summaryBranch: 'Branch', summaryCurrency: 'Currency', summaryLang: 'Language',
+    summaryRestaurant: 'Business', summaryBusinessType: 'Type', summaryBranch: 'Branch', summaryCurrency: 'Currency', summaryLang: 'Language',
     back: 'Back', continue: 'Continue', launch: 'Launch My Dashboard',
     launching: 'Setting up your workspace…',
     privacy: 'Your data is completely private — no one else can access it.',
     required: 'This field is required',
   },
   ar: {
-    step1: 'اللغة', step2: 'المطعم', step3: 'الفرع', step4: 'العملة',
-    restaurantLabel: 'اسم المطعم', restaurantPlaceholder: 'مثل: مطعم النخيل',
+    step1: 'اللغة', step2: 'نوع النشاط', step3: 'اسم النشاط', step4: 'الفرع', step5: 'العملة',
+    businessTypeLabel: 'اختر نوع نشاطك التجاري',
+    restaurantLabel: 'اسم النشاط التجاري', restaurantPlaceholder: 'مثل: مطعم النخيل',
     addressLabel: 'العنوان (اختياري)', addressPlaceholder: 'المدينة، الدولة',
     branchLabel: 'اسم الفرع الأول', branchPlaceholder: 'مثل: الفرع الرئيسي',
     currencyLabel: 'عملة العرض',
     summaryTitle: 'ملخص الإعداد',
-    summaryRestaurant: 'المطعم', summaryBranch: 'الفرع', summaryCurrency: 'العملة', summaryLang: 'اللغة',
+    summaryRestaurant: 'النشاط', summaryBusinessType: 'النوع', summaryBranch: 'الفرع', summaryCurrency: 'العملة', summaryLang: 'اللغة',
     back: 'رجوع', continue: 'متابعة', launch: 'إطلاق لوحتي',
     launching: 'جاري إعداد مساحة عملك…',
     privacy: 'بياناتك خاصة تماماً — لا أحد آخر يمكنه الوصول إليها.',
     required: 'هذا الحقل مطلوب',
   },
   fa: {
-    step1: 'زبان', step2: 'رستوران', step3: 'فرع', step4: 'ارز',
-    restaurantLabel: 'نام رستوران', restaurantPlaceholder: 'مثل: رستوران نخیل',
+    step1: 'زبان', step2: 'نوع کسب‌وکار', step3: 'نام کسب‌وکار', step4: 'شعبه', step5: 'ارز',
+    businessTypeLabel: 'نوع کسب‌وکار خود را انتخاب کنید',
+    restaurantLabel: 'نام کسب‌وکار', restaurantPlaceholder: 'مثل: رستوران نخیل',
     addressLabel: 'آدرس (اختیاری)', addressPlaceholder: 'شهر، کشور',
-    branchLabel: 'نام اولین فرع', branchPlaceholder: 'مثل: شعبه اصلی',
+    branchLabel: 'نام اولین شعبه', branchPlaceholder: 'مثل: شعبه اصلی',
     currencyLabel: 'ارز نمایش',
     summaryTitle: 'خلاصه تنظیمات',
-    summaryRestaurant: 'رستوران', summaryBranch: 'فرع', summaryCurrency: 'ارز', summaryLang: 'زبان',
+    summaryRestaurant: 'کسب‌وکار', summaryBusinessType: 'نوع', summaryBranch: 'شعبه', summaryCurrency: 'ارز', summaryLang: 'زبان',
     back: 'بازگشت', continue: 'ادامه', launch: 'راه‌اندازی داشبوردم',
     launching: 'در حال راه‌اندازی فضای کاری شما…',
     privacy: 'اطلاعات شما کاملاً خصوصی است — هیچ‌کس دیگری به آن دسترسی ندارد.',
@@ -58,7 +75,7 @@ const LABELS = {
   },
 };
 
-const STEPS = ['step1', 'step2', 'step3', 'step4'];
+const STEPS = ['step1', 'step2', 'step3', 'step4', 'step5'];
 
 export default function Onboarding({ onComplete }) {
   const { user } = useAuth();
@@ -68,6 +85,7 @@ export default function Onboarding({ onComplete }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [lang, setLang] = useState('en');
+  const [businessType, setBusinessType] = useState('restaurant');
   const [restaurant, setRestaurant] = useState({ name: '', address: '' });
   const [branchLabel, setBranchLabel] = useState('');
   const [currency, setCurrency] = useState('SAR');
@@ -76,19 +94,19 @@ export default function Onboarding({ onComplete }) {
   const langMeta = LANGUAGES.find(l => l.value === lang) || LANGUAGES[0];
   const dir = langMeta.dir;
 
-  const stepIcons = [Globe, Building2, GitBranch, DollarSign];
-  const stepLabels = [L.step1, L.step2, L.step3, L.step4];
+  const stepIcons = [Globe, Briefcase, Building2, GitBranch, DollarSign];
+  const stepLabels = [L.step1, L.step2, L.step3, L.step4, L.step5];
 
   const validate = () => {
-    if (step === 1 && !restaurant.name.trim()) { toast.error(L.required); return false; }
-    if (step === 2 && !branchLabel.trim()) { toast.error(L.required); return false; }
+    if (step === 2 && !restaurant.name.trim()) { toast.error(L.required); return false; }
+    if (step === 3 && !branchLabel.trim()) { toast.error(L.required); return false; }
     return true;
   };
 
   const goNext = () => {
     if (!validate()) return;
+    setError('');
     if (step === 0) {
-      // Apply language immediately to document
       localStorage.setItem('rc_lang', lang);
       document.documentElement.setAttribute('dir', dir);
       document.documentElement.setAttribute('lang', lang);
@@ -104,31 +122,32 @@ export default function Onboarding({ onComplete }) {
     try {
       if (!user?.email) throw new Error('Not authenticated — please refresh and try again.');
 
-      // Directly create restaurant (bypasses TenantContext which may not be mounted yet)
       const branchKey = branchLabel.trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '') || 'main';
+      // Determine business_mode from business_type
+      const retailTypes = ['retail', 'wholesale', 'warehouse', 'pharmacy'];
+      const businessMode = retailTypes.includes(businessType) ? 'retail' : 'restaurant';
+
       const rest = await base44.entities.Restaurant.create({
         org_id: user.email,
         name: restaurant.name.trim(),
         address: restaurant.address.trim(),
         currency,
+        business_type: businessType,
+        business_mode: businessMode,
         branches: JSON.stringify([{ key: branchKey, label: branchLabel.trim(), is_active: true }]),
       });
 
-      if (!rest?.id) throw new Error('Restaurant creation failed — please try again.');
+      if (!rest?.id) throw new Error('Business creation failed — please try again.');
 
-      // Save locale preferences
       localStorage.setItem('rc_lang', lang);
       localStorage.setItem('rc_currency', currency);
       localStorage.setItem('rc_lang_applied', '1');
       document.documentElement.setAttribute('dir', dir);
       document.documentElement.setAttribute('lang', lang);
 
-      // Ensure profile is fully hydrated before redirecting
       try {
         const profile = await base44.auth.me();
-        if (!profile) {
-          throw new Error('Profile not found after onboarding');
-        }
+        if (!profile) throw new Error('Profile not found after onboarding');
       } catch (e) {
         console.error('[Onboarding] Profile hydration failed:', e);
         setError('Failed to complete profile setup. Please refresh and try again.');
@@ -137,10 +156,7 @@ export default function Onboarding({ onComplete }) {
         return;
       }
 
-      // Clear all cached queries then hard-redirect
       qc.clear();
-
-      // Small delay to ensure cache is cleared before navigation
       await new Promise(r => setTimeout(r, 200));
       window.location.replace('/');
     } catch (e) {
@@ -167,12 +183,12 @@ export default function Onboarding({ onComplete }) {
         </div>
 
         {/* Step indicators */}
-        <div className="flex items-center justify-center gap-1.5 mb-8 flex-wrap">
+        <div className="flex items-center justify-center gap-1 mb-8 flex-wrap">
           {STEPS.map((_, i) => {
             const Icon = stepIcons[i];
             return (
               <React.Fragment key={i}>
-                <div className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                <div className={`flex items-center gap-1 px-2 py-1.5 rounded-full text-xs font-semibold transition-all ${
                   i === step ? 'bg-primary text-primary-foreground' :
                   i < step ? 'bg-emerald-500 text-white' : 'bg-slate-700 text-slate-400'
                 }`}>
@@ -217,12 +233,47 @@ export default function Onboarding({ onComplete }) {
             </div>
           )}
 
-          {/* Step 1: Restaurant */}
+          {/* Step 1: Business Type */}
           {step === 1 && (
             <div className="space-y-4">
               <div className="flex items-center gap-2 mb-2">
-                <Building2 className="w-5 h-5 text-primary" />
+                <Briefcase className="w-5 h-5 text-primary" />
                 <h2 className="text-white font-bold text-lg">{L.step2}</h2>
+              </div>
+              <p className="text-slate-400 text-sm">{L.businessTypeLabel}</p>
+              <div className="grid grid-cols-2 gap-2">
+                {BUSINESS_TYPES.map(bt => (
+                  <button
+                    key={bt.value}
+                    onClick={() => setBusinessType(bt.value)}
+                    className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 text-left transition-all ${
+                      businessType === bt.value
+                        ? 'border-primary bg-primary/20 text-white'
+                        : 'border-white/20 bg-white/5 text-slate-300 hover:bg-white/10'
+                    }`}
+                  >
+                    {businessType === bt.value
+                      ? <Check className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                      : <span className="w-3.5" />
+                    }
+                    <span className="text-base">{bt.icon}</span>
+                    <span className="text-sm font-medium">{bt.label}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1 border-white/20 text-slate-300 hover:bg-white/10" onClick={() => setStep(0)}>{L.back}</Button>
+                <Button className="flex-1" onClick={goNext}>{L.continue} <ChevronRight className="w-4 h-4 ml-1" /></Button>
+              </div>
+            </div>
+          )}
+
+          {/* Step 2: Business Name */}
+          {step === 2 && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Building2 className="w-5 h-5 text-primary" />
+                <h2 className="text-white font-bold text-lg">{L.step3}</h2>
               </div>
               <div>
                 <Label className="text-slate-300 text-sm">{L.restaurantLabel} *</Label>
@@ -245,18 +296,18 @@ export default function Onboarding({ onComplete }) {
                 />
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" className="flex-1 border-white/20 text-slate-300 hover:bg-white/10" onClick={() => setStep(0)}>{L.back}</Button>
+                <Button variant="outline" className="flex-1 border-white/20 text-slate-300 hover:bg-white/10" onClick={() => setStep(1)}>{L.back}</Button>
                 <Button className="flex-1" onClick={goNext}>{L.continue} <ChevronRight className="w-4 h-4 ml-1" /></Button>
               </div>
             </div>
           )}
 
-          {/* Step 2: Branch */}
-          {step === 2 && (
+          {/* Step 3: Branch */}
+          {step === 3 && (
             <div className="space-y-4">
               <div className="flex items-center gap-2 mb-2">
                 <GitBranch className="w-5 h-5 text-primary" />
-                <h2 className="text-white font-bold text-lg">{L.step3}</h2>
+                <h2 className="text-white font-bold text-lg">{L.step4}</h2>
               </div>
               <p className="text-slate-400 text-sm">
                 {restaurant.name && <span className="text-white font-medium">{restaurant.name} — </span>}
@@ -273,18 +324,18 @@ export default function Onboarding({ onComplete }) {
                 />
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" className="flex-1 border-white/20 text-slate-300 hover:bg-white/10" onClick={() => setStep(1)}>{L.back}</Button>
+                <Button variant="outline" className="flex-1 border-white/20 text-slate-300 hover:bg-white/10" onClick={() => setStep(2)}>{L.back}</Button>
                 <Button className="flex-1" onClick={goNext}>{L.continue} <ChevronRight className="w-4 h-4 ml-1" /></Button>
               </div>
             </div>
           )}
 
-          {/* Step 3: Currency + Summary */}
-          {step === 3 && (
+          {/* Step 4: Currency + Summary */}
+          {step === 4 && (
             <div className="space-y-5">
               <div className="flex items-center gap-2 mb-2">
                 <DollarSign className="w-5 h-5 text-primary" />
-                <h2 className="text-white font-bold text-lg">{L.step4}</h2>
+                <h2 className="text-white font-bold text-lg">{L.step5}</h2>
               </div>
               <div>
                 <Label className="text-slate-300 text-sm">{L.currencyLabel}</Label>
@@ -309,6 +360,10 @@ export default function Onboarding({ onComplete }) {
                   <span className="text-white font-medium">{restaurant.name}</span>
                 </div>
                 <div className="flex justify-between text-sm">
+                  <span className="text-slate-400">{L.summaryBusinessType}</span>
+                  <span className="text-white font-medium capitalize">{businessType}</span>
+                </div>
+                <div className="flex justify-between text-sm">
                   <span className="text-slate-400">{L.summaryBranch}</span>
                   <span className="text-white font-medium">{branchLabel}</span>
                 </div>
@@ -330,7 +385,7 @@ export default function Onboarding({ onComplete }) {
               )}
 
               <div className="flex gap-2">
-                <Button variant="outline" className="flex-1 border-white/20 text-slate-300 hover:bg-white/10" onClick={() => setStep(2)} disabled={saving}>{L.back}</Button>
+                <Button variant="outline" className="flex-1 border-white/20 text-slate-300 hover:bg-white/10" onClick={() => setStep(3)} disabled={saving}>{L.back}</Button>
                 <Button className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold" onClick={handleFinish} disabled={saving}>
                   {saving ? (
                     <span className="flex items-center gap-2">

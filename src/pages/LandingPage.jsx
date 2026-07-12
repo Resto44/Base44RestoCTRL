@@ -1,198 +1,409 @@
-import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { 
-  ChefHat, 
-  ShieldCheck, 
-  Users, 
-  Truck, 
-  UtensilsCrossed, 
-  UserCircle, 
-  HeartHandshake,
-  ArrowRight,
-  LayoutDashboard,
-  Zap
-} from 'lucide-react';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { useAuth } from '@/lib/AuthContext';
-import { ROLES, ROLE_HOME } from '@/lib/RoleContext';
+import {
+  Building2, ChefHat, ShoppingBag, Warehouse, Factory,
+  Pill, Stethoscope, Package, Wrench, BarChart3,
+  Users, DollarSign, TrendingUp, ShieldCheck, Globe,
+  ArrowRight, CheckCircle2, Zap, Clock, Handshake,
+  LayoutDashboard, Truck, Receipt, CreditCard, Star,
+  ChevronRight, Menu, X
+} from 'lucide-react';
 
-const RoleCard = ({ role, title, description, icon: Icon, color }) => (
-  <div className={`group relative p-6 rounded-2xl border border-white/10 bg-slate-900/50 backdrop-blur-xl hover:bg-slate-800/80 transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl hover:shadow-${color}-500/20`}>
-    <div className={`absolute -top-4 -left-4 w-12 h-12 rounded-xl bg-gradient-to-br ${color === 'cyan' ? 'from-cyan-500 to-blue-600' : color === 'purple' ? 'from-purple-500 to-indigo-600' : 'from-emerald-500 to-teal-600'} flex items-center justify-center shadow-lg shadow-${color}-500/40 group-hover:rotate-6 transition-transform`}>
-      <Icon className="w-6 h-6 text-white" />
-    </div>
-    <div className="mt-4">
-      <h3 className="text-xl font-bold text-white mb-2">{title}</h3>
-      <p className="text-slate-400 text-sm leading-relaxed">{description}</p>
-    </div>
-    <div className="mt-6 flex items-center text-sm font-medium text-slate-300 group-hover:text-white transition-colors">
-      <span>Learn more</span>
-      <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
-    </div>
-  </div>
-);
+const BUSINESS_TYPES = [
+  { icon: ChefHat,      label: 'Restaurant',  color: 'from-orange-500 to-red-600' },
+  { icon: ShoppingBag,  label: 'Retail',      color: 'from-blue-500 to-cyan-600' },
+  { icon: Warehouse,    label: 'Warehouse',   color: 'from-slate-500 to-slate-700' },
+  { icon: Factory,      label: 'Factory',     color: 'from-gray-500 to-gray-700' },
+  { icon: Pill,         label: 'Pharmacy',    color: 'from-green-500 to-emerald-600' },
+  { icon: Stethoscope,  label: 'Clinic',      color: 'from-teal-500 to-cyan-600' },
+  { icon: Package,      label: 'Wholesale',   color: 'from-purple-500 to-violet-600' },
+  { icon: Wrench,       label: 'Services',    color: 'from-amber-500 to-yellow-600' },
+  { icon: Building2,    label: 'Café',        color: 'from-amber-600 to-orange-700' },
+  { icon: Globe,        label: 'Other',       color: 'from-pink-500 to-rose-600' },
+];
+
+const FEATURES = [
+  {
+    icon: LayoutDashboard,
+    title: 'Unified Owner Dashboard',
+    desc: 'Real-time KPIs, operating results, branch comparisons, and AI-powered insights — all in one command center.',
+    color: 'text-cyan-400',
+    bg: 'bg-cyan-500/10',
+  },
+  {
+    icon: Users,
+    title: 'Role-Based Access Control',
+    desc: 'Owner, Manager, Employee, Supplier, Driver — each with tailored dashboards and granular permissions.',
+    color: 'text-purple-400',
+    bg: 'bg-purple-500/10',
+  },
+  {
+    icon: Truck,
+    title: 'Supplier Management',
+    desc: 'Supplier self-registration, approval workflow, purchase orders, invoices, and outstanding balance tracking.',
+    color: 'text-amber-400',
+    bg: 'bg-amber-500/10',
+  },
+  {
+    icon: Package,
+    title: 'Smart Inventory',
+    desc: 'Multi-branch inventory, batch/lot tracking, expiry alerts, serial numbers, and automatic reorder points.',
+    color: 'text-emerald-400',
+    bg: 'bg-emerald-500/10',
+  },
+  {
+    icon: Receipt,
+    title: 'Sales & POS',
+    desc: 'Cash register, invoicing, customer debts, loyalty programs, and multi-channel sales analytics.',
+    color: 'text-rose-400',
+    bg: 'bg-rose-500/10',
+  },
+  {
+    icon: DollarSign,
+    title: 'Finance & Treasury',
+    desc: 'Profit & Loss, cash flow, payroll, expense tracking, network settlement, and multi-currency support.',
+    color: 'text-blue-400',
+    bg: 'bg-blue-500/10',
+  },
+  {
+    icon: BarChart3,
+    title: 'BI & Analytics',
+    desc: 'Advanced reports, scheduled exports, AI business copilot, and predictive inventory forecasting.',
+    color: 'text-violet-400',
+    bg: 'bg-violet-500/10',
+  },
+  {
+    icon: ShieldCheck,
+    title: 'Multi-Tenant & Secure',
+    desc: 'Each business is fully isolated. Row-level security, audit logs, and role-based data access.',
+    color: 'text-teal-400',
+    bg: 'bg-teal-500/10',
+  },
+];
+
+const TESTIMONIALS = [
+  {
+    name: 'Ahmed Al-Rashidi',
+    role: 'Owner, Al-Nakheel Restaurant Group',
+    text: 'BizCTRL transformed how we manage 6 branches. The owner dashboard gives me everything I need in seconds.',
+    stars: 5,
+  },
+  {
+    name: 'Sara Khalil',
+    role: 'Manager, Bloom Pharmacy Chain',
+    text: 'The inventory expiry tracking and supplier approval system saved us countless hours every week.',
+    stars: 5,
+  },
+  {
+    name: 'Omar Farouk',
+    role: 'Director, FastTrack Wholesale',
+    text: 'Finally an ERP that works for wholesale. The purchase order and supplier portal features are outstanding.',
+    stars: 5,
+  },
+];
 
 export default function LandingPage() {
-  const { user } = useAuth();
   const navigate = useNavigate();
-
-  // If already logged in, show a different CTA or redirect
-  const handleGetStarted = () => {
-    if (user) {
-      const home = ROLE_HOME[user.role] === '/' ? '/dashboard' : (ROLE_HOME[user.role] || '/dashboard');
-      navigate(home);
-    } else {
-      navigate('/auth?mode=signup');
-    }
-  };
-
-  const roles = [
-    {
-      role: ROLES.OWNER,
-      title: 'Restaurant Owner',
-      description: 'Full control over your business, branches, and high-level analytics.',
-      icon: ShieldCheck,
-      color: 'cyan'
-    },
-    {
-      role: ROLES.MANAGER,
-      title: 'Branch Manager',
-      description: 'Manage daily operations, staff, and inventory for your assigned location.',
-      icon: LayoutDashboard,
-      color: 'purple'
-    },
-    {
-      role: ROLES.KITCHEN,
-      title: 'Kitchen Staff',
-      description: 'Streamline order preparation and manage kitchen workflow efficiently.',
-      icon: UtensilsCrossed,
-      color: 'emerald'
-    },
-    {
-      role: ROLES.EMPLOYEE,
-      title: 'Floor Staff',
-      description: 'Handle sales, orders, and customer service on the front line.',
-      icon: Users,
-      color: 'cyan'
-    },
-    {
-      role: ROLES.DRIVER,
-      title: 'Delivery Driver',
-      description: 'Optimized routes and real-time delivery tracking for faster service.',
-      icon: Truck,
-      color: 'purple'
-    },
-    {
-      role: ROLES.SPONSOR,
-      title: 'Business Sponsor',
-      description: 'Monitor investments and access specialized financial reports.',
-      icon: HeartHandshake,
-      color: 'emerald'
-    },
-    {
-      role: ROLES.CUSTOMER,
-      title: 'Valued Customer',
-      description: 'Browse menus, place orders, and track your loyalty rewards.',
-      icon: UserCircle,
-      color: 'cyan'
-    }
-  ];
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-[#020617] text-slate-200 selection:bg-cyan-500/30 overflow-x-hidden">
-      {/* Background Glows */}
-      <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-cyan-500/10 blur-[120px] rounded-full" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-500/10 blur-[120px] rounded-full" />
-      </div>
-
-      {/* Navigation */}
-      <nav className="relative z-10 flex items-center justify-between px-6 py-6 max-w-7xl mx-auto">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-cyan-500/20">
-            <ChefHat className="w-6 h-6 text-white" />
+    <div className="min-h-screen bg-slate-950 text-white overflow-x-hidden">
+      {/* ── Navbar ── */}
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-slate-950/90 backdrop-blur-xl border-b border-white/5">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
+          {/* Logo */}
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-cyan-500/20">
+              <Zap className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <span className="text-lg font-black text-white tracking-tight">
+                Biz<span className="text-cyan-400">CTRL</span>
+              </span>
+              <p className="text-[9px] text-slate-500 -mt-0.5 uppercase tracking-widest">Enterprise ERP</p>
+            </div>
           </div>
-          <span className="text-xl font-black tracking-tight text-white uppercase">Resto<span className="text-cyan-400">CTRL</span></span>
-        </div>
-        <div className="flex items-center gap-4">
-          <Link to="/auth">
-            <Button variant="ghost" className="text-slate-300 hover:text-white hover:bg-white/5">
+
+          {/* Desktop Nav Links */}
+          <div className="hidden md:flex items-center gap-6 text-sm text-slate-400">
+            <a href="#features" className="hover:text-white transition-colors">Features</a>
+            <a href="#business-types" className="hover:text-white transition-colors">Industries</a>
+            <a href="#testimonials" className="hover:text-white transition-colors">Testimonials</a>
+            <a href="/supplier-registration" className="hover:text-white transition-colors flex items-center gap-1">
+              <Handshake className="w-3.5 h-3.5" /> Become a Supplier
+            </a>
+          </div>
+
+          {/* CTA Buttons */}
+          <div className="hidden md:flex items-center gap-3">
+            <Button
+              variant="ghost"
+              onClick={() => navigate('/auth')}
+              className="text-slate-300 hover:text-white hover:bg-white/5 text-sm"
+            >
               Sign In
             </Button>
-          </Link>
-          <Link to="/auth?mode=signup">
-            <Button className="bg-cyan-600 hover:bg-cyan-500 text-white shadow-lg shadow-cyan-500/20 border-none">
-              Get Started
+            <Button
+              onClick={() => navigate('/auth')}
+              className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-sm px-5"
+            >
+              Start Free Trial
             </Button>
-          </Link>
+          </div>
+
+          {/* Mobile menu toggle */}
+          <button
+            className="md:hidden text-slate-400 hover:text-white"
+            onClick={() => setMobileMenuOpen(o => !o)}
+          >
+            {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
         </div>
+
+        {/* Mobile Menu */}
+        {mobileMenuOpen && (
+          <div className="md:hidden px-4 pb-4 space-y-3 border-t border-white/5 pt-4">
+            <a href="#features" className="block text-slate-300 hover:text-white text-sm py-1">Features</a>
+            <a href="#business-types" className="block text-slate-300 hover:text-white text-sm py-1">Industries</a>
+            <a href="#testimonials" className="block text-slate-300 hover:text-white text-sm py-1">Testimonials</a>
+            <a href="/supplier-registration" className="block text-slate-300 hover:text-white text-sm py-1">Become a Supplier</a>
+            <div className="flex gap-2 pt-2">
+              <Button variant="outline" onClick={() => navigate('/auth')} className="flex-1 border-white/20 text-slate-300 text-sm">Sign In</Button>
+              <Button onClick={() => navigate('/auth')} className="flex-1 bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-sm">Get Started</Button>
+            </div>
+          </div>
+        )}
       </nav>
 
-      {/* Hero Section */}
-      <section className="relative z-10 pt-20 pb-32 px-6 max-w-7xl mx-auto text-center">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-bold uppercase tracking-widest mb-8 animate-pulse">
-          <Zap className="w-3 h-3" />
-          <span>Next Generation Management</span>
+      {/* ── Hero ── */}
+      <section className="pt-32 pb-20 px-4 sm:px-6 max-w-7xl mx-auto text-center relative">
+        {/* Background glow */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-20 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-cyan-500/5 rounded-full blur-3xl" />
+          <div className="absolute top-40 left-1/4 w-[300px] h-[300px] bg-blue-500/5 rounded-full blur-3xl" />
+          <div className="absolute top-40 right-1/4 w-[300px] h-[300px] bg-purple-500/5 rounded-full blur-3xl" />
         </div>
-        <h1 className="text-5xl md:text-7xl font-black text-white mb-6 tracking-tight leading-[1.1]">
-          Control Your Restaurant <br />
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600">
-            With Precision.
-          </span>
-        </h1>
-        <p className="text-slate-400 text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed">
-          The all-in-one platform for owners, managers, and staff. Streamline operations, track growth, and deliver excellence.
-        </p>
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-          <Button 
-            onClick={handleGetStarted}
-            size="lg" 
-            className="w-full sm:w-auto px-10 h-14 text-lg bg-white text-slate-950 hover:bg-slate-200 font-bold rounded-2xl transition-all hover:scale-105"
-          >
-            {user ? 'Go to Dashboard' : 'Register Now'}
-          </Button>
-          <Link to="/auth" className="w-full sm:w-auto">
-            <Button 
-              size="lg" 
-              variant="outline" 
-              className="w-full sm:w-auto px-10 h-14 text-lg border-white/10 bg-white/5 hover:bg-white/10 text-white font-bold rounded-2xl transition-all"
+
+        <div className="relative">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-bold uppercase tracking-widest mb-6">
+            <Zap className="w-3 h-3" />
+            <span>The All-in-One Business ERP Platform</span>
+          </div>
+
+          <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black text-white leading-tight mb-6">
+            Run Your Entire Business
+            <br />
+            <span className="bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400 bg-clip-text text-transparent">
+              From One Platform
+            </span>
+          </h1>
+
+          <p className="text-lg sm:text-xl text-slate-400 max-w-2xl mx-auto mb-10 leading-relaxed">
+            BizCTRL is a multi-tenant ERP SaaS built for restaurants, retail stores, pharmacies, warehouses, factories, and more. Manage inventory, sales, purchasing, HR, finance, and suppliers — all in one place.
+          </p>
+
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
+            <Button
+              onClick={() => navigate('/auth')}
+              className="w-full sm:w-auto bg-cyan-600 hover:bg-cyan-500 text-white font-black text-base px-8 py-6 rounded-xl shadow-lg shadow-cyan-500/20 flex items-center gap-2"
             >
-              Member Login
+              Start Free Trial <ArrowRight className="w-5 h-5" />
             </Button>
-          </Link>
+            <Button
+              variant="outline"
+              onClick={() => navigate('/supplier-registration')}
+              className="w-full sm:w-auto border-white/20 text-slate-300 hover:bg-white/5 font-bold text-base px-8 py-6 rounded-xl flex items-center gap-2"
+            >
+              <Handshake className="w-5 h-5" /> Register as Supplier
+            </Button>
+          </div>
+
+          {/* Trust indicators */}
+          <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-slate-500">
+            {['No credit card required', 'Free 14-day trial', 'Cancel anytime', 'GDPR compliant'].map(item => (
+              <span key={item} className="flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                {item}
+              </span>
+            ))}
+          </div>
         </div>
       </section>
 
-      {/* Role Selection Grid */}
-      <section className="relative z-10 px-6 max-w-7xl mx-auto pb-40">
-        <div className="text-center mb-16">
-          <h2 className="text-3xl font-bold text-white mb-4">Choose Your Path</h2>
-          <p className="text-slate-400">Specialized interfaces designed for every role in your restaurant ecosystem.</p>
+      {/* ── Business Types ── */}
+      <section id="business-types" className="py-20 px-4 sm:px-6 max-w-7xl mx-auto">
+        <div className="text-center mb-12">
+          <h2 className="text-3xl sm:text-4xl font-black text-white mb-4">
+            Built for Every Industry
+          </h2>
+          <p className="text-slate-400 max-w-xl mx-auto">
+            Whether you run a restaurant, pharmacy, or factory — BizCTRL adapts to your business type with tailored modules and workflows.
+          </p>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {roles.map((role) => (
-            <div key={role.role} onClick={() => navigate(`/auth?role=${role.role}`)} className="cursor-pointer">
-              <RoleCard {...role} />
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+          {BUSINESS_TYPES.map(({ icon: Icon, label, color }) => (
+            <div
+              key={label}
+              className="group flex flex-col items-center gap-3 p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all cursor-pointer"
+              onClick={() => navigate('/auth')}
+            >
+              <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${color} flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform`}>
+                <Icon className="w-6 h-6 text-white" />
+              </div>
+              <span className="text-sm font-semibold text-slate-300 group-hover:text-white transition-colors text-center">
+                {label}
+              </span>
             </div>
           ))}
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="relative z-10 border-t border-white/5 bg-slate-950/50 backdrop-blur-md py-12 px-6">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-8">
-          <div className="flex items-center gap-3">
-            <ChefHat className="w-5 h-5 text-cyan-400" />
-            <span className="text-sm font-bold tracking-tight text-white uppercase">Resto<span className="text-cyan-400">CTRL</span></span>
+      {/* ── Features ── */}
+      <section id="features" className="py-20 px-4 sm:px-6 max-w-7xl mx-auto">
+        <div className="text-center mb-12">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-xs font-bold uppercase tracking-widest mb-4">
+            <BarChart3 className="w-3 h-3" />
+            <span>Enterprise Features</span>
           </div>
-          <p className="text-slate-500 text-sm">
-            © 2026 RestoCTRL Management Systems. All rights reserved.
+          <h2 className="text-3xl sm:text-4xl font-black text-white mb-4">
+            Everything You Need to Run Your Business
+          </h2>
+          <p className="text-slate-400 max-w-xl mx-auto">
+            From inventory to payroll, from supplier management to AI analytics — BizCTRL covers every aspect of your operations.
           </p>
-          <div className="flex gap-6">
-            <a href="#" className="text-slate-400 hover:text-white transition-colors text-sm">Terms</a>
-            <a href="#" className="text-slate-400 hover:text-white transition-colors text-sm">Privacy</a>
-            <a href="#" className="text-slate-400 hover:text-white transition-colors text-sm">Support</a>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {FEATURES.map(({ icon: Icon, title, desc, color, bg }) => (
+            <div
+              key={title}
+              className="p-5 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/8 hover:border-white/20 transition-all group"
+            >
+              <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
+                <Icon className={`w-5 h-5 ${color}`} />
+              </div>
+              <h3 className="text-white font-bold mb-2 text-sm">{title}</h3>
+              <p className="text-slate-500 text-xs leading-relaxed">{desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── Role Access Section ── */}
+      <section className="py-20 px-4 sm:px-6 max-w-7xl mx-auto">
+        <div className="rounded-3xl bg-gradient-to-br from-slate-900 to-slate-800 border border-white/10 p-8 md:p-12">
+          <div className="grid md:grid-cols-2 gap-10 items-center">
+            <div>
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold uppercase tracking-widest mb-4">
+                <ShieldCheck className="w-3 h-3" />
+                <span>Role-Based Access</span>
+              </div>
+              <h2 className="text-3xl font-black text-white mb-4">
+                The Right Access for Every Team Member
+              </h2>
+              <p className="text-slate-400 mb-6">
+                BizCTRL gives each role a dedicated, purpose-built experience. Owners see everything; employees see only what they need.
+              </p>
+              <Button
+                onClick={() => navigate('/auth')}
+                className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold flex items-center gap-2"
+              >
+                Get Started <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { role: 'Owner', desc: 'Full command center with KPIs, P&L, and approvals', color: 'border-cyan-500/30 bg-cyan-500/5' },
+                { role: 'Manager', desc: 'Branch operations, staff, inventory, and sales', color: 'border-purple-500/30 bg-purple-500/5' },
+                { role: 'Employee', desc: 'Attendance, tasks, payslips, and shift schedule', color: 'border-emerald-500/30 bg-emerald-500/5' },
+                { role: 'Supplier', desc: 'Purchase orders, invoices, payments, and balance', color: 'border-amber-500/30 bg-amber-500/5' },
+                { role: 'Driver', desc: 'Delivery assignments, routes, and earnings', color: 'border-rose-500/30 bg-rose-500/5' },
+                { role: 'Kitchen', desc: 'Order queue, KDS display, and production status', color: 'border-orange-500/30 bg-orange-500/5' },
+              ].map(({ role, desc, color }) => (
+                <div key={role} className={`p-3 rounded-xl border ${color}`}>
+                  <p className="text-white font-bold text-sm">{role}</p>
+                  <p className="text-slate-500 text-xs mt-0.5">{desc}</p>
+                </div>
+              ))}
+            </div>
           </div>
+        </div>
+      </section>
+
+      {/* ── Testimonials ── */}
+      <section id="testimonials" className="py-20 px-4 sm:px-6 max-w-7xl mx-auto">
+        <div className="text-center mb-12">
+          <h2 className="text-3xl sm:text-4xl font-black text-white mb-4">
+            Trusted by Business Owners
+          </h2>
+          <p className="text-slate-400">Join thousands of businesses already running on BizCTRL.</p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          {TESTIMONIALS.map(({ name, role, text, stars }) => (
+            <div key={name} className="p-6 rounded-2xl bg-white/5 border border-white/10">
+              <div className="flex gap-1 mb-4">
+                {Array.from({ length: stars }).map((_, i) => (
+                  <Star key={i} className="w-4 h-4 text-amber-400 fill-amber-400" />
+                ))}
+              </div>
+              <p className="text-slate-300 text-sm leading-relaxed mb-4">"{text}"</p>
+              <div>
+                <p className="text-white font-bold text-sm">{name}</p>
+                <p className="text-slate-500 text-xs">{role}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── CTA ── */}
+      <section className="py-20 px-4 sm:px-6 max-w-4xl mx-auto text-center">
+        <div className="rounded-3xl bg-gradient-to-br from-cyan-900/40 to-blue-900/40 border border-cyan-500/20 p-10 md:p-16">
+          <div className="w-16 h-16 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-cyan-500/30">
+            <Zap className="w-8 h-8 text-white" />
+          </div>
+          <h2 className="text-3xl sm:text-4xl font-black text-white mb-4">
+            Ready to Transform Your Business?
+          </h2>
+          <p className="text-slate-400 mb-8 max-w-xl mx-auto">
+            Start your free 14-day trial today. No credit card required. Set up in minutes.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Button
+              onClick={() => navigate('/auth')}
+              className="bg-cyan-600 hover:bg-cyan-500 text-white font-black text-base px-8 py-6 rounded-xl shadow-lg shadow-cyan-500/20 flex items-center gap-2"
+            >
+              Start Free Trial <ArrowRight className="w-5 h-5" />
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => navigate('/supplier-registration')}
+              className="border-white/20 text-slate-300 hover:bg-white/5 font-bold text-base px-8 py-6 rounded-xl flex items-center gap-2"
+            >
+              <Handshake className="w-5 h-5" /> Register as Supplier
+            </Button>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Footer ── */}
+      <footer className="border-t border-white/5 py-10 px-4 sm:px-6 max-w-7xl mx-auto">
+        <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-lg flex items-center justify-center">
+              <Zap className="w-4 h-4 text-white" />
+            </div>
+            <span className="text-white font-black">Biz<span className="text-cyan-400">CTRL</span></span>
+          </div>
+          <div className="flex flex-wrap gap-6 text-sm text-slate-500">
+            <a href="/auth" className="hover:text-white transition-colors">Sign In</a>
+            <a href="/supplier-registration" className="hover:text-white transition-colors">Supplier Registration</a>
+            <a href="#features" className="hover:text-white transition-colors">Features</a>
+            <a href="#business-types" className="hover:text-white transition-colors">Industries</a>
+          </div>
+          <p className="text-slate-600 text-xs">© 2026 BizCTRL. All rights reserved.</p>
         </div>
       </footer>
     </div>

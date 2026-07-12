@@ -1,5 +1,5 @@
 /**
- * BusinessModeContext — Dual Business Mode Engine
+ * BusinessModeContext — Multi-Business Mode Engine
  *
  * This context is the single source of truth for the active business mode.
  * It reads the business_mode from the currently active restaurant/tenant
@@ -14,7 +14,15 @@
  *
  * Business Modes:
  *   'restaurant' — Menu, Recipe/BOM, Ingredient Inventory, Kitchen, Tables, Delivery
+ *   'cafe'       — Like restaurant but without full kitchen/production
  *   'retail'     — Barcode, SKU, Variants, Batch/Lot, Expiry, Serial Numbers
+ *   'warehouse'  — Inventory, transfers, batch tracking, no POS
+ *   'factory'    — Production/BOM, raw materials, finished goods
+ *   'pharmacy'   — Expiry tracking, serial numbers, prescriptions
+ *   'clinic'     — Appointments, services, medical inventory
+ *   'wholesale'  — Bulk orders, price tiers, large POs
+ *   'services'   — Service billing, time tracking, job orders
+ *   'other'      — Generic ERP mode
  */
 
 import React, { createContext, useContext, useMemo } from 'react';
@@ -23,12 +31,40 @@ import { useTenant } from '@/lib/TenantContext';
 // ── Constants ─────────────────────────────────────────────────────────────────
 export const BUSINESS_MODES = {
   RESTAURANT: 'restaurant',
-  RETAIL: 'retail',
+  CAFE:       'cafe',
+  RETAIL:     'retail',
+  WAREHOUSE:  'warehouse',
+  FACTORY:    'factory',
+  PHARMACY:   'pharmacy',
+  CLINIC:     'clinic',
+  WHOLESALE:  'wholesale',
+  SERVICES:   'services',
+  OTHER:      'other',
+};
+
+// Business types that use restaurant-style inventory (menu/recipe/kitchen)
+export const RESTAURANT_LIKE_MODES = ['restaurant', 'cafe'];
+
+// Business types that use retail-style inventory (non-restaurant)
+export const RETAIL_LIKE_MODES = ['retail', 'warehouse', 'wholesale', 'pharmacy', 'clinic', 'factory', 'services', 'other'];
+
+// ── Mode Metadata ─────────────────────────────────────────────────────────────
+export const BUSINESS_MODE_META = {
+  restaurant: { label: 'Restaurant',  icon: '🍽️', color: 'orange' },
+  cafe:       { label: 'Café',        icon: '☕', color: 'amber' },
+  retail:     { label: 'Retail',      icon: '🛍️', color: 'blue' },
+  warehouse:  { label: 'Warehouse',   icon: '🏭', color: 'slate' },
+  factory:    { label: 'Factory',     icon: '⚙️', color: 'gray' },
+  pharmacy:   { label: 'Pharmacy',    icon: '💊', color: 'green' },
+  clinic:     { label: 'Clinic',      icon: '🏥', color: 'teal' },
+  wholesale:  { label: 'Wholesale',   icon: '📦', color: 'purple' },
+  services:   { label: 'Services',    icon: '🔧', color: 'yellow' },
+  other:      { label: 'Business',    icon: '🏢', color: 'pink' },
 };
 
 // ── Module Registry ───────────────────────────────────────────────────────────
 // Each module declares which modes it is available in.
-// 'all' = shared, available in both modes.
+// 'all' = shared, available in all modes.
 export const MODULE_REGISTRY = {
   // ── Shared Modules (always available) ──────────────────────────────────────
   authentication:        { modes: 'all', label: 'Authentication' },
@@ -52,28 +88,30 @@ export const MODULE_REGISTRY = {
   multi_branch:          { modes: 'all', label: 'Multi-Branch' },
   multi_currency:        { modes: 'all', label: 'Multi-Currency' },
   multi_language:        { modes: 'all', label: 'Multi-Language' },
+  approval_center:       { modes: 'all', label: 'Approval Center' },
+  supplier_portal:       { modes: 'all', label: 'Supplier Portal' },
 
-  // ── Restaurant Mode Modules ─────────────────────────────────────────────────
-  menu_management:       { modes: 'restaurant', label: 'Menu Management' },
-  recipe_bom:            { modes: 'restaurant', label: 'Recipe / BOM' },
-  ingredient_inventory:  { modes: 'restaurant', label: 'Ingredient Inventory' },
-  kitchen:               { modes: 'restaurant', label: 'Kitchen' },
+  // ── Restaurant / Café Mode Modules ─────────────────────────────────────────
+  menu_management:       { modes: ['restaurant', 'cafe'], label: 'Menu Management' },
+  recipe_bom:            { modes: ['restaurant', 'cafe'], label: 'Recipe / BOM' },
+  ingredient_inventory:  { modes: ['restaurant', 'cafe'], label: 'Ingredient Inventory' },
+  kitchen:               { modes: ['restaurant', 'cafe'], label: 'Kitchen' },
   table_service:         { modes: 'restaurant', label: 'Table Service' },
   dine_in:               { modes: 'restaurant', label: 'Dine-In' },
-  takeaway:              { modes: 'restaurant', label: 'Takeaway' },
-  delivery:              { modes: 'restaurant', label: 'Delivery' },
-  waste_management:      { modes: 'restaurant', label: 'Waste Management' },
-  production:            { modes: 'restaurant', label: 'Production' },
-  food_cost:             { modes: 'restaurant', label: 'Food Cost' },
+  takeaway:              { modes: ['restaurant', 'cafe'], label: 'Takeaway' },
+  delivery:              { modes: ['restaurant', 'cafe'], label: 'Delivery' },
+  waste_management:      { modes: ['restaurant', 'cafe'], label: 'Waste Management' },
+  production:            { modes: ['restaurant', 'factory'], label: 'Production' },
+  food_cost:             { modes: ['restaurant', 'cafe'], label: 'Food Cost' },
 
-  // ── Retail Mode Modules ─────────────────────────────────────────────────────
-  barcode:               { modes: 'retail', label: 'Barcode' },
-  sku_management:        { modes: 'retail', label: 'SKU Management' },
-  product_variants:      { modes: 'retail', label: 'Product Variants' },
-  batch_lot_tracking:    { modes: 'retail', label: 'Batch / Lot Tracking' },
-  expiry_tracking:       { modes: 'retail', label: 'Expiry Tracking' },
-  serial_numbers:        { modes: 'retail', label: 'Serial Numbers' },
-  direct_inventory:      { modes: 'retail', label: 'Direct Inventory' },
+  // ── Retail / Warehouse / Wholesale Mode Modules ─────────────────────────────
+  barcode:               { modes: ['retail', 'warehouse', 'wholesale', 'pharmacy'], label: 'Barcode' },
+  sku_management:        { modes: ['retail', 'warehouse', 'wholesale', 'pharmacy'], label: 'SKU Management' },
+  product_variants:      { modes: ['retail', 'wholesale'], label: 'Product Variants' },
+  batch_lot_tracking:    { modes: ['retail', 'warehouse', 'wholesale', 'pharmacy', 'factory'], label: 'Batch / Lot Tracking' },
+  expiry_tracking:       { modes: ['retail', 'pharmacy', 'clinic', 'wholesale'], label: 'Expiry Tracking' },
+  serial_numbers:        { modes: ['retail', 'pharmacy', 'clinic'], label: 'Serial Numbers' },
+  direct_inventory:      { modes: ['retail', 'warehouse', 'wholesale', 'factory', 'pharmacy', 'clinic', 'services', 'other'], label: 'Direct Inventory' },
 };
 
 // ── Context ───────────────────────────────────────────────────────────────────
@@ -81,6 +119,8 @@ const BusinessModeContext = createContext({
   activeMode: BUSINESS_MODES.RESTAURANT,
   isRestaurant: true,
   isRetail: false,
+  isRestaurantLike: true,
+  isRetailLike: false,
   isModuleEnabled: () => true,
   getModulesForMode: () => [],
   setMode: async () => {},
@@ -102,8 +142,10 @@ export function BusinessModeProvider({ children }) {
     await updateRestaurant(activeRestaurant.id, { business_mode: mode });
   };
 
-  const isRestaurant = activeMode === BUSINESS_MODES.RESTAURANT;
-  const isRetail = activeMode === BUSINESS_MODES.RETAIL;
+  const isRestaurant     = activeMode === BUSINESS_MODES.RESTAURANT;
+  const isRetail         = activeMode === BUSINESS_MODES.RETAIL;
+  const isRestaurantLike = RESTAURANT_LIKE_MODES.includes(activeMode);
+  const isRetailLike     = RETAIL_LIKE_MODES.includes(activeMode);
 
   /**
    * Check if a specific module is enabled for the current business mode.
@@ -111,10 +153,11 @@ export function BusinessModeProvider({ children }) {
    * @returns {boolean}
    */
   const isModuleEnabled = (moduleKey) => {
-    const module = MODULE_REGISTRY[moduleKey];
-    if (!module) return false;
-    if (module.modes === 'all') return true;
-    return module.modes === activeMode;
+    const mod = MODULE_REGISTRY[moduleKey];
+    if (!mod) return false;
+    if (mod.modes === 'all') return true;
+    if (Array.isArray(mod.modes)) return mod.modes.includes(activeMode);
+    return mod.modes === activeMode;
   };
 
   /**
@@ -123,25 +166,32 @@ export function BusinessModeProvider({ children }) {
    */
   const getModulesForMode = () => {
     return Object.entries(MODULE_REGISTRY)
-      .filter(([, mod]) => mod.modes === 'all' || mod.modes === activeMode)
+      .filter(([, mod]) => {
+        if (mod.modes === 'all') return true;
+        if (Array.isArray(mod.modes)) return mod.modes.includes(activeMode);
+        return mod.modes === activeMode;
+      })
       .map(([key, mod]) => ({ key, label: mod.label }));
   };
 
-  const modeLabel = isRetail ? 'Retail' : 'Restaurant';
-  const modeIcon = isRetail ? '🏪' : '🍽️';
-  const modeColor = isRetail ? 'blue' : 'orange';
+  const meta = BUSINESS_MODE_META[activeMode] || BUSINESS_MODE_META.other;
+  const modeLabel = meta.label;
+  const modeIcon  = meta.icon;
+  const modeColor = meta.color;
 
   const value = useMemo(() => ({
     activeMode,
     isRestaurant,
     isRetail,
+    isRestaurantLike,
+    isRetailLike,
     isModuleEnabled,
     getModulesForMode,
     setMode,
     modeLabel,
     modeIcon,
     modeColor,
-  }), [activeMode, isRestaurant, isRetail, setMode]);
+  }), [activeMode, isRestaurant, isRetail, isRestaurantLike, isRetailLike, setMode]);
 
   return (
     <BusinessModeContext.Provider value={value}>
@@ -179,17 +229,24 @@ export function withModeGuard(Component, requiredMode, FallbackComponent = null)
  *     <KitchenDashboard />
  *   </ModeGuard>
  *
- *   <ModeGuard mode="retail">
+ *   <ModeGuard mode={['retail', 'warehouse']}>
  *     <BarcodeScanner />
  *   </ModeGuard>
  *
  *   <ModeGuard mode="all">
  *     <SharedComponent />
  *   </ModeGuard>
+ *
+ *   <ModeGuard mode="restaurant-like">
+ *     <MenuPage />
+ *   </ModeGuard>
  */
 export function ModeGuard({ mode, children, fallback = null }) {
-  const { activeMode } = useBusinessMode();
+  const { activeMode, isRestaurantLike, isRetailLike } = useBusinessMode();
   if (mode === 'all') return children;
+  if (mode === 'restaurant-like') return isRestaurantLike ? children : fallback;
+  if (mode === 'retail-like') return isRetailLike ? children : fallback;
+  if (Array.isArray(mode)) return mode.includes(activeMode) ? children : fallback;
   if (activeMode !== mode) return fallback;
   return children;
 }
