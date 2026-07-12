@@ -10,7 +10,7 @@ import {
   CheckCircle2, ArrowLeft, Loader2, Globe
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { supabase } from '@/lib/supabaseClient';
+import { supabase } from '@/api/supabaseClient';
 
 const PRODUCT_CATEGORIES = [
   'Fresh Produce', 'Meat & Poultry', 'Seafood', 'Dairy & Eggs',
