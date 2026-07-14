@@ -229,7 +229,7 @@ function StaffCard({ invite, type, onApprove, onReject, loading }) {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function OwnerApprovalCenter() {
   const { user } = useAuth();
-  const { restaurant } = useTenant();
+  const { activeRestaurant } = useTenant();
   const qc = useQueryClient();
   const [activeTab, setActiveTab] = useState('all');
   const [search, setSearch] = useState('');
@@ -237,65 +237,66 @@ export default function OwnerApprovalCenter() {
 
   // ── Fetch supplier invites ──
   const { data: supplierInvites = [], isLoading: loadingSuppliers } = useQuery({
-    queryKey: ['supplier_invites', restaurant?.id],
+    queryKey: ['supplier_invites', activeRestaurant?.id],
     queryFn: async () => {
-      if (!restaurant?.id) return [];
+      if (!activeRestaurant?.id) return [];
       const { data, error } = await supabase
         .from('supplier_invites')
         .select('*')
+        .eq('org_id', activeRestaurant.org_id)
         .order('created_at', { ascending: false });
       if (error) { console.warn('[ApprovalCenter] supplier_invites:', error.message); return []; }
       return data || [];
     },
-    enabled: !!restaurant?.id,
+    enabled: !!activeRestaurant?.id,
   });
 
   // ── Fetch manager invites ──
   const { data: managerInvites = [], isLoading: loadingManagers } = useQuery({
-    queryKey: ['manager_invites', restaurant?.id],
+    queryKey: ['manager_invites', activeRestaurant?.id],
     queryFn: async () => {
-      if (!restaurant?.id) return [];
+      if (!activeRestaurant?.id) return [];
       const { data, error } = await supabase
         .from('manager_invites')
         .select('*')
-        .eq('restaurant_id', restaurant.id)
+        .eq('restaurant_id', activeRestaurant.id)
         .order('created_at', { ascending: false });
       if (error) { console.warn('[ApprovalCenter] manager_invites:', error.message); return []; }
       return data || [];
     },
-    enabled: !!restaurant?.id,
+    enabled: !!activeRestaurant?.id,
   });
 
   // ── Fetch employee invites ──
   const { data: employeeInvites = [], isLoading: loadingEmployees } = useQuery({
-    queryKey: ['employee_invites', restaurant?.id],
+    queryKey: ['employee_invites', activeRestaurant?.id],
     queryFn: async () => {
-      if (!restaurant?.id) return [];
+      if (!activeRestaurant?.id) return [];
       const { data, error } = await supabase
         .from('employee_invites')
         .select('*')
-        .eq('restaurant_id', restaurant.id)
+        .eq('restaurant_id', activeRestaurant.id)
         .order('created_at', { ascending: false });
       if (error) { console.warn('[ApprovalCenter] employee_invites:', error.message); return []; }
       return data || [];
     },
-    enabled: !!restaurant?.id,
+    enabled: !!activeRestaurant?.id,
   });
 
   // ── Fetch driver invites ──
   const { data: driverInvites = [], isLoading: loadingDrivers } = useQuery({
-    queryKey: ['driver_invites', restaurant?.id],
+    queryKey: ['driver_invites', activeRestaurant?.id],
     queryFn: async () => {
-      if (!restaurant?.id) return [];
+      if (!activeRestaurant?.id) return [];
       const { data, error } = await supabase
         .from('driver_invites')
         .select('*')
-        .eq('restaurant_id', restaurant.id)
+        .eq('restaurant_id', activeRestaurant.id)
         .order('created_at', { ascending: false });
       if (error) { console.warn('[ApprovalCenter] driver_invites:', error.message); return []; }
       return data || [];
     },
-    enabled: !!restaurant?.id,
+    enabled: !!activeRestaurant?.id,
   });
 
   // ── Approve supplier ──
