@@ -4,49 +4,54 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { audit } from '@/lib/auditLogger';
 
 /**
- * ROLE SYSTEM (Implementation Specification)
- * ----------------------------------------
- * 1. Owner
- * 2. Manager
- * 3. Employee
- * 4. Driver
- * 5. Sponsor (Kafeel)
- * 6. Kitchen
- * 7. Customer
+ * ROLE SYSTEM — 7 ERP Roles
+ * ─────────────────────────
+ * 1. Owner            — full access, manages all branches
+ * 2. General Manager  — cross-branch access, reports to Owner
+ * 3. Manager          — single branch, reports to Owner/GM
+ * 4. Employee         — single branch, limited ops
+ * 5. Kitchen          — single branch, kitchen queue only
+ * 6. Driver           — single branch, delivery only
+ * 7. Supplier         — no branch, purchase orders only
  */
 
 export const ROLES = {
-  OWNER:    'owner',
-  MANAGER:  'manager',
-  EMPLOYEE: 'employee',
-  DRIVER:   'driver',
-  SPONSOR:  'sponsor',
-  KITCHEN:  'kitchen',
-  CUSTOMER: 'customer',
-  SUPPLIER: 'supplier',
+  OWNER:           'owner',
+  GENERAL_MANAGER: 'general_manager',
+  MANAGER:         'manager',
+  EMPLOYEE:        'employee',
+  DRIVER:          'driver',
+  KITCHEN:         'kitchen',
+  SUPPLIER:        'supplier',
+  // Legacy aliases kept for backward-compat
+  SPONSOR:         'sponsor',
+  CUSTOMER:        'customer',
 };
 
 // Which route each role lands on after login
 export const ROLE_HOME = {
-  [ROLES.OWNER]:    '/owner-command-center',
-  [ROLES.MANAGER]:  '/manager-dashboard',
-  [ROLES.EMPLOYEE]: '/employee-dashboard',
-  [ROLES.DRIVER]:   '/driver-dashboard',
-  [ROLES.SPONSOR]:  '/sponsor-dashboard',
-  [ROLES.KITCHEN]:  '/kitchen-dashboard',
-  [ROLES.CUSTOMER]: '/customer-dashboard',
-  [ROLES.SUPPLIER]: '/supplier-portal',
+  [ROLES.OWNER]:           '/owner-command-center',
+  [ROLES.GENERAL_MANAGER]: '/gm-dashboard',
+  [ROLES.MANAGER]:         '/manager-dashboard',
+  [ROLES.EMPLOYEE]:        '/employee-dashboard',
+  [ROLES.DRIVER]:          '/driver-dashboard',
+  [ROLES.KITCHEN]:         '/kitchen-dashboard',
+  [ROLES.SUPPLIER]:        '/supplier-portal',
+  // Legacy
+  [ROLES.SPONSOR]:         '/sponsor-dashboard',
+  [ROLES.CUSTOMER]:        '/customer-dashboard',
 };
 
 // Roles that must never be redirected to onboarding
 export const NON_OWNER_ROLES = new Set([
-  ROLES.MANAGER, 
-  ROLES.EMPLOYEE, 
-  ROLES.DRIVER, 
-  ROLES.SPONSOR, 
-  ROLES.KITCHEN, 
-  ROLES.CUSTOMER,
+  ROLES.GENERAL_MANAGER,
+  ROLES.MANAGER,
+  ROLES.EMPLOYEE,
+  ROLES.DRIVER,
+  ROLES.KITCHEN,
   ROLES.SUPPLIER,
+  ROLES.SPONSOR,
+  ROLES.CUSTOMER,
 ]);
 
 const RoleContext = createContext();
@@ -60,13 +65,24 @@ function buildCan(role) {
     return Object.keys(PERMISSIONS_LIST).reduce((acc, key) => ({ ...acc, [key]: true }), {});
   }
 
+  // General Manager — cross-branch, no billing/admin
+  if (role === ROLES.GENERAL_MANAGER) {
+    return {
+      ...Object.keys(PERMISSIONS_LIST).reduce((acc, key) => ({ ...acc, [key]: true }), {}),
+      manageSettings: false,
+      manageBranches: false,
+      manageRoles: false,
+      viewBilling: false,
+    };
+  }
+
   return {
     // Dashboard
-    viewDashboard:      is(ROLES.MANAGER, ROLES.EMPLOYEE, ROLES.DRIVER, ROLES.SPONSOR, ROLES.KITCHEN, ROLES.CUSTOMER, ROLES.SUPPLIER),
+    viewDashboard:      is(ROLES.MANAGER, ROLES.EMPLOYEE, ROLES.DRIVER, ROLES.KITCHEN, ROLES.SUPPLIER, ROLES.SPONSOR, ROLES.CUSTOMER),
     // Sales
     viewSales:          is(ROLES.MANAGER),
     // Purchases
-    viewPurchases:      is(ROLES.MANAGER),
+    viewPurchases:      is(ROLES.MANAGER, ROLES.SUPPLIER),
     // Inventory
     viewInventory:      is(ROLES.MANAGER),
     // Orders
@@ -191,11 +207,11 @@ export function useRouteGuard() {
     if (isLoadingAuth || !user) return;
     const path = location.pathname;
     // Whitelist bypass for home, auth, and onboarding
-    if (['/', '/auth', '/onboarding', '/support'].includes(path)) return;
+    if (['/', '/auth', '/erp-login', '/erp-register', '/onboarding', '/support', '/supplier-registration'].includes(path)) return;
     // Check if the role is allowed to be on this specific dashboard
     if (path.endsWith('-dashboard')) {
       const dashboardRole = path.replace('/', '').replace('-dashboard', '');
-      if (dashboardRole !== role && role !== ROLES.OWNER) {
+      if (dashboardRole !== role && role !== ROLES.OWNER && role !== ROLES.GENERAL_MANAGER) {
         navigate(ROLE_HOME[role] || '/owner-command-center', { replace: true });
       }
     }

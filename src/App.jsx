@@ -1,7 +1,7 @@
 import React, { lazy, Suspense } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
-import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
@@ -22,11 +22,7 @@ import PaywallScreen from '@/components/subscription/PaywallScreen';
 
 // ── Lazy-loaded pages (code splitting) ───────────────────────────────────────
 const Dashboard           = lazy(() => import('./pages/Dashboard'));
-const KitchenDashboard    = lazy(() => import('./pages/KitchenDashboard'));
-const CustomerDashboard   = lazy(() => import('./pages/CustomerDashboard'));
-const SponsorDashboard    = lazy(() => import('./pages/SponsorDashboard'));
-const DriverPortal        = lazy(() => import('./pages/DriverPortal'));
-const EmployeePortal      = lazy(() => import('./pages/EmployeePortal'));
+// Legacy role portals removed — replaced by ERP dashboards
 const ExecutiveCommandCenter = lazy(() => import('./pages/ExecutiveCommandCenter'));
 const OwnerDashboard         = lazy(() => import('./pages/OwnerDashboard'));
 const CashRegisterCenter     = lazy(() => import('./pages/CashRegisterCenter'));
@@ -126,16 +122,20 @@ const Production          = lazy(() => import('@/pages/Production'));
 
 // ── Public pages (eager — shown before auth) ─────────────────────────────────
 import LandingPage            from '@/pages/LandingPage';
-import AuthPage               from '@/pages/AuthPage';
-import InvitePage             from '@/pages/InvitePage';
-import DriverInvitePage       from '@/pages/DriverInvitePage';
-import EmployeeInvitePage     from '@/pages/EmployeeInvitePage';
-import KitchenInvitePage      from '@/pages/KitchenInvitePage';
-import SupplierRegistration   from '@/pages/SupplierRegistration';
+// AuthPage removed — replaced by ERPLogin
+import ERPLogin               from '@/pages/ERPLogin';
+import ERPRegister            from '@/pages/ERPRegister';
+// Legacy invite pages removed — all redirected to ERP portals
 
-// ── ERP SaaS New Pages ────────────────────────────────────────────────────────
-const OwnerApprovalCenter = lazy(() => import('@/pages/OwnerApprovalCenter'));
-const SupplierPortal      = lazy(() => import('@/pages/SupplierPortal'));
+// ── Legacy pages removed — replaced by ERP portals ─────────────────────────
+// ── NEW ERP Multi-Tenant Portals ─────────────────────────────────────────────
+const ERPApprovalCenter     = lazy(() => import('@/pages/ERPApprovalCenter'));
+const GMDashboard           = lazy(() => import('@/pages/GMDashboard'));
+const ManagerDashboardERP   = lazy(() => import('@/pages/ManagerDashboardERP'));
+const EmployeeDashboardERP  = lazy(() => import('@/pages/EmployeeDashboardERP'));
+const KitchenDashboardERP   = lazy(() => import('@/pages/KitchenDashboardERP'));
+const DriverDashboardERP    = lazy(() => import('@/pages/DriverDashboardERP'));
+const SupplierPortalERP     = lazy(() => import('@/pages/SupplierPortalERP'));
 
 // ── Shared page loading fallback ─────────────────────────────────────────────
 const PageLoader = () => (
@@ -180,7 +180,7 @@ function OnboardingGate({ children }) {
     );
   }
 
-  const restrictedRole = [ROLES.MANAGER, ROLES.EMPLOYEE, ROLES.DRIVER, ROLES.SPONSOR, ROLES.KITCHEN, ROLES.CUSTOMER].includes(user?.role);
+  const restrictedRole = [ROLES.GENERAL_MANAGER, ROLES.MANAGER, ROLES.EMPLOYEE, ROLES.DRIVER, ROLES.KITCHEN, ROLES.CUSTOMER, ROLES.SUPPLIER, ROLES.SPONSOR].includes(user?.role);
   if (restrictedRole) return children;
 
   const isOwner = user?.role === ROLES.OWNER || !user?.role;
@@ -205,7 +205,7 @@ function RoleHomeRedirect() {
     if (restaurants.length === 0) return;
     const currentPath = window.location.pathname;
     // Redirect from root or auth to the role's home page
-    if (currentPath === '/' || currentPath === '/auth' || currentPath === '/dashboard') {
+    if (currentPath === '/' || currentPath === '/auth' || currentPath === '/erp-login' || currentPath === '/dashboard') {
       window.location.replace(home);
     }
   }, [home, loadingRestaurants, restaurants.length]);
@@ -318,8 +318,7 @@ const SubscribedRoutes = () => {
         <Route path="/branch-management" element={<RoleGuard permission="viewBrandSettings"><BranchManagement /></RoleGuard>} />
 
         <Route path="/approval-policy" element={<RoleGuard permission="viewBrandSettings"><ApprovalPolicy /></RoleGuard>} />
-        <Route path="/approval-center" element={<RoleGuard permission="manageSettings"><OwnerApprovalCenter /></RoleGuard>} />
-        <Route path="/supplier-portal" element={<RoleGuard permission="viewSuppliers"><SupplierPortal /></RoleGuard>} />
+        <Route path="/approval-center" element={<RoleGuard permission="manageSettings"><ERPApprovalCenter /></RoleGuard>} />
         <Route path="/sales-sources" element={<RoleGuard permission="viewBrandSettings"><SalesSources /></RoleGuard>} />
         <Route path="/telegram-settings" element={<RoleGuard permission="viewBrandSettings"><TelegramSettings /></RoleGuard>} />
         <Route path="/billing" element={<RoleGuard permission="viewBilling"><Billing /></RoleGuard>} />
@@ -329,13 +328,22 @@ const SubscribedRoutes = () => {
         <Route path="/support" element={<Support />} />
         <Route path="/super-admin" element={<SuperAdmin />} />
 
-        {/* ── Role-specific portals ── */}
-        <Route path="/manager-dashboard" element={<RoleGuard permission="viewDashboard"><Dashboard /></RoleGuard>} />
-        <Route path="/employee-dashboard" element={<EmployeePortal />} />
-        <Route path="/driver-dashboard" element={<DriverPortal />} />
-        <Route path="/sponsor-dashboard" element={<SponsorDashboard />} />
-        <Route path="/kitchen-dashboard" element={<KitchenDashboard />} />
-        <Route path="/customer-dashboard" element={<CustomerDashboard />} />
+        {/* ── NEW ERP Role Portals (production-grade, branch-isolated) ── */}
+        <Route path="/gm-dashboard" element={<GMDashboard />} />
+        <Route path="/manager-dashboard" element={<ManagerDashboardERP />} />
+        <Route path="/employee-dashboard" element={<EmployeeDashboardERP />} />
+        <Route path="/driver-dashboard" element={<DriverDashboardERP />} />
+        <Route path="/kitchen-dashboard" element={<KitchenDashboardERP />} />
+        <Route path="/supplier-portal" element={<SupplierPortalERP />} />
+        <Route path="/erp-approval-center" element={<ERPApprovalCenter />} />
+        {/* ── Legacy role portals — redirect to new ERP dashboards ── */}
+        <Route path="/employee-portal" element={<Navigate to="/employee-dashboard" replace />} />
+        <Route path="/driver-portal" element={<Navigate to="/driver-dashboard" replace />} />
+        <Route path="/kitchen-display" element={<Navigate to="/kitchen-dashboard" replace />} />
+        <Route path="/driver-v2" element={<Navigate to="/driver-dashboard" replace />} />
+        <Route path="/kitchen-v2" element={<Navigate to="/kitchen-dashboard" replace />} />
+        <Route path="/sponsor-dashboard" element={<Navigate to="/erp-login" replace />} />
+        <Route path="/customer-dashboard" element={<Navigate to="/erp-login" replace />} />
 
         {/* ── Enterprise Modules ── */}
         <Route path="/cash-register" element={<RoleGuard permission="viewSales"><CashRegisterCenter /></RoleGuard>} />
@@ -365,11 +373,11 @@ const SubscribedRoutes = () => {
         <Route path="/loyalty-program" element={<RoleGuard permission="viewDebts"><LoyaltyProgram /></RoleGuard>} />
         <Route path="/ai-recommendations" element={<AIRecommendations />} />
 
-        {/* ── Short aliases ── */}
-        <Route path="/employee" element={<EmployeePortal />} />
-        <Route path="/driver" element={<DriverPortal />} />
-        <Route path="/kitchen" element={<KitchenDashboard />} />
-        <Route path="/customer" element={<CustomerDashboard />} />
+        {/* ── Short aliases — redirect to new ERP dashboards ── */}
+        <Route path="/employee" element={<Navigate to="/employee-dashboard" replace />} />
+        <Route path="/driver" element={<Navigate to="/driver-dashboard" replace />} />
+        <Route path="/kitchen" element={<Navigate to="/kitchen-dashboard" replace />} />
+        <Route path="/customer" element={<Navigate to="/erp-login" replace />} />
 
         {/* ══════════════════════════════════════════════════════════════════════
             RETAIL MODE EXCLUSIVE ROUTES
@@ -484,21 +492,25 @@ function App() {
       <LanguageProvider>
         <Router>
           <AuthProvider>
-            <Routes>
-              {/* Public routes — no auth required */}
+              <Routes>
+              {/* ── NEW ERP Unified Auth (primary entry points) ── */}
+              <Route path="/erp-login" element={<ERPLogin />} />
+              <Route path="/erp-register" element={<ERPRegister />} />
+              {/* ── Legacy auth routes — all redirect to unified ERP login ── */}
+              <Route path="/auth" element={<Navigate to="/erp-login" replace />} />
+              <Route path="/invite" element={<Navigate to="/erp-register?role=manager" replace />} />
+              <Route path="/manager-invite" element={<Navigate to="/erp-register?role=manager" replace />} />
+              <Route path="/auth/invite" element={<Navigate to="/erp-register?role=manager" replace />} />
+              <Route path="/auth/manager-login" element={<Navigate to="/erp-login?role=manager" replace />} />
+              <Route path="/auth/activate" element={<Navigate to="/erp-login" replace />} />
+              <Route path="/driver-invite" element={<Navigate to="/erp-register?role=driver" replace />} />
+              <Route path="/auth/driver-login" element={<Navigate to="/erp-login?role=driver" replace />} />
+              <Route path="/employee-invite" element={<Navigate to="/erp-register?role=employee" replace />} />
+              <Route path="/auth/employee-login" element={<Navigate to="/erp-login?role=employee" replace />} />
+              <Route path="/kitchen-invite" element={<Navigate to="/erp-register?role=kitchen" replace />} />
+              <Route path="/supplier-registration" element={<Navigate to="/erp-register?role=supplier" replace />} />
+              {/* ── Landing page ── */}
               <Route path="/" element={<LandingPage />} />
-              <Route path="/auth" element={<AuthPage />} />
-              <Route path="/invite" element={<InvitePage />} />
-              <Route path="/manager-invite" element={<InvitePage />} />
-              <Route path="/auth/invite" element={<InvitePage />} />
-              <Route path="/auth/manager-login" element={<InvitePage />} />
-              <Route path="/auth/activate" element={<InvitePage />} />
-              <Route path="/driver-invite" element={<DriverInvitePage />} />
-              <Route path="/auth/driver-login" element={<DriverInvitePage />} />
-              <Route path="/employee-invite" element={<EmployeeInvitePage />} />
-              <Route path="/auth/employee-login" element={<EmployeeInvitePage />} />
-              <Route path="/kitchen-invite" element={<KitchenInvitePage />} />
-              <Route path="/supplier-registration" element={<SupplierRegistration />} />
               {/* All authenticated routes */}
               <Route path="*" element={<AuthenticatedApp />} />
             </Routes>

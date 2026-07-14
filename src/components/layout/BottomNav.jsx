@@ -55,6 +55,13 @@ const PRIMARY_NAV_MANAGER_RETAIL = [
   { path: '/more',                 icon: Grid3x3,         labelKey: 'more', isMore: true },
 ];
 
+const PRIMARY_NAV_GENERAL_MANAGER = [
+  { path: '/gm-dashboard',         icon: LayoutDashboard, labelKey: 'dashboard' },
+  { path: '/reports',              icon: BarChart3,       labelKey: 'reports' },
+  { path: '/employees',            icon: Users,           labelKey: 'employees' },
+  { path: '/more',                 icon: Grid3x3,         labelKey: 'more', isMore: true },
+];
+
 // Role-specific navs (not mode-dependent)
 const PRIMARY_NAV_EMPLOYEE = [
   { path: '/employee-dashboard',   icon: LayoutDashboard, labelKey: 'dashboard' },
@@ -62,23 +69,19 @@ const PRIMARY_NAV_EMPLOYEE = [
   { path: '/tasks',                icon: ClipboardList,   labelKey: 'tasks' },
 ];
 const PRIMARY_NAV_DRIVER = [
-  { path: '/driver-v2',            icon: Truck,           labelKey: 'my_orders' },
   { path: '/driver-dashboard',     icon: LayoutDashboard, labelKey: 'dashboard' },
   { path: '/delivery',             icon: Truck,           labelKey: 'delivery' },
 ];
 const PRIMARY_NAV_SPONSOR = [
-  { path: '/sponsor-dashboard',    icon: LayoutDashboard, labelKey: 'dashboard' },
-  { path: '/sponsor-treasury',     icon: Wallet,          labelKey: 'treasury' },
+  { path: '/erp-login',            icon: LayoutDashboard, labelKey: 'dashboard' },
 ];
 const PRIMARY_NAV_KITCHEN = [
-  { path: '/kitchen-v2',           icon: ChefHat,         labelKey: 'kitchen_v2' },
-  { path: '/kds',                  icon: ChefHat,         labelKey: 'kds' },
   { path: '/kitchen-dashboard',    icon: LayoutDashboard, labelKey: 'dashboard' },
+  { path: '/kds',                  icon: ChefHat,         labelKey: 'kds' },
 ];
 const PRIMARY_NAV_CUSTOMER = [
   { path: '/order',                icon: ShoppingBag,     labelKey: 'order_now' },
   { path: '/online-ordering',      icon: ShoppingBag,     labelKey: 'menu_page' },
-  { path: '/customer-dashboard',   icon: LayoutDashboard, labelKey: 'dashboard' },
 ];
 
 // ── More Menu Sections ────────────────────────────────────────────────────────
@@ -319,6 +322,10 @@ const BottomNav = memo(function BottomNav() {
     if (role === ROLES.SPONSOR) return { visibleNav: PRIMARY_NAV_SPONSOR, moreSections: [] };
     if (role === ROLES.KITCHEN) return { visibleNav: PRIMARY_NAV_KITCHEN, moreSections: [] };
     if (role === ROLES.CUSTOMER) return { visibleNav: PRIMARY_NAV_CUSTOMER, moreSections: [] };
+    if (role === ROLES.SUPPLIER) return { visibleNav: [
+      { path: '/supplier-portal', icon: Package, labelKey: 'dashboard' },
+    ], moreSections: [] };
+    if (role === ROLES.GENERAL_MANAGER) return { visibleNav: PRIMARY_NAV_GENERAL_MANAGER, moreSections: MORE_SECTIONS_OWNER_RESTAURANT };
 
     if (role === ROLES.MANAGER) {
       return isRetail

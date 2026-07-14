@@ -331,11 +331,11 @@ const auth = {
 
     logout(redirectUrl) {
     // Plain JS context fallback — React components should use useAuth().logout()
-    supabase.auth.signOut().then(() => { window.location.replace(redirectUrl || '/auth'); });
+    supabase.auth.signOut().then(() => { window.location.replace(redirectUrl || '/erp-login'); });
   },
   redirectToLogin(nextUrl) {
     const next = nextUrl ? `?next=${encodeURIComponent(nextUrl)}` : '';
-    window.location.replace(`/auth${next}`);
+    window.location.replace(`/erp-login${next}`);
   },
 };
 

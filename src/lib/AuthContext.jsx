@@ -124,12 +124,12 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     setUser(null);
     setIsAuthenticated(false);
-    supabase.auth.signOut().then(() => { navigate('/auth', { replace: true }); });
+    supabase.auth.signOut().then(() => { navigate('/erp-login', { replace: true }); });
   };
 
   const navigateToLogin = () => {
     const next = encodeURIComponent(window.location.pathname + window.location.search);
-    navigate(`/auth?next=${next}`, { replace: true });
+    navigate(`/erp-login?next=${next}`, { replace: true });
   };
 
   return (
