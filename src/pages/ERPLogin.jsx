@@ -199,6 +199,13 @@ export default function ERPLogin() {
         return;
       }
 
+      if (approvalStatus === 'suspended') {
+        toast.error('Your account has been suspended. Please contact the Owner.');
+        await supabase.auth.signOut();
+        setLoading(false);
+        return;
+      }
+
       const home = ROLE_HOME[profile.role] || '/owner-command-center';
       toast.success(`Welcome back, ${profile.full_name || email}!`);
       navigate(home, { replace: true });

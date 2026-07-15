@@ -9,6 +9,7 @@ import { LanguageProvider } from '@/lib/LanguageContext';
 import { SubscriptionProvider, useSubscription } from '@/lib/SubscriptionContext';
 import { RoleProvider } from '@/lib/RoleContext';
 import RoleGuard from '@/components/rbac/RoleGuard';
+import ERPRoleGuard from '@/components/rbac/ERPRoleGuard';
 import { TenantProvider, useTenant } from '@/lib/TenantContext';
 import { BusinessModeProvider } from '@/lib/BusinessModeContext';
 import { NotificationProvider } from '@/lib/NotificationContext';
@@ -328,14 +329,14 @@ const SubscribedRoutes = () => {
         <Route path="/support" element={<Support />} />
         <Route path="/super-admin" element={<SuperAdmin />} />
 
-        {/* ── NEW ERP Role Portals (production-grade, branch-isolated) ── */}
-        <Route path="/gm-dashboard" element={<GMDashboard />} />
-        <Route path="/manager-dashboard" element={<ManagerDashboardERP />} />
-        <Route path="/employee-dashboard" element={<EmployeeDashboardERP />} />
-        <Route path="/driver-dashboard" element={<DriverDashboardERP />} />
-        <Route path="/kitchen-dashboard" element={<KitchenDashboardERP />} />
-        <Route path="/supplier-portal" element={<SupplierPortalERP />} />
-        <Route path="/erp-approval-center" element={<ERPApprovalCenter />} />
+        {/* ── NEW ERP Role Portals — strict role-based access control ── */}
+        <Route path="/gm-dashboard" element={<ERPRoleGuard allowedRoles={['general_manager']}><GMDashboard /></ERPRoleGuard>} />
+        <Route path="/manager-dashboard" element={<ERPRoleGuard allowedRoles={['manager']}><ManagerDashboardERP /></ERPRoleGuard>} />
+        <Route path="/employee-dashboard" element={<ERPRoleGuard allowedRoles={['employee']}><EmployeeDashboardERP /></ERPRoleGuard>} />
+        <Route path="/driver-dashboard" element={<ERPRoleGuard allowedRoles={['driver']}><DriverDashboardERP /></ERPRoleGuard>} />
+        <Route path="/kitchen-dashboard" element={<ERPRoleGuard allowedRoles={['kitchen']}><KitchenDashboardERP /></ERPRoleGuard>} />
+        <Route path="/supplier-portal" element={<ERPRoleGuard allowedRoles={['supplier']}><SupplierPortalERP /></ERPRoleGuard>} />
+        <Route path="/erp-approval-center" element={<ERPRoleGuard allowedRoles={['owner']}><ERPApprovalCenter /></ERPRoleGuard>} />
         {/* ── Legacy role portals — redirect to new ERP dashboards ── */}
         <Route path="/employee-portal" element={<Navigate to="/employee-dashboard" replace />} />
         <Route path="/driver-portal" element={<Navigate to="/driver-dashboard" replace />} />

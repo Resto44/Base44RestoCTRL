@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
+import { supabase } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -138,6 +139,49 @@ export default function Onboarding({ onComplete }) {
       });
 
       if (!rest?.id) throw new Error('Business creation failed — please try again.');
+
+      // ── Fetch the first branch created for this org ────────────────────────
+      let branchId = null;
+      try {
+        const { data: branchData } = await supabase
+          .from('branches')
+          .select('id')
+          .eq('restaurant_id', rest.id)
+          .limit(1)
+          .single();
+        branchId = branchData?.id || null;
+      } catch (_) {}
+
+      // ── Initialize tenant with default master data ────────────────────────
+      const CURRENCY_MAP = {
+        'SAR': { symbol: 'ر.س', name: 'Saudi Riyal' },
+        'ر.س': { symbol: 'ر.س', name: 'Saudi Riyal', code: 'SAR' },
+        'AED': { symbol: 'د.إ', name: 'UAE Dirham' },
+        'USD': { symbol: '$', name: 'US Dollar' },
+        '$': { symbol: '$', name: 'US Dollar', code: 'USD' },
+        'EUR': { symbol: '€', name: 'Euro' },
+        '€': { symbol: '€', name: 'Euro', code: 'EUR' },
+        'GBP': { symbol: '£', name: 'British Pound' },
+        '£': { symbol: '£', name: 'British Pound', code: 'GBP' },
+        'EGP': { symbol: 'ج.م', name: 'Egyptian Pound' },
+        'KWD': { symbol: 'د.ك', name: 'Kuwaiti Dinar' },
+        'QAR': { symbol: 'ر.ق', name: 'Qatari Riyal' },
+        'BHD': { symbol: 'د.ب', name: 'Bahraini Dinar' },
+        'OMR': { symbol: 'ر.ع', name: 'Omani Rial' },
+      };
+      const currencyMeta = CURRENCY_MAP[currency] || { symbol: currency, name: currency, code: 'USD' };
+      const currencyCode = currencyMeta.code || (currency.length <= 3 ? currency : 'USD');
+      try {
+        await supabase.rpc('initialize_tenant', {
+          p_organization_id: rest.id,
+          p_branch_id: branchId,
+          p_currency_code: currencyCode,
+          p_currency_symbol: currencyMeta.symbol,
+          p_currency_name: currencyMeta.name,
+        });
+      } catch (initErr) {
+        console.warn('[Onboarding] Tenant init warning (non-fatal):', initErr.message);
+      }
 
       localStorage.setItem('rc_lang', lang);
       localStorage.setItem('rc_currency', currency);
