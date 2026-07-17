@@ -38,16 +38,25 @@ export default function DriverDashboardERP() {
 
   const branchId = activeBranch?.id;
 
-  // Driver profile
+  // Driver profile — look up from 'drivers' table (created by erp_decide_membership on approval)
   const { data: driverProfile } = useQuery({
     queryKey: ['driver-profile', user?.email],
     queryFn: async () => {
-      const { data } = await supabase
+      // First try the drivers table (ERP approval flow)
+      const { data: driverRow } = await supabase
+        .from('drivers')
+        .select('*')
+        .eq('email', user?.email)
+        .limit(1)
+        .maybeSingle();
+      if (driverRow) return driverRow;
+      // Fallback: legacy employees table
+      const { data: empRow } = await supabase
         .from('employees')
         .select('*')
         .eq('email', user?.email)
-        .single();
-      return data;
+        .maybeSingle();
+      return empRow || null;
     },
     enabled: !!user?.email,
   });

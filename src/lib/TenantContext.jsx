@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { base44 } from '@/api/base44Client';
+import { supabase } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
 import { useRole, ROLES } from '@/lib/RoleContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -39,38 +39,54 @@ export function TenantProvider({ children }) {
   const isSponsor = normalizedRole === ROLES.SPONSOR;
 
   const { data: restaurants = [], isLoading: loadingRestaurants, refetch: refetchRestaurants } = useQuery({
-    queryKey: ['restaurants', user?.email, user?.role],
+    queryKey: ['restaurants', user?.id, user?.role],
     queryFn: async () => {
-      if (!user?.email) return [];
-      
+      if (!user?.id) return [];
+
       if (isOwner) {
-        return base44.entities.Restaurant.filter({ org_id: user.email }, 'name', 50);
-      }
+        // Owner: find their restaurant via erp_memberships (most reliable)
+        // Fall back to org_id match if needed
+        const { data: membership } = await supabase
+          .from('erp_memberships')
+          .select('restaurant_id')
+          .eq('user_id', user.id)
+          .eq('role', 'owner')
+          .eq('status', 'approved')
+          .single();
 
-      // Non-owners: find the restaurant via their invite or assignment
-      // We'll look for any active assignment to find the owner_email
-      const [mgr, emp, kit, drv] = await Promise.all([
-        base44.entities.ManagerInvite.filter({ email: user.email }),
-        base44.entities.Employee.filter({ email: user.email }),
-        base44.entities.Employee.filter({ email: user.email, position: 'Kitchen' }), // heuristic
-        base44.entities.Employee.filter({ email: user.email, is_driver: true }),
-      ]);
-
-      const assignment = mgr.find(i => i.status !== 'revoked') || 
-                         emp.find(e => e.is_active !== false) ||
-                         kit.find(k => k.is_active !== false) ||
-                         drv.find(d => d.is_active !== false);
-
-      if (assignment) {
-        const ownerEmail = assignment.owner_email || assignment.created_by;
-        if (ownerEmail) {
-          return base44.entities.Restaurant.filter({ org_id: ownerEmail }, 'name', 10);
+        if (membership?.restaurant_id) {
+          const { data } = await supabase
+            .from('restaurants')
+            .select('*')
+            .eq('id', membership.restaurant_id)
+            .limit(1);
+          return data || [];
         }
+
+        // Fallback: try org_id = email (legacy)
+        const { data } = await supabase
+          .from('restaurants')
+          .select('*')
+          .eq('org_id', user.email)
+          .limit(10);
+        return data || [];
       }
-      
+
+      // Non-owners: read restaurant_id directly from their profile
+      // This is set atomically by the handle_new_user trigger on registration
+      const restaurantId = user?.restaurant_id || user?.organization_id;
+      if (restaurantId) {
+        const { data } = await supabase
+          .from('restaurants')
+          .select('*')
+          .eq('id', restaurantId)
+          .limit(1);
+        return data || [];
+      }
+
       return [];
     },
-    enabled: !!user?.email && !isLoadingAuth,
+    enabled: !!user?.id && !isLoadingAuth,
     staleTime: 60000,
   });
 
@@ -90,27 +106,61 @@ export function TenantProvider({ children }) {
     queryClient.invalidateQueries();
   }, [user?.email, queryClient]);
 
-  // Parse branches from active restaurant
-  const branches = React.useMemo(() => {
+  // Load branches from the branches table (not from JSON column)
+  const { data: branchesFromDB = [] } = useQuery({
+    queryKey: ['branches', activeRestaurant?.id],
+    queryFn: async () => {
+      if (!activeRestaurant?.id) return [];
+      const { data, error } = await supabase
+        .from('branches')
+        .select('id, name, branch_key, location, is_active, restaurant_id')
+        .eq('restaurant_id', activeRestaurant.id)
+        .order('name');
+      if (error) return [];
+      return (data || []).map(b => ({
+        ...b,
+        key: b.branch_key,
+        label: b.name,
+      }));
+    },
+    enabled: !!activeRestaurant?.id,
+    staleTime: 60000,
+  });
+
+  // Also parse branches from active restaurant JSON column (for backward compat)
+  const branchesFromJSON = React.useMemo(() => {
     if (!activeRestaurant?.branches) return [];
     try {
-      return JSON.parse(activeRestaurant.branches).filter(b => b.is_active !== false);
+      const parsed = typeof activeRestaurant.branches === 'string'
+        ? JSON.parse(activeRestaurant.branches)
+        : activeRestaurant.branches;
+      return Array.isArray(parsed) ? parsed : [];
     } catch { return []; }
   }, [activeRestaurant]);
 
-  const allBranches = React.useMemo(() => {
-    if (!activeRestaurant?.branches) return [];
-    try { return JSON.parse(activeRestaurant.branches); } catch { return []; }
-  }, [activeRestaurant]);
+  // Use DB branches if available, fall back to JSON
+  const allBranches = branchesFromDB.length > 0 ? branchesFromDB : branchesFromJSON;
+  const branches = allBranches.filter(b => b.is_active !== false);
 
   const createRestaurant = useCallback(async (data) => {
-    const r = await base44.entities.Restaurant.create({ ...data, org_id: user.email });
+    const { data: r, error } = await supabase
+      .from('restaurants')
+      .insert({ ...data, org_id: user.email, created_by: user.email })
+      .select()
+      .single();
+    if (error) throw error;
     refetchRestaurants();
     return r;
   }, [user?.email, refetchRestaurants]);
 
   const updateRestaurant = useCallback(async (id, data) => {
-    const r = await base44.entities.Restaurant.update(id, data);
+    const { data: r, error } = await supabase
+      .from('restaurants')
+      .update({ ...data, updated_date: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
     refetchRestaurants();
     queryClient.invalidateQueries({ queryKey: ['restaurants'] });
     return r;
@@ -123,40 +173,15 @@ export function TenantProvider({ children }) {
 
   // org_id filter for all data queries — always scope to current user's org
   const orgFilter = { org_id: user?.email || '' };
-  const restaurantFilter = activeRestaurant ? { org_id: user?.email || '', restaurant_id: activeRestaurant.id } : null;
+  const restaurantFilter = activeRestaurant
+    ? { org_id: user?.email || '', restaurant_id: activeRestaurant.id }
+    : null;
 
   // Branch isolation for all staff roles
-  const isStaffRole = [ROLES.MANAGER, ROLES.EMPLOYEE, ROLES.DRIVER, ROLES.KITCHEN].includes(user?.role);
+  const isStaffRole = [ROLES.MANAGER, ROLES.EMPLOYEE, ROLES.DRIVER, ROLES.KITCHEN].includes(normalizedRole);
 
-  const [hydratedBranch, setHydratedBranch] = React.useState(null);
-  const [inviteHydrated, setInviteHydrated] = React.useState(false);
-
-  React.useEffect(() => {
-    if (!isStaffRole || !user?.email || inviteHydrated) return;
-    if (user?.branch) { setHydratedBranch(user.branch); setInviteHydrated(true); return; }
-    setInviteHydrated(true);
-    
-    // Attempt to find branch assignment across multiple sources
-    const findBranch = async () => {
-      const [mgr, emp] = await Promise.all([
-        base44.entities.ManagerInvite.filter({ email: user.email }),
-        base44.entities.Employee.filter({ email: user.email })
-      ]);
-      
-      const active = mgr.find(i => i.status !== 'revoked') || emp.find(e => e.is_active !== false);
-      if (active?.branch_key || active?.branch) {
-        const b = active.branch_key || active.branch;
-        setHydratedBranch(b);
-        base44.auth.updateMe({ branch: b }).catch(() => {});
-        if (active.invite_token) {
-           base44.entities.ManagerInvite.update(active.id, { status: 'accepted' }).catch(() => {});
-        }
-      }
-    };
-    findBranch();
-  }, [isStaffRole, user?.email, user?.branch, inviteHydrated]);
-
-  const assignedBranch = isStaffRole ? (user?.branch || hydratedBranch || null) : null;
+  // For staff roles, use profile.branch (branch_key string) for legacy compat
+  const assignedBranch = isStaffRole ? (user?.branch || null) : null;
 
   // TENANT ISOLATION
   const ownerFilter = React.useMemo(() => {
@@ -164,7 +189,7 @@ export function TenantProvider({ children }) {
       return { branch: assignedBranch || '__none__' };
     }
     if (isCustomer) {
-       return { customer_email: user?.email || '__none__' };
+      return { customer_email: user?.email || '__none__' };
     }
     return { created_by: user?.email || '__none__' };
   }, [user?.email, isStaffRole, isCustomer, assignedBranch]);
@@ -175,9 +200,7 @@ export function TenantProvider({ children }) {
   React.useEffect(() => {
     const email = user?.email;
     if (prevEmailRef.current !== undefined && prevEmailRef.current !== email) {
-      // Remove all queries so stale data from previous tenant never appears
       queryClient.removeQueries();
-      // Also clear the restaurant selection for the previous user from localStorage
       if (prevEmailRef.current) {
         localStorage.removeItem(`rc_restaurant_${prevEmailRef.current}`);
       }
@@ -188,7 +211,7 @@ export function TenantProvider({ children }) {
   // For managers: restrict branches list to only their assigned branch
   const effectiveBranches = React.useMemo(() => {
     if (isManager && assignedBranch) {
-      return branches.filter(b => b.key === assignedBranch);
+      return branches.filter(b => b.key === assignedBranch || b.branch_key === assignedBranch);
     }
     return branches;
   }, [branches, isManager, assignedBranch]);
@@ -225,6 +248,5 @@ export function TenantProvider({ children }) {
 
 export function useTenant() {
   const ctx = useContext(TenantContext);
-  // Context has a default value so this always returns something safe
   return ctx;
 }

@@ -13,7 +13,7 @@ import ERPRoleGuard from '@/components/rbac/ERPRoleGuard';
 import { TenantProvider, useTenant } from '@/lib/TenantContext';
 import { BusinessModeProvider } from '@/lib/BusinessModeContext';
 import { NotificationProvider } from '@/lib/NotificationContext';
-import { useRole, ROLES, ROLE_HOME } from '@/lib/RoleContext';
+import { useRole, ROLES, ROLE_HOME, NON_OWNER_ROLES } from '@/lib/RoleContext';
 import { Toaster } from 'sonner';
 import { base44 } from '@/api/base44Client';
 
@@ -181,7 +181,8 @@ function OnboardingGate({ children }) {
     );
   }
 
-  const restrictedRole = [ROLES.GENERAL_MANAGER, ROLES.MANAGER, ROLES.EMPLOYEE, ROLES.DRIVER, ROLES.KITCHEN, ROLES.CUSTOMER, ROLES.SUPPLIER, ROLES.SPONSOR].includes(user?.role);
+  // Non-owner ERP roles must never be redirected to onboarding
+  const restrictedRole = NON_OWNER_ROLES.has(user?.role);
   if (restrictedRole) return children;
 
   const isOwner = user?.role === ROLES.OWNER || !user?.role;

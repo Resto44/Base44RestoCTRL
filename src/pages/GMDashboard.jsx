@@ -71,9 +71,10 @@ export default function GMDashboard() {
     queryKey: ['gm-pending-approvals'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('erp_registrations')
+        .from('erp_memberships')
         .select('id, full_name, role, email, created_at, branch_id')
         .eq('status', 'pending')
+        .neq('role', 'owner')
         .order('created_at', { ascending: false })
         .limit(10);
       if (error) throw error;
@@ -146,7 +147,7 @@ export default function GMDashboard() {
               ) : (
                 <div className="space-y-2">
                   {branches.map(branch => {
-                    const branchSales = todaySales.find(s => s.branch_key === branch.id);
+                    const branchSales = todaySales.find(s => s.branch_key === branch.branch_key || s.branch_key === branch.id);
                     return (
                       <div key={branch.id} className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
                         <div className="flex items-center gap-2">
