@@ -10,8 +10,13 @@ import { createClient as createBase44Client } from '@base44/sdk';
 import { appParams } from '@/lib/app-params';
 
 // ── Supabase client — safe init ────────────────────────────────────────────
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+// Production fallback values — these are public-facing keys (anon key only, NOT service role).
+// They are safe to commit because the anon key is already exposed to every browser client.
+// Prefer VITE_ env vars when set (e.g. local dev or Vercel env config).
+const PROD_SUPABASE_URL = 'https://mqubwgbppncldyiicbtu.supabase.co';
+const PROD_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1xdWJ3Z2JwcG5jbGR5aWljYnR1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyMjUyNDcsImV4cCI6MjA5NTgwMTI0N30.lRWj1iE26Hkv0zlnT5d5ZDMthrVidq8-Qysg7jZl59Q';
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || PROD_SUPABASE_URL;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || PROD_SUPABASE_ANON_KEY;
 
 // ── Stub Supabase for when it's unavailable ────────────────────────────────
 const stubAuth = {

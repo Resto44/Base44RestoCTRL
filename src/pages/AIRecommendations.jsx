@@ -49,9 +49,11 @@ function WhatsAppOrderFlow({ products, currency, lang, onAddToCart }) {
       // Build product context
       const productList = products.slice(0, 20).map(p => `${p[`name_${lang}`] || p.name_ar || p.name}: ${currency}${p.default_price}`).join('\n');
 
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL || ''}/functions/v1/ai-chat`, {
+      const _supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://mqubwgbppncldyiicbtu.supabase.co';
+      const _supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1xdWJ3Z2JwcG5jbGR5aWljYnR1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyMjUyNDcsImV4cCI6MjA5NTgwMTI0N30.lRWj1iE26Hkv0zlnT5d5ZDMthrVidq8-Qysg7jZl59Q';
+      const response = await fetch(`${_supabaseUrl}/functions/v1/ai-chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || ''}` },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${_supabaseKey}` },
         body: JSON.stringify({
           messages: [
             { role: 'system', content: `You are a friendly restaurant ordering assistant. Available products:\n${productList}\n\nHelp customers order. When they want to order something, confirm the item and price. Keep responses short and friendly. Use emojis.` },
