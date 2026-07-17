@@ -116,9 +116,13 @@ export default function ERPRegister() {
   const [form, setForm] = useState({
     full_name: '', email: '', phone: '', password: '',
     branch_id: '', organization_id: '',
-    org_name: '', org_address: '', org_business_type: 'restaurant',
-    org_branch_name: '', org_currency: 'SAR',
-    company_name: '', product_categories: '', notes: '',
+    // Owner fields
+    company_name: '', org_address: '', business_type: 'restaurant',
+    branch_name: '', currency_code: 'SAR',
+    // Supplier fields
+    supplier_company: '', product_categories: '', notes: '',
+    // Driver fields
+    license_number: '', vehicle_type: '', vehicle_plate: '',
   });
   const [errors, setErrors] = useState({});
 
@@ -165,12 +169,12 @@ export default function ERPRegister() {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = 'Invalid email address';
     if (!form.password || form.password.length < 6) e.password = 'Password must be at least 6 characters';
     if (selectedRole === ROLES.OWNER) {
-      if (!form.org_name.trim()) e.org_name = 'Organization name is required';
-      if (!form.org_branch_name.trim()) e.org_branch_name = 'First branch name is required';
+      if (!form.company_name.trim()) e.company_name = 'Organization name is required';
+      if (!form.branch_name.trim()) e.branch_name = 'First branch name is required';
     } else {
       if (!selectedOrg) e.organization_id = 'Please select an organization';
       if (roleConf?.requiresBranch && !form.branch_id) e.branch_id = 'Please select a branch';
-      if (selectedRole === ROLES.SUPPLIER && !form.company_name.trim()) e.company_name = 'Company name is required';
+      if (selectedRole === ROLES.SUPPLIER && !form.supplier_company.trim()) e.supplier_company = 'Company name is required';
     }
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -182,109 +186,111 @@ export default function ERPRegister() {
     setLoading(true);
 
     try {
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: form.email.trim(),
-        password: form.password,
-        options: { data: { full_name: form.full_name.trim(), role: selectedRole } },
-      });
+      // Build metadata that the handle_new_user DB trigger reads.
+      // The trigger uses: role, full_name, phone,
+      //   (owner)     company_name, branch_name, business_type, currency_symbol, address, branch_location
+      //   (non-owner) restaurant_id, branch_id
+      const currency = CURRENCIES.find(c => c.code === form.currency_code) || CURRENCIES[0];
 
-      if (authError) { toast.error(authError.message); setLoading(false); return; }
-      const userId = authData.user?.id;
-      if (!userId) { toast.error('Registration failed.'); setLoading(false); return; }
-
-      let organizationId = selectedOrg?.id || null;
-      let branchId = form.branch_id || null;
+      let metadata = {
+        full_name: form.full_name.trim(),
+        role: selectedRole,
+        phone: form.phone.trim() || null,
+      };
 
       if (selectedRole === ROLES.OWNER) {
-        const currency = CURRENCIES.find(c => c.code === form.org_currency) || CURRENCIES[0];
-        const businessMode = ['retail','pharmacy','wholesale'].includes(form.org_business_type) ? 'retail' : 'restaurant';
-
-        const { data: orgData, error: orgError } = await supabase
-          .from('restaurants')
-          .insert({
-            name: form.org_name.trim(),
-            address: form.org_address.trim() || null,
-            currency: currency.symbol,
-            business_type: form.org_business_type,
-            business_mode: businessMode,
-            created_by: form.email.trim(),
-            org_id: form.email.trim(),
-            is_active: true,
-            is_initialized: false,
-          })
-          .select('id').single();
-
-        if (orgError || !orgData) {
-          toast.error('Failed to create organization. Please try again.');
-          await supabase.auth.signOut();
-          setLoading(false);
-          return;
-        }
-        organizationId = orgData.id;
-
-        const { data: branchData } = await supabase
-          .from('branches')
-          .insert({
-            restaurant_id: organizationId,
-            name: form.org_branch_name.trim(),
-            location: form.org_address.trim() || null,
-            is_active: true,
-            created_by: form.email.trim(),
-          })
-          .select('id').single();
-
-        branchId = branchData?.id || null;
-
-        try {
-          await supabase.rpc('initialize_tenant', {
-            p_organization_id: organizationId,
-            p_branch_id: branchId,
-            p_currency_code: currency.code,
-            p_currency_symbol: currency.symbol,
-            p_currency_name: currency.name,
+        Object.assign(metadata, {
+          company_name: form.company_name.trim(),
+          branch_name: form.branch_name.trim() || 'Main Branch',
+          business_type: form.business_type,
+          currency_symbol: currency.symbol,
+          address: form.org_address.trim() || null,
+          branch_location: form.org_address.trim() || null,
+        });
+      } else {
+        Object.assign(metadata, {
+          restaurant_id: selectedOrg?.id || null,
+          branch_id: form.branch_id || null,
+        });
+        if (selectedRole === ROLES.SUPPLIER) {
+          Object.assign(metadata, {
+            supplier_company: form.supplier_company.trim(),
+            categories: form.product_categories,
+            notes: form.notes,
           });
-        } catch (initErr) {
-          console.warn('[ERPRegister] Tenant init warning:', initErr.message);
+        }
+        if (selectedRole === ROLES.DRIVER) {
+          Object.assign(metadata, {
+            license_number: form.license_number,
+            vehicle_type: form.vehicle_type,
+            vehicle_plate: form.vehicle_plate,
+          });
         }
       }
 
-      const approvalStatus = roleConf?.requiresApproval ? 'pending' : 'approved';
-
-      await supabase.from('profiles').upsert({
-        id: userId,
+      // signUp triggers handle_new_user (SECURITY DEFINER) which atomically:
+      //   Owner:     creates restaurant + branch + profile + erp_membership (approved)
+      //   Non-owner: creates profile + erp_membership (pending)
+      const { data: authData, error: authError } = await supabase.auth.signUp({
         email: form.email.trim(),
-        full_name: form.full_name.trim(),
-        phone: form.phone.trim() || null,
-        role: selectedRole,
-        branch_id: branchId,
-        restaurant_id: organizationId,
-        organization_id: organizationId,
-        approval_status: approvalStatus,
-        is_active: approvalStatus === 'approved',
-        updated_date: new Date().toISOString(),
+        password: form.password,
+        options: { data: metadata },
       });
 
-      const metadata = selectedRole === ROLES.SUPPLIER
-        ? { company_name: form.company_name.trim(), product_categories: form.product_categories, notes: form.notes }
-        : {};
+      if (authError) {
+        if (authError.message?.includes('already registered') || authError.message?.includes('already been registered')) {
+          toast.error('This email is already registered. Please sign in instead.');
+        } else if (authError.message?.includes('valid restaurant')) {
+          toast.error('The selected organization is no longer available. Please refresh and try again.');
+        } else {
+          toast.error(authError.message || 'Registration failed. Please try again.');
+        }
+        setLoading(false);
+        return;
+      }
 
-      await supabase.from('erp_registrations').insert({
-        email: form.email.trim(),
-        full_name: form.full_name.trim(),
-        phone: form.phone.trim() || null,
-        role: selectedRole,
-        organization_id: organizationId,
-        restaurant_id: organizationId,
-        branch_id: branchId,
-        status: approvalStatus,
-        user_id: userId,
-        metadata,
-      });
+      const userId = authData.user?.id;
+      if (!userId) {
+        toast.error('Registration failed — no user ID returned.');
+        setLoading(false);
+        return;
+      }
 
-      if (roleConf?.requiresApproval) await supabase.auth.signOut();
+      // Owner: run tenant initialization after trigger has created the org
+      if (selectedRole === ROLES.OWNER) {
+        await new Promise(r => setTimeout(r, 800));
+        try {
+          const { data: membership } = await supabase
+            .from('erp_memberships')
+            .select('restaurant_id, branch_id')
+            .eq('user_id', userId)
+            .single();
+          if (membership?.restaurant_id) {
+            try {
+              await supabase.rpc('initialize_tenant', {
+                p_organization_id: membership.restaurant_id,
+                p_branch_id: membership.branch_id,
+                p_currency_code: currency.code,
+                p_currency_symbol: currency.symbol,
+                p_currency_name: currency.name,
+              });
+            } catch (initErr) {
+              console.warn('[ERPRegister] Tenant init warning:', initErr?.message);
+            }
+          }
+        } catch (membershipErr) {
+          console.warn('[ERPRegister] Could not fetch membership:', membershipErr?.message);
+        }
+      }
+
+      // Sign out pending users so they cannot access dashboard before approval
+      if (roleConf?.requiresApproval) {
+        await supabase.auth.signOut();
+      }
+
       setSuccess(true);
     } catch (err) {
-      console.error('[ERPRegister]', err);
+      console.error('[ERPRegister] Unexpected error:', err);
       toast.error('Registration failed. Please try again.');
     } finally {
       setLoading(false);
@@ -402,9 +408,9 @@ export default function ERPRegister() {
               {selectedRole === ROLES.SUPPLIER && (
                 <div>
                   <Label className="text-slate-300 text-sm">Company Name *</Label>
-                  <Input value={form.company_name} onChange={e => setForm(f => ({ ...f, company_name: e.target.value }))}
+                  <Input value={form.supplier_company} onChange={e => setForm(f => ({ ...f, supplier_company: e.target.value }))}
                     placeholder="Your company name" className="mt-1.5 bg-white/5 border-white/10 text-white placeholder:text-slate-600 focus:border-violet-500" />
-                  {errors.company_name && <p className="text-red-400 text-xs mt-1">{errors.company_name}</p>}
+                  {errors.supplier_company && <p className="text-red-400 text-xs mt-1">{errors.supplier_company}</p>}
                 </div>
               )}
 
@@ -440,13 +446,13 @@ export default function ERPRegister() {
                   </p>
                   <div>
                     <Label className="text-slate-300 text-sm">Organization Name *</Label>
-                    <Input value={form.org_name} onChange={e => setForm(f => ({ ...f, org_name: e.target.value }))}
+                    <Input value={form.company_name} onChange={e => setForm(f => ({ ...f, company_name: e.target.value }))}
                       placeholder="e.g. Al-Nakheel Restaurant Group" className="mt-1.5 bg-white/5 border-white/10 text-white placeholder:text-slate-600 focus:border-violet-500" />
-                    {errors.org_name && <p className="text-red-400 text-xs mt-1">{errors.org_name}</p>}
+                    {errors.company_name && <p className="text-red-400 text-xs mt-1">{errors.company_name}</p>}
                   </div>
                   <div>
                     <Label className="text-slate-300 text-sm">Business Type</Label>
-                    <select value={form.org_business_type} onChange={e => setForm(f => ({ ...f, org_business_type: e.target.value }))}
+                    <select value={form.business_type} onChange={e => setForm(f => ({ ...f, business_type: e.target.value }))}
                       className="mt-1.5 w-full bg-slate-800 border border-white/10 text-white rounded-md px-3 py-2 text-sm focus:outline-none focus:border-violet-500">
                       {BUSINESS_TYPES.map(bt => <option key={bt.value} value={bt.value}>{bt.label}</option>)}
                     </select>
@@ -460,15 +466,15 @@ export default function ERPRegister() {
                     <Label className="text-slate-300 text-sm flex items-center gap-1.5">
                       <GitBranch className="w-3.5 h-3.5" /> First Branch Name *
                     </Label>
-                    <Input value={form.org_branch_name} onChange={e => setForm(f => ({ ...f, org_branch_name: e.target.value }))}
+                    <Input value={form.branch_name} onChange={e => setForm(f => ({ ...f, branch_name: e.target.value }))}
                       placeholder="e.g. Main Branch" className="mt-1.5 bg-white/5 border-white/10 text-white placeholder:text-slate-600 focus:border-violet-500" />
-                    {errors.org_branch_name && <p className="text-red-400 text-xs mt-1">{errors.org_branch_name}</p>}
+                    {errors.branch_name && <p className="text-red-400 text-xs mt-1">{errors.branch_name}</p>}
                   </div>
                   <div>
                     <Label className="text-slate-300 text-sm flex items-center gap-1.5">
                       <Globe className="w-3.5 h-3.5" /> Default Currency
                     </Label>
-                    <select value={form.org_currency} onChange={e => setForm(f => ({ ...f, org_currency: e.target.value }))}
+                    <select value={form.currency_code} onChange={e => setForm(f => ({ ...f, currency_code: e.target.value }))}
                       className="mt-1.5 w-full bg-slate-800 border border-white/10 text-white rounded-md px-3 py-2 text-sm focus:outline-none focus:border-violet-500">
                       {CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.symbol} — {c.name} ({c.code})</option>)}
                     </select>

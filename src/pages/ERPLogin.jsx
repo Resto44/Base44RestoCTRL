@@ -150,23 +150,33 @@ export default function ERPLogin() {
         .single();
 
       if (profileError || !profile) {
-        // New user — check if they have a pending registration
-        const { data: reg } = await supabase
-          .from('erp_registrations')
+        // No profile yet — check erp_memberships for pending/rejected/suspended status
+        const { data: mem } = await supabase
+          .from('erp_memberships')
           .select('status, role')
-          .eq('email', email)
-          .order('created_at', { ascending: false })
-          .limit(1)
+          .eq('user_id', data.user.id)
           .single();
 
-        if (reg?.status === 'pending') {
+        if (mem?.status === 'pending') {
           toast.info('Your registration is pending approval. Please wait for the Owner to approve your account.');
           await supabase.auth.signOut();
           setLoading(false);
           return;
         }
-        // Default to owner for new accounts
-        const home = ROLE_HOME[ROLES.OWNER];
+        if (mem?.status === 'rejected') {
+          toast.error('Your account registration was rejected. Please contact the Owner.');
+          await supabase.auth.signOut();
+          setLoading(false);
+          return;
+        }
+        if (mem?.status === 'suspended') {
+          toast.error('Your account has been suspended. Please contact the Owner.');
+          await supabase.auth.signOut();
+          setLoading(false);
+          return;
+        }
+        // Default to owner for new accounts with no profile yet
+        const home = ROLE_HOME[mem?.role || ROLES.OWNER] || ROLE_HOME[ROLES.OWNER];
         navigate(home, { replace: true });
         return;
       }

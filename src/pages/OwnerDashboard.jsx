@@ -64,7 +64,7 @@ import {
   Scale, Target, Zap, ChevronRight, ArrowUpRight, ArrowDownRight,
   CheckCircle2, XCircle, AlertCircle,
   LayoutDashboard, Layers, Clock, MapPin, Globe, ChevronDown,
-  Building2,
+  Building2, ShieldCheck,
 } from 'lucide-react';
 import {
   format, startOfMonth, startOfWeek, startOfYear,
@@ -286,6 +286,50 @@ const BranchSelector = memo(({ branches, selectedBranch, onSelect }) => {
         <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
       )}
     </div>
+  );
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PENDING APPROVALS BANNER
+// ─────────────────────────────────────────────────────────────────────────────
+const PendingApprovalsBanner = memo(function PendingApprovalsBanner() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const [pendingCount, setPendingCount] = useState(null);
+
+  React.useEffect(() => {
+    if (!user) return;
+    supabase
+      .from('erp_memberships')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'pending')
+      .then(({ count }) => {
+        if (count !== null) setPendingCount(count);
+      });
+  }, [user]);
+
+  if (!pendingCount) return null;
+
+  return (
+    <button
+      onClick={() => navigate('/erp-approval-center')}
+      className="w-full flex items-center gap-3 p-3.5 rounded-xl border-2 border-amber-400/60 bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100 dark:hover:bg-amber-950/50 active:scale-[0.98] transition-all text-left"
+    >
+      <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center shrink-0">
+        <ShieldCheck className="w-5 h-5 text-amber-600" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-bold text-amber-800 dark:text-amber-300 leading-tight">
+          {pendingCount} Pending Approval{pendingCount !== 1 ? 's' : ''}
+        </p>
+        <p className="text-xs text-amber-600 dark:text-amber-400 leading-tight">
+          Tap to review and approve registration requests
+        </p>
+      </div>
+      <span className="bg-amber-500 text-white text-xs font-black rounded-full w-7 h-7 flex items-center justify-center shrink-0">
+        {pendingCount > 99 ? '99+' : pendingCount}
+      </span>
+    </button>
   );
 });
 
@@ -1024,6 +1068,10 @@ export default function OwnerDashboard() {
         </div>
       </div>
 
+      {/* ══════════════════════════════════════════════════════════════════════
+          SECTION 0.5 — PENDING APPROVALS BANNER
+      ══════════════════════════════════════════════════════════════════════ */}
+      <PendingApprovalsBanner />
       {/* ══════════════════════════════════════════════════════════════════════
           SECTION 1 — EXECUTIVE SUMMARY
       ══════════════════════════════════════════════════════════════════════ */}

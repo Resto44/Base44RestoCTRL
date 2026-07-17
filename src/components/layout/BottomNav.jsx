@@ -15,7 +15,7 @@ import {
   ChefHat, ShoppingBag, ClipboardList, UserCheck, Bell, Bot, Building2,
   Package, CreditCard, ShoppingCart, Star, Grid3x3, X,
   TrendingUp, Calendar, Utensils, Zap, Barcode, Boxes, Tags,
-  UtensilsCrossed, BookOpen, Factory, ScanLine, Hash, Layers,
+  UtensilsCrossed, BookOpen, Factory, ScanLine, Hash, Layers, ShieldCheck,
 } from 'lucide-react';
 import { useLanguage } from '@/lib/LanguageContext';
 import { useRole, ROLES } from '@/lib/RoleContext';
@@ -88,6 +88,12 @@ const PRIMARY_NAV_CUSTOMER = [
 
 const MORE_SECTIONS_OWNER_RESTAURANT = [
   {
+    title: 'Approvals',
+    items: [
+      { path: '/erp-approval-center',       icon: ShieldCheck, labelKey: 'approval_center' },
+    ],
+  },
+  {
     title: 'Restaurant',
     items: [
       { path: '/menu-products',             icon: BookOpen,    labelKey: 'menu' },
@@ -146,6 +152,12 @@ const MORE_SECTIONS_OWNER_RESTAURANT = [
 ];
 
 const MORE_SECTIONS_OWNER_RETAIL = [
+  {
+    title: 'Approvals',
+    items: [
+      { path: '/erp-approval-center',       icon: ShieldCheck, labelKey: 'approval_center' },
+    ],
+  },
   {
     title: 'Retail',
     items: [
