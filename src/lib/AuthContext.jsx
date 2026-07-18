@@ -53,18 +53,6 @@ export const AuthProvider = ({ children }) => {
         if (!mounted.current) return;
 
         if (currentUser) {
-          // Only auto-assign 'admin' role if the user has no role AND there is no pending invite token.
-          // Pending invite tokens mean the user just signed up via an invite — the invite page will
-          // assign the correct role (driver/employee/manager). We must NOT overwrite it with 'admin'.
-          const hasPendingInvite =
-            sessionStorage.getItem('pending_invite_token') ||
-            sessionStorage.getItem('pending_driver_invite_token') ||
-            sessionStorage.getItem('pending_employee_invite_token') ||
-            sessionStorage.getItem('pending_kitchen_invite_token') ||
-            localStorage.getItem('pending_invite_token') ||
-            localStorage.getItem('pending_driver_invite_token') ||
-            localStorage.getItem('pending_employee_invite_token') ||
-            localStorage.getItem('pending_kitchen_invite_token');
           setUser(currentUser);
           setIsAuthenticated(true);
         } else {
@@ -98,15 +86,6 @@ export const AuthProvider = ({ children }) => {
     try {
       const currentUser = await withTimeout(base44.auth.me(), 8000);
       if (!mounted.current) return;
-      const hasPendingInvite =
-        sessionStorage.getItem('pending_invite_token') ||
-        sessionStorage.getItem('pending_driver_invite_token') ||
-        sessionStorage.getItem('pending_employee_invite_token') ||
-        sessionStorage.getItem('pending_kitchen_invite_token') ||
-        localStorage.getItem('pending_invite_token') ||
-        localStorage.getItem('pending_driver_invite_token') ||
-        localStorage.getItem('pending_employee_invite_token') ||
-        localStorage.getItem('pending_kitchen_invite_token');
       setUser(currentUser);
       setIsAuthenticated(true);
     } catch (error) {

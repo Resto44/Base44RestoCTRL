@@ -1,9 +1,8 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { useTenant } from '@/lib/TenantContext';
 import { useRole } from '@/lib/RoleContext';
-import { useAuth } from '@/lib/AuthContext';
 import { useLanguage } from '@/lib/LanguageContext';
 import { formatCurrency } from '@/lib/helpers';
 import PageHeader from '@/components/shared/PageHeader';
@@ -19,8 +18,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
   GitBranch, Plus, Pencil, Trash2, Users, TrendingUp, DollarSign,
   ShoppingCart, Receipt, MapPin, Phone, Clock, UserCheck, UserX,
-  BarChart3, AlertTriangle, CheckCircle2, Building2, Mail, Shield,
-  MessageCircle, Copy, Share2, Link
+  BarChart3, AlertTriangle, CheckCircle2, Building2, Mail
 } from 'lucide-react';
 import { subDays, format } from 'date-fns';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
@@ -210,36 +208,12 @@ export default function BranchManagement() {
   const { lang, currency } = useLanguage();
   const u = UI[lang] || UI.en;
   const { role } = useRole();
-  const { user } = useAuth();
-  const { allBranches, updateRestaurantBranches, ownerFilter, activeRestaurant } = useTenant();
+  const { allBranches, updateRestaurantBranches, ownerFilter } = useTenant();
 
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
   const [deleting, setDeleting] = useState(null);
-  const [inviting, setInviting] = useState(null);
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteLoading, setInviteLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [inviteStatuses, setInviteStatuses] = useState({}); // branchKey → {status, id}
-  const [pendingInviteLink, setPendingInviteLink] = useState(''); // link after successful invite
-  const [linkCopied, setLinkCopied] = useState(false);
-
-  // Load invite statuses for all branches
-  useEffect(() => {
-    if (!user?.email) return;
-    base44.entities.ManagerInvite.filter({ owner_email: user.email })
-      .then(invites => {
-        const map = {};
-        for (const inv of invites) {
-          if (!map[inv.branch_key] || inv.created_date > map[inv.branch_key].created_date) {
-            map[inv.branch_key] = inv;
-          }
-        }
-        setInviteStatuses(map);
-      })
-      .catch(() => {});
-  }, [user?.email, allBranches.length]);
-
   const thirtyDaysAgo = format(subDays(new Date(), 30), 'yyyy-MM-dd');
 
   const { data: sales = [] } = useQuery({
@@ -322,66 +296,6 @@ export default function BranchManagement() {
 
   const handleToggle = async (branchKey) => {
     await updateRestaurantBranches(allBranches.map(b => b.key === branchKey ? { ...b, is_active: !b.is_active } : b));
-  };
-
-  const handleInviteManager = async () => {
-    if (!inviteEmail.trim() || !inviting) return;
-
-    const email = inviteEmail.trim().toLowerCase();
-    // Basic email validation
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      toast.error(lang === 'ar' ? 'البريد الإلكتروني غير صحيح' : lang === 'fa' ? 'ایمیل نامعتبر است' : 'Invalid email address');
-      return;
-    }
-
-    setInviteLoading(true);
-    try {
-      // Call backend function — handles platform invite + DB record + branded email
-      const res = await base44.functions.invoke('inviteManager', {
-        email,
-        branch_key: inviting.key,
-        branch_label: inviting.label,
-        restaurant_name: activeRestaurant?.name || '',
-        restaurant_id: activeRestaurant?.id || '',
-        language: lang,
-      });
-
-      if (res.data?.error) throw new Error(res.data.error);
-
-      // Update branch manager_email on the restaurant record
-      const updated = allBranches.map(b => b.key === inviting.key ? { ...b, manager_email: email } : b);
-      await updateRestaurantBranches(updated);
-
-      // Refresh invite statuses
-      const freshInvites = await base44.entities.ManagerInvite.filter({ owner_email: user?.email });
-      const map = {};
-      for (const inv of freshInvites) {
-        if (!map[inv.branch_key] || inv.created_date > map[inv.branch_key].created_date) {
-          map[inv.branch_key] = inv;
-        }
-      }
-      setInviteStatuses(map);
-
-      // Store the invite link for WhatsApp/copy sharing
-      if (res.data?.invite_link) {
-        setPendingInviteLink(res.data.invite_link);
-      }
-
-      toast.success(u.invite_sent);
-    } catch (e) {
-      console.error('[inviteManager]', e);
-      const msg = e?.response?.data?.error || e?.message || 'Failed to invite manager';
-      toast.error(msg);
-    }
-    setInviteLoading(false);
-  };
-
-  const handleRevokeInvite = async (branchKey) => {
-    const inv = inviteStatuses[branchKey];
-    if (!inv) return;
-    await base44.entities.ManagerInvite.update(inv.id, { status: 'revoked' });
-    setInviteStatuses(s => ({ ...s, [branchKey]: { ...inv, status: 'revoked' } }));
-    toast.success('Invite revoked.');
   };
 
   if (role !== 'owner') {
@@ -494,18 +408,6 @@ export default function BranchManagement() {
                             <UserCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                             <div className="min-w-0">
                               <p className="text-xs font-medium truncate">{b.manager_name || b.manager_email}</p>
-                              <div className="flex items-center gap-1 mt-0.5">
-                                {inviteStatuses[b.key] && (
-                                  <Badge className={`text-[9px] px-1 py-0 ${
-                                    inviteStatuses[b.key].status === 'accepted' ? 'bg-emerald-100 text-emerald-700' :
-                                    inviteStatuses[b.key].status === 'revoked' ? 'bg-muted text-muted-foreground' :
-                                    'bg-amber-100 text-amber-700'
-                                  }`}>
-                                    {inviteStatuses[b.key].status === 'accepted' ? '✓ Active' :
-                                     inviteStatuses[b.key].status === 'revoked' ? '✗ Revoked' : '⏳ Pending'}
-                                  </Badge>
-                                )}
-                              </div>
                             </div>
                           </>
                         ) : (
@@ -516,9 +418,7 @@ export default function BranchManagement() {
                         )}
                       </div>
                       <div className="flex items-center gap-1.5">
-                        <Button size="sm" variant="outline" className="h-6 text-xs px-2" onClick={() => { setInviting(b); setInviteEmail(b.manager_email || ''); }}>
-                          <Shield className="w-3 h-3 mr-0.5" /> {u.invite_manager}
-                        </Button>
+                        <span className="hidden text-[10px] text-muted-foreground sm:inline">Staff are assigned from Owner Dashboard</span>
                         <Switch checked={b.is_active !== false} onCheckedChange={() => handleToggle(b.key)} />
                       </div>
                     </div>
@@ -681,121 +581,6 @@ export default function BranchManagement() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Invite Manager Dialog */}
-      <Dialog open={!!inviting} onOpenChange={v => { if (!v) { setInviting(null); setInviteEmail(''); setPendingInviteLink(''); setLinkCopied(false); } }}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>{u.invite_manager}: {inviting?.label}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            {/* Current invite status */}
-            {inviting && inviteStatuses[inviting.key] && (
-              <div className={`rounded-lg px-3 py-2 text-xs flex items-center justify-between ${
-                inviteStatuses[inviting.key].status === 'accepted' ? 'bg-emerald-50 text-emerald-800' :
-                inviteStatuses[inviting.key].status === 'revoked' ? 'bg-muted text-muted-foreground' :
-                'bg-amber-50 text-amber-800'
-              }`}>
-                <span>
-                  {inviteStatuses[inviting.key].status === 'accepted' ? '✓ Manager has joined' :
-                   inviteStatuses[inviting.key].status === 'revoked' ? '✗ Invite revoked' :
-                   '⏳ Invite pending acceptance'}
-                </span>
-                {inviteStatuses[inviting.key].status !== 'revoked' && (
-                  <button
-                    className="underline text-[10px] ml-2 hover:opacity-70"
-                    onClick={() => handleRevokeInvite(inviting.key)}
-                  >Revoke</button>
-                )}
-              </div>
-            )}
-
-            <p className="text-xs text-muted-foreground">
-              {lang === 'ar' ? 'سيتلقى المدير دعوة بالبريد الإلكتروني للوصول إلى هذا الفرع فقط.' :
-               lang === 'fa' ? 'مدیر ایمیل دعوت دریافت می‌کند و فقط به این شعبه دسترسی خواهد داشت.' :
-               'The manager will receive an invitation email with access limited to this branch only.'}
-            </p>
-
-            <div>
-              <Label>{u.manager_email}</Label>
-              <Input type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="manager@example.com" />
-            </div>
-
-            {/* Send invite button */}
-            <Button className="w-full flex items-center gap-2" onClick={handleInviteManager} disabled={inviteLoading || !inviteEmail.trim()}>
-              <Mail className="w-4 h-4" />
-              {inviteLoading ? (lang === 'ar' ? 'جاري الإرسال…' : lang === 'fa' ? 'در حال ارسال…' : 'Sending…') :
-                inviting && inviteStatuses[inviting.key] ?
-                  (lang === 'ar' ? 'إعادة إرسال الدعوة' : lang === 'fa' ? 'ارسال مجدد دعوت' : 'Resend Invite') :
-                  u.invite_manager}
-            </Button>
-
-            {/* WhatsApp & Share section — shown after invite is sent OR if existing pending invite */}
-            {(pendingInviteLink || (inviting && inviteStatuses[inviting.key]?.invite_token)) && (() => {
-              const link = pendingInviteLink || (inviting && inviteStatuses[inviting.key]
-                ? `https://rest-ctrl-flow.base44.app/invite?token=${inviteStatuses[inviting.key].invite_token}`
-                : '');
-              if (!link) return null;
-
-              const restaurantName = activeRestaurant?.name || 'Restaurant';
-              const branchLabel = inviting?.label || '';
-              const waMessages = {
-                en: `🍽️ *Restaurant Manager Pro*\n\nYou've been invited to manage *${branchLabel}* branch at *${restaurantName}*.\n\n👤 Role: Branch Manager\n🔒 Access: This branch only\n\nClick the link below to accept your invitation:\n${link}\n\n_(Link expires in 72 hours)_`,
-                ar: `🍽️ *Restaurant Manager Pro*\n\nتمت دعوتك لإدارة فرع *${branchLabel}* في *${restaurantName}*.\n\n👤 الدور: مدير الفرع\n🔒 الصلاحية: هذا الفرع فقط\n\nاضغط على الرابط لقبول الدعوة:\n${link}\n\n_(ينتهي الرابط خلال 72 ساعة)_`,
-                fa: `🍽️ *Restaurant Manager Pro*\n\nشما برای مدیریت شعبه *${branchLabel}* در *${restaurantName}* دعوت شدید.\n\n👤 نقش: مدیر شعبه\n🔒 دسترسی: فقط این شعبه\n\nروی لینک زیر کلیک کنید:\n${link}\n\n_(لینک ۷۲ ساعت معتبر است)_`,
-              };
-              const waText = waMessages[lang] || waMessages.en;
-              const waUrl = `https://wa.me/?text=${encodeURIComponent(waText)}`;
-
-              const handleCopy = async () => {
-                await navigator.clipboard.writeText(link);
-                setLinkCopied(true);
-                setTimeout(() => setLinkCopied(false), 2500);
-              };
-
-              const handleShare = async () => {
-                if (navigator.share) {
-                  await navigator.share({ title: 'Manager Invitation', text: waText, url: link });
-                } else {
-                  handleCopy();
-                }
-              };
-
-              return (
-                <div className="border-t pt-3 space-y-2">
-                  <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
-                    <Link className="w-3 h-3" />
-                    {lang === 'ar' ? 'مشاركة رابط الدعوة' : lang === 'fa' ? 'اشتراک‌گذاری لینک دعوت' : 'Share Invite Link'}
-                  </p>
-
-                  {/* WhatsApp button */}
-                  <a href={waUrl} target="_blank" rel="noopener noreferrer" className="w-full">
-                    <Button className="w-full bg-[#25D366] hover:bg-[#20ba5a] text-white font-bold flex items-center gap-2">
-                      <MessageCircle className="w-4 h-4" />
-                      {lang === 'ar' ? 'إرسال عبر واتساب' : lang === 'fa' ? 'ارسال از طریق واتساپ' : 'Send via WhatsApp'}
-                    </Button>
-                  </a>
-
-                  {/* Copy + System Share row */}
-                  <div className="flex gap-2">
-                    <Button variant="outline" className="flex-1 text-xs flex items-center gap-1.5" onClick={handleCopy}>
-                      <Copy className="w-3.5 h-3.5" />
-                      {linkCopied
-                        ? (lang === 'ar' ? '✓ تم النسخ' : lang === 'fa' ? '✓ کپی شد' : '✓ Copied!')
-                        : (lang === 'ar' ? 'نسخ الرابط' : lang === 'fa' ? 'کپی لینک' : 'Copy Link')}
-                    </Button>
-                    <Button variant="outline" className="flex-1 text-xs flex items-center gap-1.5" onClick={handleShare}>
-                      <Share2 className="w-3.5 h-3.5" />
-                      {lang === 'ar' ? 'مشاركة' : lang === 'fa' ? 'اشتراک' : 'Share'}
-                    </Button>
-                  </div>
-                </div>
-              );
-            })()}
-
-            <Button variant="outline" className="w-full" onClick={() => { setInviting(null); setInviteEmail(''); setPendingInviteLink(''); setLinkCopied(false); }}>{u.cancel}</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

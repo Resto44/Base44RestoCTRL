@@ -19,7 +19,6 @@ import { Plus, Pencil, Trash2, UserRound, Phone, Mail, Building2, UserPlus, Bell
 import BranchSelect from '@/components/shared/BranchSelect';
 import { formatCurrency } from '@/lib/helpers';
 import { useTenant } from '@/lib/TenantContext';
-import EmployeeInvitePanel from '@/components/employee/EmployeeInvitePanel';
 import { toast } from 'sonner';
 
 const emptyForm = { full_name: '', employee_id: '', branch: '', position: '', base_salary: '', joining_date: '', phone: '', email: '', is_active: true, notes: '' };
@@ -28,7 +27,7 @@ export default function Employees() {
   const { currency } = useLanguage();
   const { role, user } = useRole();
   const qc = useQueryClient();
-  const { ownerFilter, branches } = useTenant();
+  const { ownerFilter } = useTenant();
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(emptyForm);
@@ -109,7 +108,7 @@ export default function Employees() {
             <UserRound className="w-3.5 h-3.5" /> Employees
           </TabsTrigger>
           <TabsTrigger value="invite" className="text-xs flex items-center gap-1">
-            <UserPlus className="w-3.5 h-3.5" /> Invite
+            <UserPlus className="w-3.5 h-3.5" /> Staff access
           </TabsTrigger>
           <TabsTrigger value="announcements" className="text-xs flex items-center gap-1">
             <Bell className="w-3.5 h-3.5" /> Announcements
@@ -174,10 +173,18 @@ export default function Employees() {
         </TabsContent>
 
         <TabsContent value="invite" className="mt-3">
-          <EmployeeInvitePanel
-            branch={filterBranch === 'all' ? (branches[0]?.key || '') : filterBranch}
-            branchLabel={branches.find(b => b.key === (filterBranch === 'all' ? branches[0]?.key : filterBranch))?.label || filterBranch}
-          />
+          <Card className="border-primary/20 bg-primary/[0.03] p-5 text-center">
+            <UserPlus className="mx-auto h-8 w-8 text-primary" />
+            <h2 className="mt-3 text-sm font-semibold">Staff access is provisioned by the Owner</h2>
+            <p className="mx-auto mt-1 max-w-lg text-xs leading-relaxed text-muted-foreground">
+              Staff accounts are created only from the Owner Dashboard using secure, single-use invitations. Organization, branch, role, and permissions are assigned automatically after activation.
+            </p>
+            {role === 'owner' && (
+              <Button asChild size="sm" className="mt-4">
+                <a href="/owner-command-center">Open Owner Dashboard</a>
+              </Button>
+            )}
+          </Card>
         </TabsContent>
 
         <TabsContent value="announcements" className="mt-3 space-y-3">

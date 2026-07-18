@@ -175,9 +175,9 @@ export default function ERPLogin() {
           setLoading(false);
           return;
         }
-        // Default to owner for new accounts with no profile yet
-        const home = ROLE_HOME[mem?.role || ROLES.OWNER] || ROLE_HOME[ROLES.OWNER];
-        navigate(home, { replace: true });
+        await supabase.auth.signOut();
+        toast.error('This identity is not active yet. Open the secure invitation link issued by your organization owner.');
+        setLoading(false);
         return;
       }
 
@@ -336,15 +336,8 @@ export default function ERPLogin() {
             </form>
 
             <div className="mt-4 text-center">
-              <p className="text-slate-500 text-sm">
-                Don't have an account?{' '}
-                <button
-                  onClick={() => navigate(`/erp-register?role=${roleConfig?.role}`)}
-                  className="text-violet-400 hover:text-violet-300 font-medium"
-                >
-                  Register here
-                </button>
-              </p>
+              <p className="text-slate-500 text-sm">Staff accounts are invitation-only. Ask your organization owner for a secure activation link.</p>
+              <button onClick={() => navigate('/erp-register?owner=1')} className="mt-2 text-xs font-medium text-violet-400 hover:text-violet-300">Create a new owner organization account</button>
             </div>
           </div>
         )}

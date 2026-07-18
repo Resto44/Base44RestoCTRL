@@ -1,589 +1,134 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/api/supabaseClient';
-import { ROLES } from '@/lib/RoleContext';
+import { ROLE_HOME } from '@/lib/RoleContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Building2, Users, UserCheck, User, ChefHat, Truck, Package,
-  Eye, EyeOff, Loader2, ArrowLeft, CheckCircle2, ShieldCheck,
-  GitBranch, Info, Search, Globe
-} from 'lucide-react';
 import { toast } from 'sonner';
+import { ArrowLeft, Building2, Eye, EyeOff, KeyRound, Loader2, LockKeyhole, MailCheck, ShieldCheck, Smartphone, UserRoundCheck } from 'lucide-react';
 
-const ROLE_CONFIG = {
-  [ROLES.OWNER]: {
-    label: 'Owner', icon: Building2,
-    color: 'from-violet-600 to-purple-700',
-    border: 'border-violet-500/40', bg: 'bg-violet-500/10', textColor: 'text-violet-300',
-    requiresOrg: true, requiresBranch: false, requiresApproval: false,
-    description: 'Create your organization and manage all branches',
-  },
-  [ROLES.GENERAL_MANAGER]: {
-    label: 'General Manager', icon: Users,
-    color: 'from-blue-600 to-cyan-700',
-    border: 'border-blue-500/40', bg: 'bg-blue-500/10', textColor: 'text-blue-300',
-    requiresOrg: false, requiresBranch: false, requiresApproval: true,
-    description: 'Cross-branch management — requires Owner approval',
-  },
-  [ROLES.MANAGER]: {
-    label: 'Branch Manager', icon: UserCheck,
-    color: 'from-emerald-600 to-teal-700',
-    border: 'border-emerald-500/40', bg: 'bg-emerald-500/10', textColor: 'text-emerald-300',
-    requiresOrg: false, requiresBranch: true, requiresApproval: true,
-    description: 'Select your branch — requires Owner approval',
-  },
-  [ROLES.EMPLOYEE]: {
-    label: 'Employee', icon: User,
-    color: 'from-amber-600 to-orange-700',
-    border: 'border-amber-500/40', bg: 'bg-amber-500/10', textColor: 'text-amber-300',
-    requiresOrg: false, requiresBranch: true, requiresApproval: true,
-    description: 'Select your branch — requires Manager approval',
-  },
-  [ROLES.KITCHEN]: {
-    label: 'Kitchen Staff', icon: ChefHat,
-    color: 'from-red-600 to-rose-700',
-    border: 'border-red-500/40', bg: 'bg-red-500/10', textColor: 'text-red-300',
-    requiresOrg: false, requiresBranch: true, requiresApproval: true,
-    description: 'Select your branch — requires Manager approval',
-  },
-  [ROLES.DRIVER]: {
-    label: 'Driver', icon: Truck,
-    color: 'from-sky-600 to-blue-700',
-    border: 'border-sky-500/40', bg: 'bg-sky-500/10', textColor: 'text-sky-300',
-    requiresOrg: false, requiresBranch: true, requiresApproval: true,
-    description: 'Select your branch — requires Manager approval',
-  },
-  [ROLES.SUPPLIER]: {
-    label: 'Supplier', icon: Package,
-    color: 'from-slate-600 to-slate-700',
-    border: 'border-slate-500/40', bg: 'bg-slate-500/10', textColor: 'text-slate-300',
-    requiresOrg: false, requiresBranch: false, requiresApproval: true,
-    description: 'Register as a supplier — requires Owner authorization',
-  },
-};
+const validPassword = (password) => password.length >= 10 && /[A-Za-z]/.test(password) && /\d/.test(password);
+const Shell = ({ children }) => <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center p-4"><div className="fixed inset-0 overflow-hidden pointer-events-none"><div className="absolute -top-40 -right-40 h-96 w-96 rounded-full bg-violet-600/10 blur-3xl" /><div className="absolute -bottom-40 -left-40 h-96 w-96 rounded-full bg-blue-600/10 blur-3xl" /></div><main className="relative w-full max-w-lg">{children}</main></div>;
+const Panel = ({ children }) => <div className="rounded-2xl border border-white/10 bg-white/[0.05] p-6 shadow-2xl backdrop-blur-sm">{children}</div>;
 
-const ALL_ROLES = [
-  ROLES.OWNER, ROLES.GENERAL_MANAGER, ROLES.MANAGER,
-  ROLES.EMPLOYEE, ROLES.KITCHEN, ROLES.DRIVER, ROLES.SUPPLIER,
-];
-
-const CURRENCIES = [
-  { code: 'SAR', symbol: 'ر.س', name: 'Saudi Riyal' },
-  { code: 'AED', symbol: 'د.إ', name: 'UAE Dirham' },
-  { code: 'USD', symbol: '$',   name: 'US Dollar' },
-  { code: 'EUR', symbol: '€',   name: 'Euro' },
-  { code: 'GBP', symbol: '£',   name: 'British Pound' },
-  { code: 'EGP', symbol: 'ج.م', name: 'Egyptian Pound' },
-  { code: 'KWD', symbol: 'د.ك', name: 'Kuwaiti Dinar' },
-  { code: 'QAR', symbol: 'ر.ق', name: 'Qatari Riyal' },
-  { code: 'BHD', symbol: 'د.ب', name: 'Bahraini Dinar' },
-  { code: 'OMR', symbol: 'ر.ع', name: 'Omani Rial' },
-  { code: 'JOD', symbol: 'د.أ', name: 'Jordanian Dinar' },
-  { code: 'IQD', symbol: 'ع.د', name: 'Iraqi Dinar' },
-  { code: 'TRY', symbol: '₺',   name: 'Turkish Lira' },
-];
-
-const BUSINESS_TYPES = [
-  { value: 'restaurant', label: 'Restaurant' },
-  { value: 'cafe',       label: 'Café' },
-  { value: 'retail',     label: 'Retail' },
-  { value: 'pharmacy',   label: 'Pharmacy' },
-  { value: 'wholesale',  label: 'Wholesale' },
-  { value: 'other',      label: 'Other' },
-];
+function PasswordInput({ id, value, onChange, autoComplete = 'new-password' }) {
+  const [visible, setVisible] = useState(false);
+  return <div className="relative"><Input id={id} type={visible ? 'text' : 'password'} value={value} onChange={onChange} autoComplete={autoComplete} placeholder="At least 10 characters" className="h-11 border-white/10 bg-white/5 pr-11 text-white placeholder:text-slate-600 focus:border-violet-500" required /><button type="button" aria-label={visible ? 'Hide password' : 'Show password'} onClick={() => setVisible((current) => !current)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300">{visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div>;
+}
 
 export default function ERPRegister() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const preselectedRole = searchParams.get('role');
-
-  const [selectedRole, setSelectedRole] = useState(preselectedRole || null);
-  const [step, setStep] = useState(preselectedRole ? 'form' : 'role');
-  const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [showPw, setShowPw] = useState(false);
-
-  const [orgSearch, setOrgSearch] = useState('');
-  const [orgs, setOrgs] = useState([]);
-  const [loadingOrgs, setLoadingOrgs] = useState(false);
-  const [selectedOrg, setSelectedOrg] = useState(null);
-
-  const [branches, setBranches] = useState([]);
-  const [loadingBranches, setLoadingBranches] = useState(false);
-
-  const [form, setForm] = useState({
-    full_name: '', email: '', phone: '', password: '',
-    branch_id: '', organization_id: '',
-    // Owner fields
-    company_name: '', org_address: '', business_type: 'restaurant',
-    branch_name: '', currency_code: 'SAR',
-    // Supplier fields
-    supplier_company: '', product_categories: '', notes: '',
-    // Driver fields
-    license_number: '', vehicle_type: '', vehicle_plate: '',
-  });
-  const [errors, setErrors] = useState({});
-
-  const roleConf = ROLE_CONFIG[selectedRole] || null;
+  const [params] = useSearchParams();
+  const token = params.get('token')?.trim() || '';
+  const isOwnerSetup = params.get('owner') === '1';
+  const started = useRef(false);
+  const [session, setSession] = useState(null);
+  const [loadingSession, setLoadingSession] = useState(true);
+  const [mode, setMode] = useState('create');
+  const [contact, setContact] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [smsCode, setSmsCode] = useState('');
+  const [awaitingEmail, setAwaitingEmail] = useState(false);
+  const [awaitingSms, setAwaitingSms] = useState(false);
+  const [activating, setActivating] = useState(false);
+  const [activationError, setActivationError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [owner, setOwner] = useState({ fullName: '', email: '', password: '', confirm: '', organization: '', branch: 'Main Branch' });
+  const emailMode = contact.includes('@');
+  const activationUrl = `/erp-register?token=${encodeURIComponent(token)}`;
 
   useEffect(() => {
-    if (selectedRole && selectedRole !== ROLES.OWNER) {
-      searchOrgs('');
-    }
-  }, [selectedRole]);
+    let alive = true;
+    supabase.auth.getSession().then(({ data }) => { if (alive) { setSession(data.session || null); setLoadingSession(false); } });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, next) => { if (alive) setSession(next || null); });
+    return () => { alive = false; subscription.unsubscribe(); };
+  }, []);
 
-  useEffect(() => {
-    if (selectedOrg && roleConf?.requiresBranch) {
-      loadBranches(selectedOrg.id);
-    }
-  }, [selectedOrg, selectedRole]);
-
-  const searchOrgs = async (query) => {
-    setLoadingOrgs(true);
+  const activate = useCallback(async () => {
+    if (!token || !session?.user?.id || started.current) return;
+    started.current = true;
+    setActivating(true);
+    setActivationError('');
     try {
-      let q = supabase.from('restaurants').select('id, name, address').eq('is_active', true).limit(20);
-      if (query.trim()) q = q.ilike('name', `%${query.trim()}%`);
-      const { data, error } = await q.order('name');
-      if (!error) setOrgs(data || []);
-    } catch (_) {}
-    setLoadingOrgs(false);
-  };
-
-  const loadBranches = async (orgId) => {
-    setLoadingBranches(true);
-    try {
-      const { data, error } = await supabase
-        .from('branches').select('id, name, location')
-        .eq('restaurant_id', orgId).eq('is_active', true).order('name');
-      if (!error) setBranches(data || []);
-    } catch (_) {}
-    setLoadingBranches(false);
-  };
-
-  const validate = () => {
-    const e = {};
-    if (!form.full_name.trim()) e.full_name = 'Full name is required';
-    if (!form.email.trim()) e.email = 'Email is required';
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = 'Invalid email address';
-    if (!form.password || form.password.length < 6) e.password = 'Password must be at least 6 characters';
-    if (selectedRole === ROLES.OWNER) {
-      if (!form.company_name.trim()) e.company_name = 'Organization name is required';
-      if (!form.branch_name.trim()) e.branch_name = 'First branch name is required';
-    } else {
-      if (!selectedOrg) e.organization_id = 'Please select an organization';
-      if (roleConf?.requiresBranch && !form.branch_id) e.branch_id = 'Please select a branch';
-      if (selectedRole === ROLES.SUPPLIER && !form.supplier_company.trim()) e.supplier_company = 'Company name is required';
+      const { data, error } = await supabase.rpc('activate_erp_invitation', { p_token: token });
+      if (error) throw error;
+      toast.success('Account activated. Opening your assigned workspace…');
+      window.setTimeout(() => navigate(data?.dashboard || ROLE_HOME[data?.role] || '/erp-login', { replace: true }), 600);
+    } catch (error) {
+      started.current = false;
+      setActivationError(error.message || 'This invitation cannot be activated.');
+      setActivating(false);
     }
-    setErrors(e);
-    return Object.keys(e).length === 0;
-  };
+  }, [navigate, session?.user?.id, token]);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!validate()) return;
-    setLoading(true);
+  useEffect(() => { if (token && session?.user?.id && !loadingSession) activate(); }, [activate, loadingSession, session?.user?.id, token]);
 
+  const createInvitationAccount = async (event) => {
+    event.preventDefault();
+    if (!contact.trim()) return toast.error('Enter the email address or phone number that received the invitation.');
+    if (!validPassword(password)) return toast.error('Use at least 10 characters with letters and numbers.');
+    if (password !== confirmPassword) return toast.error('Passwords do not match.');
+    setSubmitting(true);
     try {
-      // Build metadata that the handle_new_user DB trigger reads.
-      // The trigger uses: role, full_name, phone,
-      //   (owner)     company_name, branch_name, business_type, currency_symbol, address, branch_location
-      //   (non-owner) restaurant_id, branch_id
-      const currency = CURRENCIES.find(c => c.code === form.currency_code) || CURRENCIES[0];
-
-      let metadata = {
-        full_name: form.full_name.trim(),
-        role: selectedRole,
-        phone: form.phone.trim() || null,
-      };
-
-      if (selectedRole === ROLES.OWNER) {
-        Object.assign(metadata, {
-          company_name: form.company_name.trim(),
-          branch_name: form.branch_name.trim() || 'Main Branch',
-          business_type: form.business_type,
-          currency_symbol: currency.symbol,
-          address: form.org_address.trim() || null,
-          branch_location: form.org_address.trim() || null,
-        });
-      } else {
-        Object.assign(metadata, {
-          restaurant_id: selectedOrg?.id || null,
-          branch_id: form.branch_id || null,
-        });
-        if (selectedRole === ROLES.SUPPLIER) {
-          Object.assign(metadata, {
-            supplier_company: form.supplier_company.trim(),
-            categories: form.product_categories,
-            notes: form.notes,
-          });
-        }
-        if (selectedRole === ROLES.DRIVER) {
-          Object.assign(metadata, {
-            license_number: form.license_number,
-            vehicle_type: form.vehicle_type,
-            vehicle_plate: form.vehicle_plate,
-          });
-        }
-      }
-
-      // signUp triggers handle_new_user (SECURITY DEFINER) which atomically:
-      //   Owner:     creates restaurant + branch + profile + erp_membership (approved)
-      //   Non-owner: creates profile + erp_membership (pending)
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: form.email.trim(),
-        password: form.password,
-        options: { data: metadata },
-      });
-
-      if (authError) {
-        if (authError.message?.includes('already registered') || authError.message?.includes('already been registered')) {
-          toast.error('This email is already registered. Please sign in instead.');
-        } else if (authError.message?.includes('valid restaurant')) {
-          toast.error('The selected organization is no longer available. Please refresh and try again.');
-        } else {
-          toast.error(authError.message || 'Registration failed. Please try again.');
-        }
-        setLoading(false);
-        return;
-      }
-
-      const userId = authData.user?.id;
-      if (!userId) {
-        toast.error('Registration failed — no user ID returned.');
-        setLoading(false);
-        return;
-      }
-
-      // Owner: run tenant initialization after trigger has created the org
-      if (selectedRole === ROLES.OWNER) {
-        await new Promise(r => setTimeout(r, 800));
-        try {
-          const { data: membership } = await supabase
-            .from('erp_memberships')
-            .select('restaurant_id, branch_id')
-            .eq('user_id', userId)
-            .single();
-          if (membership?.restaurant_id) {
-            try {
-              await supabase.rpc('initialize_tenant', {
-                p_organization_id: membership.restaurant_id,
-                p_branch_id: membership.branch_id,
-                p_currency_code: currency.code,
-                p_currency_symbol: currency.symbol,
-                p_currency_name: currency.name,
-              });
-            } catch (initErr) {
-              console.warn('[ERPRegister] Tenant init warning:', initErr?.message);
-            }
-          }
-        } catch (membershipErr) {
-          console.warn('[ERPRegister] Could not fetch membership:', membershipErr?.message);
-        }
-      }
-
-      // Sign out pending users so they cannot access dashboard before approval
-      if (roleConf?.requiresApproval) {
-        await supabase.auth.signOut();
-      }
-
-      setSuccess(true);
-    } catch (err) {
-      console.error('[ERPRegister] Unexpected error:', err);
-      toast.error('Registration failed. Please try again.');
-    } finally {
-      setLoading(false);
-    }
+      const identifier = contact.trim();
+      const payload = emailMode
+        ? { email: identifier.toLowerCase(), password, options: { emailRedirectTo: `${window.location.origin}${activationUrl}`, data: { invitation_token: token } } }
+        : { phone: identifier, password, options: { data: { invitation_token: token } } };
+      const { data, error } = await supabase.auth.signUp(payload);
+      if (error) throw error;
+      if (data.session) { setSession(data.session); return; }
+      if (emailMode) { setAwaitingEmail(true); toast.success('Verify the email sent to the invited address to activate your account.'); }
+      else { setAwaitingSms(true); toast.success('Enter the SMS verification code to activate your account.'); }
+    } catch (error) { toast.error(error.message || 'Unable to create this invited account.'); } finally { setSubmitting(false); }
   };
 
-  if (success) {
-    const isOwner = selectedRole === ROLES.OWNER;
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center p-4">
-        <div className="max-w-md w-full text-center">
-          <div className="w-20 h-20 rounded-full bg-emerald-500/20 flex items-center justify-center mx-auto mb-6">
-            <CheckCircle2 className="w-10 h-10 text-emerald-400" />
-          </div>
-          <h2 className="text-2xl font-black text-white mb-3">
-            {isOwner ? 'Organization Created!' : 'Registration Submitted!'}
-          </h2>
-          <p className="text-slate-400 text-sm leading-relaxed mb-6">
-            {isOwner
-              ? 'Your organization has been created. You can now sign in to your Owner Dashboard.'
-              : 'Your registration is pending approval. No dashboard access until the Owner approves your account.'}
-          </p>
-          {!isOwner && (
-            <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 mb-6 text-left">
-              <div className="flex items-start gap-3">
-                <ShieldCheck className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-amber-300 text-sm font-semibold">Status: Pending Approval</p>
-                  <p className="text-amber-400/70 text-xs mt-1">You will be notified once the Owner reviews your request.</p>
-                </div>
-              </div>
-            </div>
-          )}
-          <Button onClick={() => navigate('/erp-login')} className="w-full bg-gradient-to-r from-violet-600 to-purple-700 text-white font-bold h-11 rounded-xl">
-            {isOwner ? 'Sign In to Dashboard' : 'Back to Sign In'}
-          </Button>
-        </div>
-      </div>
-    );
-  }
+  const signInInvitationAccount = async (event) => {
+    event.preventDefault();
+    if (!contact.trim() || !password) return toast.error('Enter your invited identity and password.');
+    setSubmitting(true);
+    try {
+      const credentials = emailMode ? { email: contact.trim().toLowerCase(), password } : { phone: contact.trim(), password };
+      const { data, error } = await supabase.auth.signInWithPassword(credentials);
+      if (error) throw error;
+      setSession(data.session);
+    } catch (error) { toast.error(error.message || 'Unable to verify this identity.'); } finally { setSubmitting(false); }
+  };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center p-4">
-      <div className="max-w-lg w-full">
-        <div className="text-center mb-8">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-600 to-purple-700 flex items-center justify-center mx-auto mb-4 shadow-lg">
-            <ShieldCheck className="w-7 h-7 text-white" />
-          </div>
-          <h1 className="text-2xl font-black text-white">RestoCTRL ERP</h1>
-          <p className="text-slate-500 text-sm mt-1">Enterprise Registration Portal</p>
-        </div>
+  const verifySms = async (event) => {
+    event.preventDefault();
+    setSubmitting(true);
+    try {
+      const { data, error } = await supabase.auth.verifyOtp({ phone: contact.trim(), token: smsCode.trim(), type: 'sms' });
+      if (error) throw error;
+      setSession(data.session);
+      setAwaitingSms(false);
+    } catch (error) { toast.error(error.message || 'The verification code was not accepted.'); } finally { setSubmitting(false); }
+  };
 
-        {step === 'role' && (
-          <div>
-            <h2 className="text-white font-bold text-lg mb-4 text-center">Select Your Role</h2>
-            <div className="grid grid-cols-1 gap-3">
-              {ALL_ROLES.map((roleKey) => {
-                const conf = ROLE_CONFIG[roleKey];
-                const Icon = conf.icon;
-                return (
-                  <button key={roleKey} onClick={() => { setSelectedRole(roleKey); setStep('form'); }}
-                    className={`flex items-center gap-4 p-4 rounded-xl border ${conf.border} ${conf.bg} hover:bg-white/10 transition-all text-left`}>
-                    <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${conf.color} flex items-center justify-center shrink-0`}>
-                      <Icon className="w-5 h-5 text-white" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className={`font-bold text-sm ${conf.textColor}`}>{conf.label}</p>
-                      <p className="text-slate-500 text-xs mt-0.5">{conf.description}</p>
-                    </div>
-                    {conf.requiresApproval && (
-                      <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 shrink-0">
-                        Approval Required
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-            <p className="text-center text-slate-500 text-sm mt-6">
-              Already have an account?{' '}
-              <button onClick={() => navigate('/erp-login')} className="text-violet-400 hover:text-violet-300 font-medium">Sign in</button>
-            </p>
-          </div>
-        )}
+  const createOwner = async (event) => {
+    event.preventDefault();
+    const clean = { fullName: owner.fullName.trim(), email: owner.email.trim().toLowerCase(), organization: owner.organization.trim(), branch: owner.branch.trim() };
+    if (!clean.fullName || !clean.email || !clean.organization || !clean.branch) return toast.error('Complete all owner organization fields.');
+    if (!validPassword(owner.password)) return toast.error('Use at least 10 characters with letters and numbers.');
+    if (owner.password !== owner.confirm) return toast.error('Passwords do not match.');
+    setSubmitting(true);
+    try {
+      const { data, error } = await supabase.auth.signUp({ email: clean.email, password: owner.password, options: { emailRedirectTo: `${window.location.origin}/erp-login`, data: { role: 'owner', full_name: clean.fullName, company_name: clean.organization, branch_name: clean.branch } } });
+      if (error) throw error;
+      if (data.session) navigate('/owner-command-center', { replace: true });
+      else { toast.success('Verify your email, then sign in as the organization owner.'); navigate('/erp-login', { replace: true }); }
+    } catch (error) { toast.error(error.message || 'Unable to create the owner account.'); } finally { setSubmitting(false); }
+  };
 
-        {step === 'form' && roleConf && (
-          <div>
-            <div className={`flex items-center gap-3 p-3 rounded-xl border ${roleConf.border} ${roleConf.bg} mb-5`}>
-              <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${roleConf.color} flex items-center justify-center shrink-0`}>
-                {React.createElement(roleConf.icon, { className: 'w-4 h-4 text-white' })}
-              </div>
-              <div>
-                <p className={`font-bold text-sm ${roleConf.textColor}`}>{roleConf.label}</p>
-                <p className="text-slate-500 text-xs">{roleConf.description}</p>
-              </div>
-            </div>
+  if (loadingSession) return <Shell><Panel><div className="flex items-center justify-center gap-2 py-10 text-sm text-slate-300"><Loader2 className="h-4 w-4 animate-spin" /> Checking secure access…</div></Panel></Shell>;
 
-            {roleConf.requiresApproval && (
-              <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 mb-5 flex items-start gap-2.5">
-                <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                <p className="text-amber-400/80 text-xs leading-relaxed">
-                  Your account will be <strong className="text-amber-300">Pending Approval</strong>. No dashboard access until the Owner approves your request.
-                </p>
-              </div>
-            )}
+  if (token && session?.user?.id) return <Shell><Panel><div className="py-8 text-center">{activationError ? <LockKeyhole className="mx-auto mb-4 h-11 w-11 text-red-400" /> : <Loader2 className="mx-auto mb-4 h-11 w-11 animate-spin text-violet-400" />}<h1 className="text-xl font-black text-white">{activationError ? 'Invitation cannot be activated' : 'Activating your assigned workspace'}</h1><p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-slate-400">{activationError || 'Your verified identity is receiving the organization, branch, role, and permissions issued by the owner.'}</p>{activationError && <div className="mt-5 flex justify-center gap-2"><Button variant="outline" onClick={() => supabase.auth.signOut().then(() => setSession(null))}>Use another identity</Button><Button onClick={activate}>Try again</Button></div>}{!activationError && !activating && <Loader2 className="mx-auto mt-4 h-4 w-4 animate-spin text-violet-300" />}</div></Panel></Shell>;
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <Label className="text-slate-300 text-sm">Full Name *</Label>
-                <Input value={form.full_name} onChange={e => setForm(f => ({ ...f, full_name: e.target.value }))}
-                  placeholder="Your full name" className="mt-1.5 bg-white/5 border-white/10 text-white placeholder:text-slate-600 focus:border-violet-500" />
-                {errors.full_name && <p className="text-red-400 text-xs mt-1">{errors.full_name}</p>}
-              </div>
+  if (token) return <Shell><div className="mb-6 text-center"><div className="mb-4 inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-4 py-1.5 text-sm font-medium text-emerald-200"><ShieldCheck className="h-4 w-4" /> Secure staff activation</div><h1 className="text-3xl font-black text-white">Activate your invited account</h1><p className="mt-2 text-sm leading-relaxed text-slate-400">Verify the invited identity, create a password, and access only the workspace assigned by the owner.</p></div><Panel>{awaitingEmail ? <div className="py-5 text-center"><MailCheck className="mx-auto mb-4 h-11 w-11 text-emerald-300" /><h2 className="text-lg font-bold text-white">Verify your email</h2><p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-slate-400">Open the verification link sent to your invited email address. You will return here and your account will activate automatically.</p></div> : awaitingSms ? <form onSubmit={verifySms} className="space-y-4"><div className="mb-2 flex items-center gap-3 border-b border-white/10 pb-4"><Smartphone className="h-6 w-6 text-violet-300" /><div><h2 className="font-bold text-white">Verify your phone</h2><p className="text-xs text-slate-400">Enter the code sent to the invited phone number.</p></div></div><div><Label htmlFor="sms-code" className="text-slate-300">SMS verification code</Label><Input id="sms-code" inputMode="numeric" autoComplete="one-time-code" value={smsCode} onChange={(event) => setSmsCode(event.target.value)} className="mt-1.5 h-11 border-white/10 bg-white/5 text-white" required /></div><Button type="submit" disabled={submitting} className="h-11 w-full">{submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Verify and activate</Button></form> : <><div className="mb-5 flex gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-3"><UserRoundCheck className="mt-0.5 h-5 w-5 shrink-0 text-violet-300" /><p className="text-xs leading-relaxed text-slate-300">Organization and branch lists are intentionally unavailable. The owner’s invitation is the sole source of your organization, branch, role, and permissions.</p></div><div className="mb-5 grid grid-cols-2 rounded-xl bg-white/[0.04] p-1 text-xs"><button type="button" onClick={() => setMode('create')} className={`rounded-lg px-3 py-2 font-semibold ${mode === 'create' ? 'bg-violet-600 text-white' : 'text-slate-400'}`}>Create password</button><button type="button" onClick={() => setMode('signin')} className={`rounded-lg px-3 py-2 font-semibold ${mode === 'signin' ? 'bg-violet-600 text-white' : 'text-slate-400'}`}>Already have an account</button></div><form onSubmit={mode === 'create' ? createInvitationAccount : signInInvitationAccount} className="space-y-4"><div><Label htmlFor="invited-contact" className="text-slate-300">Invited email address or phone number</Label><Input id="invited-contact" value={contact} onChange={(event) => setContact(event.target.value)} type={emailMode ? 'email' : 'text'} placeholder="you@company.com or +1 555 0100" autoComplete="username" className="mt-1.5 h-11 border-white/10 bg-white/5 text-white placeholder:text-slate-600" required /></div><div><Label htmlFor="invited-password" className="text-slate-300">{mode === 'create' ? 'Create password' : 'Password'}</Label><div className="mt-1.5"><PasswordInput id="invited-password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={mode === 'create' ? 'new-password' : 'current-password'} /></div>{mode === 'create' && <p className="mt-1.5 text-[11px] text-slate-500">At least 10 characters with letters and numbers.</p>}</div>{mode === 'create' && <div><Label htmlFor="confirm-password" className="text-slate-300">Confirm password</Label><div className="mt-1.5"><PasswordInput id="confirm-password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} /></div></div>}<Button type="submit" disabled={submitting} className="h-11 w-full bg-gradient-to-r from-violet-600 to-indigo-600 font-bold text-white">{submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <KeyRound className="mr-2 h-4 w-4" />}{mode === 'create' ? 'Verify identity and create account' : 'Verify identity and activate'}</Button></form></>}</Panel><p className="mt-4 text-center text-xs text-slate-500">Need help? Contact the owner who sent the invitation.</p></Shell>;
 
-              {selectedRole === ROLES.SUPPLIER && (
-                <div>
-                  <Label className="text-slate-300 text-sm">Company Name *</Label>
-                  <Input value={form.supplier_company} onChange={e => setForm(f => ({ ...f, supplier_company: e.target.value }))}
-                    placeholder="Your company name" className="mt-1.5 bg-white/5 border-white/10 text-white placeholder:text-slate-600 focus:border-violet-500" />
-                  {errors.supplier_company && <p className="text-red-400 text-xs mt-1">{errors.supplier_company}</p>}
-                </div>
-              )}
+  if (!isOwnerSetup) return <Shell><Panel><div className="py-6 text-center"><LockKeyhole className="mx-auto mb-4 h-11 w-11 text-violet-300" /><h1 className="text-xl font-black text-white">Staff accounts are invitation-only</h1><p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-slate-400">Ask your organization owner to create a secure invitation. Public organization and branch selection are not available.</p><Button className="mt-5" onClick={() => navigate('/erp-login')}><ArrowLeft className="mr-2 h-4 w-4" /> Go to sign in</Button><button onClick={() => navigate('/erp-register?owner=1')} className="mt-5 block w-full text-xs font-medium text-violet-300 hover:text-violet-200">Create a new owner organization account</button></div></Panel></Shell>;
 
-              <div>
-                <Label className="text-slate-300 text-sm">Phone Number</Label>
-                <Input type="tel" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
-                  placeholder="+966 5x xxx xxxx" className="mt-1.5 bg-white/5 border-white/10 text-white placeholder:text-slate-600 focus:border-violet-500" />
-              </div>
-
-              <div>
-                <Label className="text-slate-300 text-sm">Email Address *</Label>
-                <Input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                  placeholder="you@company.com" className="mt-1.5 bg-white/5 border-white/10 text-white placeholder:text-slate-600 focus:border-violet-500" />
-                {errors.email && <p className="text-red-400 text-xs mt-1">{errors.email}</p>}
-              </div>
-
-              <div>
-                <Label className="text-slate-300 text-sm">Password *</Label>
-                <div className="relative mt-1.5">
-                  <Input type={showPw ? 'text' : 'password'} value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-                    placeholder="Min. 6 characters" className="bg-white/5 border-white/10 text-white placeholder:text-slate-600 focus:border-violet-500 pr-10" />
-                  <button type="button" onClick={() => setShowPw(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300">
-                    {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-                {errors.password && <p className="text-red-400 text-xs mt-1">{errors.password}</p>}
-              </div>
-
-              {selectedRole === ROLES.OWNER && (
-                <div className="space-y-4 border border-violet-500/20 rounded-xl p-4 bg-violet-500/5">
-                  <p className="text-violet-300 text-sm font-semibold flex items-center gap-2">
-                    <Building2 className="w-4 h-4" /> Organization Setup
-                  </p>
-                  <div>
-                    <Label className="text-slate-300 text-sm">Organization Name *</Label>
-                    <Input value={form.company_name} onChange={e => setForm(f => ({ ...f, company_name: e.target.value }))}
-                      placeholder="e.g. Al-Nakheel Restaurant Group" className="mt-1.5 bg-white/5 border-white/10 text-white placeholder:text-slate-600 focus:border-violet-500" />
-                    {errors.company_name && <p className="text-red-400 text-xs mt-1">{errors.company_name}</p>}
-                  </div>
-                  <div>
-                    <Label className="text-slate-300 text-sm">Business Type</Label>
-                    <select value={form.business_type} onChange={e => setForm(f => ({ ...f, business_type: e.target.value }))}
-                      className="mt-1.5 w-full bg-slate-800 border border-white/10 text-white rounded-md px-3 py-2 text-sm focus:outline-none focus:border-violet-500">
-                      {BUSINESS_TYPES.map(bt => <option key={bt.value} value={bt.value}>{bt.label}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <Label className="text-slate-300 text-sm">Address (optional)</Label>
-                    <Input value={form.org_address} onChange={e => setForm(f => ({ ...f, org_address: e.target.value }))}
-                      placeholder="City, Country" className="mt-1.5 bg-white/5 border-white/10 text-white placeholder:text-slate-600 focus:border-violet-500" />
-                  </div>
-                  <div>
-                    <Label className="text-slate-300 text-sm flex items-center gap-1.5">
-                      <GitBranch className="w-3.5 h-3.5" /> First Branch Name *
-                    </Label>
-                    <Input value={form.branch_name} onChange={e => setForm(f => ({ ...f, branch_name: e.target.value }))}
-                      placeholder="e.g. Main Branch" className="mt-1.5 bg-white/5 border-white/10 text-white placeholder:text-slate-600 focus:border-violet-500" />
-                    {errors.branch_name && <p className="text-red-400 text-xs mt-1">{errors.branch_name}</p>}
-                  </div>
-                  <div>
-                    <Label className="text-slate-300 text-sm flex items-center gap-1.5">
-                      <Globe className="w-3.5 h-3.5" /> Default Currency
-                    </Label>
-                    <select value={form.currency_code} onChange={e => setForm(f => ({ ...f, currency_code: e.target.value }))}
-                      className="mt-1.5 w-full bg-slate-800 border border-white/10 text-white rounded-md px-3 py-2 text-sm focus:outline-none focus:border-violet-500">
-                      {CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.symbol} — {c.name} ({c.code})</option>)}
-                    </select>
-                  </div>
-                </div>
-              )}
-
-              {selectedRole !== ROLES.OWNER && (
-                <div>
-                  <Label className="text-slate-300 text-sm flex items-center gap-1.5">
-                    <Building2 className="w-3.5 h-3.5" /> Select Organization *
-                  </Label>
-                  <div className="relative mt-1.5">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-                    <Input value={orgSearch} onChange={e => { setOrgSearch(e.target.value); searchOrgs(e.target.value); }}
-                      placeholder="Search organization name..." className="pl-9 bg-white/5 border-white/10 text-white placeholder:text-slate-600 focus:border-violet-500" />
-                  </div>
-                  {errors.organization_id && <p className="text-red-400 text-xs mt-1">{errors.organization_id}</p>}
-                  {loadingOrgs ? (
-                    <div className="flex items-center gap-2 mt-2 text-slate-500 text-sm">
-                      <Loader2 className="w-4 h-4 animate-spin" /> Loading organizations…
-                    </div>
-                  ) : orgs.length > 0 ? (
-                    <div className="mt-2 space-y-1.5 max-h-48 overflow-y-auto">
-                      {orgs.map(org => (
-                        <button key={org.id} type="button"
-                          onClick={() => { setSelectedOrg(org); setForm(f => ({ ...f, organization_id: org.id, branch_id: '' })); }}
-                          className={`w-full flex items-center gap-3 p-2.5 rounded-lg border text-left transition-all ${selectedOrg?.id === org.id ? 'border-violet-500/50 bg-violet-500/10' : 'border-white/10 bg-white/5 hover:bg-white/10'}`}>
-                          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-600 to-purple-700 flex items-center justify-center shrink-0">
-                            <Building2 className="w-4 h-4 text-white" />
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-white text-sm font-medium truncate">{org.name}</p>
-                            {org.address && <p className="text-slate-500 text-xs truncate">{org.address}</p>}
-                          </div>
-                          {selectedOrg?.id === org.id && <CheckCircle2 className="w-4 h-4 text-violet-400 ml-auto shrink-0" />}
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-slate-600 text-xs mt-2">No organizations found. Try a different search term.</p>
-                  )}
-                </div>
-              )}
-
-              {roleConf?.requiresBranch && selectedOrg && (
-                <div>
-                  <Label className="text-slate-300 text-sm flex items-center gap-1.5">
-                    <GitBranch className="w-3.5 h-3.5" /> Select Branch *
-                  </Label>
-                  {loadingBranches ? (
-                    <div className="flex items-center gap-2 mt-2 text-slate-500 text-sm">
-                      <Loader2 className="w-4 h-4 animate-spin" /> Loading branches…
-                    </div>
-                  ) : (
-                    <select value={form.branch_id} onChange={e => setForm(f => ({ ...f, branch_id: e.target.value }))}
-                      className="mt-1.5 w-full bg-slate-800 border border-white/10 text-white rounded-md px-3 py-2 text-sm focus:outline-none focus:border-violet-500">
-                      <option value="">— Select a branch —</option>
-                      {branches.map(b => <option key={b.id} value={b.id}>{b.name}{b.location ? ` (${b.location})` : ''}</option>)}
-                    </select>
-                  )}
-                  {errors.branch_id && <p className="text-red-400 text-xs mt-1">{errors.branch_id}</p>}
-                </div>
-              )}
-
-              {selectedRole === ROLES.SUPPLIER && (
-                <>
-                  <div>
-                    <Label className="text-slate-300 text-sm">Product Categories</Label>
-                    <Input value={form.product_categories} onChange={e => setForm(f => ({ ...f, product_categories: e.target.value }))}
-                      placeholder="e.g. Fresh Produce, Dairy, Beverages" className="mt-1.5 bg-white/5 border-white/10 text-white placeholder:text-slate-600 focus:border-violet-500" />
-                  </div>
-                  <div>
-                    <Label className="text-slate-300 text-sm">Additional Notes</Label>
-                    <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-                      placeholder="Any additional information..." rows={3}
-                      className="mt-1.5 w-full bg-white/5 border border-white/10 text-white placeholder:text-slate-600 focus:border-violet-500 rounded-md px-3 py-2 text-sm resize-none focus:outline-none" />
-                  </div>
-                </>
-              )}
-
-              <Button type="submit" disabled={loading}
-                className={`w-full bg-gradient-to-r ${roleConf?.color} text-white font-bold h-11 rounded-xl mt-2`}>
-                {loading ? (
-                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    {selectedRole === ROLES.OWNER ? 'Creating Organization…' : 'Submitting Registration…'}
-                  </>
-                ) : (
-                  selectedRole === ROLES.OWNER ? 'Create Organization & Account' : 'Submit Registration Request'
-                )}
-              </Button>
-            </form>
-
-            <div className="mt-4 text-center">
-              <p className="text-slate-500 text-sm">
-                Already have an account?{' '}
-                <button onClick={() => navigate('/erp-login')} className="text-violet-400 hover:text-violet-300 font-medium">Sign in</button>
-              </p>
-            </div>
-
-            <button onClick={() => { setStep('role'); setSelectedRole(null); setErrors({}); setSelectedOrg(null); }}
-              className="flex items-center gap-2 text-slate-500 hover:text-slate-300 text-sm mt-4 mx-auto transition-colors">
-              <ArrowLeft className="w-4 h-4" /> Back to role selection
-            </button>
-          </div>
-        )}
-
-        <p className="text-center text-slate-600 text-xs mt-6">© 2026 RestoCTRL ERP · All rights reserved</p>
-      </div>
-    </div>
-  );
+  return <Shell><div className="mb-6 text-center"><div className="mb-4 inline-flex items-center gap-2 rounded-full border border-violet-400/30 bg-violet-400/10 px-4 py-1.5 text-sm font-medium text-violet-200"><Building2 className="h-4 w-4" /> Owner organization setup</div><h1 className="text-3xl font-black text-white">Create your organization</h1><p className="mt-2 text-sm text-slate-400">Only owners create organizations, branches, and secure staff invitations.</p></div><Panel><form onSubmit={createOwner} className="space-y-4"><div><Label htmlFor="owner-name" className="text-slate-300">Your name</Label><Input id="owner-name" value={owner.fullName} onChange={(event) => setOwner((current) => ({ ...current, fullName: event.target.value }))} className="mt-1.5 h-11 border-white/10 bg-white/5 text-white" required /></div><div><Label htmlFor="owner-email" className="text-slate-300">Email address</Label><Input id="owner-email" type="email" value={owner.email} onChange={(event) => setOwner((current) => ({ ...current, email: event.target.value }))} className="mt-1.5 h-11 border-white/10 bg-white/5 text-white" required /></div><div><Label htmlFor="owner-org" className="text-slate-300">Organization name</Label><Input id="owner-org" value={owner.organization} onChange={(event) => setOwner((current) => ({ ...current, organization: event.target.value }))} className="mt-1.5 h-11 border-white/10 bg-white/5 text-white" required /></div><div><Label htmlFor="owner-branch" className="text-slate-300">Initial branch name</Label><Input id="owner-branch" value={owner.branch} onChange={(event) => setOwner((current) => ({ ...current, branch: event.target.value }))} className="mt-1.5 h-11 border-white/10 bg-white/5 text-white" required /></div><div><Label htmlFor="owner-password" className="text-slate-300">Create password</Label><div className="mt-1.5"><PasswordInput id="owner-password" value={owner.password} onChange={(event) => setOwner((current) => ({ ...current, password: event.target.value }))} /></div></div><div><Label htmlFor="owner-confirm" className="text-slate-300">Confirm password</Label><div className="mt-1.5"><PasswordInput id="owner-confirm" value={owner.confirm} onChange={(event) => setOwner((current) => ({ ...current, confirm: event.target.value }))} /></div></div><Button type="submit" disabled={submitting} className="h-11 w-full bg-gradient-to-r from-violet-600 to-indigo-600 font-bold text-white">{submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Building2 className="mr-2 h-4 w-4" />}Create owner account and organization</Button></form></Panel><button onClick={() => navigate('/erp-login')} className="mx-auto mt-4 flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-200"><ArrowLeft className="h-3.5 w-3.5" /> Return to sign in</button></Shell>;
 }

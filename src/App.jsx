@@ -1,7 +1,7 @@
 import React, { lazy, Suspense } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
-import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Routes, Navigate, useLocation } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
@@ -15,7 +15,6 @@ import { BusinessModeProvider } from '@/lib/BusinessModeContext';
 import { NotificationProvider } from '@/lib/NotificationContext';
 import { useRole, ROLES, ROLE_HOME, NON_OWNER_ROLES } from '@/lib/RoleContext';
 import { Toaster } from 'sonner';
-import { base44 } from '@/api/base44Client';
 
 // ── Core layout (always loaded eagerly) ──────────────────────────────────────
 import AppLayout from '@/components/layout/AppLayout';
@@ -130,7 +129,6 @@ import ERPRegister            from '@/pages/ERPRegister';
 
 // ── Legacy pages removed — replaced by ERP portals ─────────────────────────
 // ── NEW ERP Multi-Tenant Portals ─────────────────────────────────────────────
-const ERPApprovalCenter     = lazy(() => import('@/pages/ERPApprovalCenter'));
 const GMDashboard           = lazy(() => import('@/pages/GMDashboard'));
 const ManagerDashboardERP   = lazy(() => import('@/pages/ManagerDashboardERP'));
 const EmployeeDashboardERP  = lazy(() => import('@/pages/EmployeeDashboardERP'));
@@ -320,7 +318,7 @@ const SubscribedRoutes = () => {
         <Route path="/branch-management" element={<RoleGuard permission="viewBrandSettings"><BranchManagement /></RoleGuard>} />
 
         <Route path="/approval-policy" element={<RoleGuard permission="viewBrandSettings"><ApprovalPolicy /></RoleGuard>} />
-        <Route path="/approval-center" element={<RoleGuard permission="manageSettings"><ERPApprovalCenter /></RoleGuard>} />
+        <Route path="/approval-center" element={<Navigate to="/owner-command-center" replace />} />
         <Route path="/sales-sources" element={<RoleGuard permission="viewBrandSettings"><SalesSources /></RoleGuard>} />
         <Route path="/telegram-settings" element={<RoleGuard permission="viewBrandSettings"><TelegramSettings /></RoleGuard>} />
         <Route path="/billing" element={<RoleGuard permission="viewBilling"><Billing /></RoleGuard>} />
@@ -337,7 +335,7 @@ const SubscribedRoutes = () => {
         <Route path="/driver-dashboard" element={<ERPRoleGuard allowedRoles={['driver']}><DriverDashboardERP /></ERPRoleGuard>} />
         <Route path="/kitchen-dashboard" element={<ERPRoleGuard allowedRoles={['kitchen']}><KitchenDashboardERP /></ERPRoleGuard>} />
         <Route path="/supplier-portal" element={<ERPRoleGuard allowedRoles={['supplier']}><SupplierPortalERP /></ERPRoleGuard>} />
-        <Route path="/erp-approval-center" element={<ERPRoleGuard allowedRoles={['owner']}><ERPApprovalCenter /></ERPRoleGuard>} />
+        <Route path="/erp-approval-center" element={<Navigate to="/owner-command-center" replace />} />
         {/* ── Legacy role portals — redirect to new ERP dashboards ── */}
         <Route path="/employee-portal" element={<Navigate to="/employee-dashboard" replace />} />
         <Route path="/driver-portal" element={<Navigate to="/driver-dashboard" replace />} />
@@ -407,27 +405,12 @@ const SubscribedRoutes = () => {
   );
 };
 
-// ── Manager role applier (invite token safety net) ────────────────────────────
-function ManagerRoleApplier() {
-  const { user } = useAuth();
-  React.useEffect(() => {
-    if (!user?.email) return;
-    const safeRoles = new Set(['user', ROLES.OWNER, null, undefined, '']);
-    if (!safeRoles.has(user.role)) return;
-    const pendingToken =
-      sessionStorage.getItem('pending_invite_token') ||
-      localStorage.getItem('pending_invite_token') ||
-      sessionStorage.getItem('pending_kitchen_invite_token') ||
-      localStorage.getItem('pending_kitchen_invite_token');
-    if (!pendingToken) return;
-    sessionStorage.removeItem('pending_invite_token');
-    localStorage.removeItem('pending_invite_token');
-    localStorage.removeItem('pending_invite_return_url');
-    base44.functions.invoke('acceptInvite', { token: pendingToken })
-      .then(res => { if (res?.data?.success) window.location.reload(); })
-      .catch(e => console.warn('[ManagerRoleApplier]', e));
-  }, [user?.email, user?.role]);
-  return null;
+// Legacy invitation routes may preserve a token, but can never apply a role or tenant from the browser.
+function LegacyInvitationRedirect() {
+  const location = useLocation();
+  const query = new URLSearchParams(location.search);
+  const token = query.get('token') || query.get('invite_token');
+  return <Navigate to={token ? `/erp-register?token=${encodeURIComponent(token)}` : '/erp-register'} replace />;
 }
 
 // ── Authenticated app shell ───────────────────────────────────────────────────
@@ -476,7 +459,6 @@ const AuthenticatedApp = () => {
         <TenantProvider>
           <BusinessModeProvider>
             <NotificationProvider>
-              <ManagerRoleApplier />
               <RoleHomeRedirect />
               <SubscribedRoutes />
             </NotificationProvider>
@@ -500,17 +482,17 @@ function App() {
               <Route path="/erp-register" element={<ERPRegister />} />
               {/* ── Legacy auth routes — all redirect to unified ERP login ── */}
               <Route path="/auth" element={<Navigate to="/erp-login" replace />} />
-              <Route path="/invite" element={<Navigate to="/erp-register?role=manager" replace />} />
-              <Route path="/manager-invite" element={<Navigate to="/erp-register?role=manager" replace />} />
-              <Route path="/auth/invite" element={<Navigate to="/erp-register?role=manager" replace />} />
+              <Route path="/invite" element={<LegacyInvitationRedirect />} />
+              <Route path="/manager-invite" element={<LegacyInvitationRedirect />} />
+              <Route path="/auth/invite" element={<LegacyInvitationRedirect />} />
               <Route path="/auth/manager-login" element={<Navigate to="/erp-login?role=manager" replace />} />
-              <Route path="/auth/activate" element={<Navigate to="/erp-login" replace />} />
-              <Route path="/driver-invite" element={<Navigate to="/erp-register?role=driver" replace />} />
+              <Route path="/auth/activate" element={<LegacyInvitationRedirect />} />
+              <Route path="/driver-invite" element={<LegacyInvitationRedirect />} />
               <Route path="/auth/driver-login" element={<Navigate to="/erp-login?role=driver" replace />} />
-              <Route path="/employee-invite" element={<Navigate to="/erp-register?role=employee" replace />} />
+              <Route path="/employee-invite" element={<LegacyInvitationRedirect />} />
               <Route path="/auth/employee-login" element={<Navigate to="/erp-login?role=employee" replace />} />
-              <Route path="/kitchen-invite" element={<Navigate to="/erp-register?role=kitchen" replace />} />
-              <Route path="/supplier-registration" element={<Navigate to="/erp-register?role=supplier" replace />} />
+              <Route path="/kitchen-invite" element={<LegacyInvitationRedirect />} />
+              <Route path="/supplier-registration" element={<LegacyInvitationRedirect />} />
               {/* ── Landing page ── */}
               <Route path="/" element={<LandingPage />} />
               {/* All authenticated routes */}
