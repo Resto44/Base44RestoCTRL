@@ -207,7 +207,7 @@ export function useRouteGuard() {
     if (isLoadingAuth || !user) return;
     const path = location.pathname;
     // Whitelist bypass for home, auth, and onboarding
-    if (['/', '/auth', '/erp-login', '/erp-register', '/onboarding', '/support', '/supplier-registration'].includes(path)) return;
+    if (['/', '/auth', '/erp-login', '/erp-register', '/onboarding', '/support'].includes(path)) return;
     // Check if the role is allowed to be on this specific dashboard
     if (path.endsWith('-dashboard')) {
       const dashboardRole = path.replace('/', '').replace('-dashboard', '');

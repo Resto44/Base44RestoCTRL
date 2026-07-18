@@ -4,9 +4,9 @@ import { Button } from '@/components/ui/button';
 import {
   Building2, ChefHat, ShoppingBag, Warehouse, Factory,
   Pill, Stethoscope, Package, Wrench, BarChart3,
-  Users, DollarSign, TrendingUp, ShieldCheck, Globe,
-  ArrowRight, CheckCircle2, Zap, Clock, Handshake,
-  LayoutDashboard, Truck, Receipt, CreditCard, Star,
+  Users, DollarSign, ShieldCheck, Globe,
+  ArrowRight, CheckCircle2, Zap,
+  LayoutDashboard, Truck, Receipt, Star,
   ChevronRight, Menu, X
 } from 'lucide-react';
 
@@ -41,7 +41,7 @@ const FEATURES = [
   {
     icon: Truck,
     title: 'Supplier Management',
-    desc: 'Supplier self-registration, approval workflow, purchase orders, invoices, and outstanding balance tracking.',
+    desc: 'Owner-issued supplier invitations, purchase orders, invoices, and outstanding balance tracking.',
     color: 'text-amber-400',
     bg: 'bg-amber-500/10',
   },
@@ -130,25 +130,22 @@ export default function LandingPage() {
             <a href="#features" className="hover:text-white transition-colors">Features</a>
             <a href="#business-types" className="hover:text-white transition-colors">Industries</a>
             <a href="#testimonials" className="hover:text-white transition-colors">Testimonials</a>
-            <a href="/supplier-registration" className="hover:text-white transition-colors flex items-center gap-1">
-              <Handshake className="w-3.5 h-3.5" /> Become a Supplier
-            </a>
           </div>
 
-          {/* CTA Buttons */}
+          {/* Secure ERP entry points */}
           <div className="hidden md:flex items-center gap-3">
             <Button
               variant="ghost"
-              onClick={() => navigate('/auth')}
+              onClick={() => navigate('/erp-login')}
               className="text-slate-300 hover:text-white hover:bg-white/5 text-sm"
             >
               Sign In
             </Button>
             <Button
-              onClick={() => navigate('/auth')}
+              onClick={() => navigate('/erp-register?owner=1')}
               className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-sm px-5"
             >
-              Start Free Trial
+              Create Organization
             </Button>
           </div>
 
@@ -167,10 +164,9 @@ export default function LandingPage() {
             <a href="#features" className="block text-slate-300 hover:text-white text-sm py-1">Features</a>
             <a href="#business-types" className="block text-slate-300 hover:text-white text-sm py-1">Industries</a>
             <a href="#testimonials" className="block text-slate-300 hover:text-white text-sm py-1">Testimonials</a>
-            <a href="/supplier-registration" className="block text-slate-300 hover:text-white text-sm py-1">Become a Supplier</a>
             <div className="flex gap-2 pt-2">
-              <Button variant="outline" onClick={() => navigate('/auth')} className="flex-1 border-white/20 text-slate-300 text-sm">Sign In</Button>
-              <Button onClick={() => navigate('/auth')} className="flex-1 bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-sm">Get Started</Button>
+              <Button variant="outline" onClick={() => navigate('/erp-login')} className="flex-1 border-white/20 text-slate-300 text-sm">Sign In</Button>
+              <Button onClick={() => navigate('/erp-register?owner=1')} className="flex-1 bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-sm">Create Organization</Button>
             </div>
           </div>
         )}
@@ -205,17 +201,17 @@ export default function LandingPage() {
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
             <Button
-              onClick={() => navigate('/auth')}
+              onClick={() => navigate('/erp-register?owner=1')}
               className="w-full sm:w-auto bg-cyan-600 hover:bg-cyan-500 text-white font-black text-base px-8 py-6 rounded-xl shadow-lg shadow-cyan-500/20 flex items-center gap-2"
             >
-              Start Free Trial <ArrowRight className="w-5 h-5" />
+              Create Organization <ArrowRight className="w-5 h-5" />
             </Button>
             <Button
               variant="outline"
-              onClick={() => navigate('/supplier-registration')}
+              onClick={() => navigate('/erp-login')}
               className="w-full sm:w-auto border-white/20 text-slate-300 hover:bg-white/5 font-bold text-base px-8 py-6 rounded-xl flex items-center gap-2"
             >
-              <Handshake className="w-5 h-5" /> Register as Supplier
+              <Users className="w-5 h-5" /> Staff sign in
             </Button>
           </div>
 
@@ -247,7 +243,7 @@ export default function LandingPage() {
             <div
               key={label}
               className="group flex flex-col items-center gap-3 p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all cursor-pointer"
-              onClick={() => navigate('/auth')}
+              onClick={() => navigate('/erp-register?owner=1')}
             >
               <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${color} flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform`}>
                 <Icon className="w-6 h-6 text-white" />
@@ -307,10 +303,10 @@ export default function LandingPage() {
                 BizCTRL gives each role a dedicated, purpose-built experience. Owners see everything; employees see only what they need.
               </p>
               <Button
-                onClick={() => navigate('/auth')}
+                onClick={() => navigate('/erp-login')}
                 className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold flex items-center gap-2"
               >
-                Get Started <ChevronRight className="w-4 h-4" />
+                Staff sign in <ChevronRight className="w-4 h-4" />
               </Button>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -372,17 +368,17 @@ export default function LandingPage() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button
-              onClick={() => navigate('/auth')}
+              onClick={() => navigate('/erp-register?owner=1')}
               className="bg-cyan-600 hover:bg-cyan-500 text-white font-black text-base px-8 py-6 rounded-xl shadow-lg shadow-cyan-500/20 flex items-center gap-2"
             >
-              Start Free Trial <ArrowRight className="w-5 h-5" />
+              Create Organization <ArrowRight className="w-5 h-5" />
             </Button>
             <Button
               variant="outline"
-              onClick={() => navigate('/supplier-registration')}
+              onClick={() => navigate('/erp-login')}
               className="border-white/20 text-slate-300 hover:bg-white/5 font-bold text-base px-8 py-6 rounded-xl flex items-center gap-2"
             >
-              <Handshake className="w-5 h-5" /> Register as Supplier
+              <Users className="w-5 h-5" /> Staff sign in
             </Button>
           </div>
         </div>
@@ -398,8 +394,8 @@ export default function LandingPage() {
             <span className="text-white font-black">Biz<span className="text-cyan-400">CTRL</span></span>
           </div>
           <div className="flex flex-wrap gap-6 text-sm text-slate-500">
-            <a href="/auth" className="hover:text-white transition-colors">Sign In</a>
-            <a href="/supplier-registration" className="hover:text-white transition-colors">Supplier Registration</a>
+            <a href="/erp-login" className="hover:text-white transition-colors">ERP Sign In</a>
+            <a href="/erp-register?owner=1" className="hover:text-white transition-colors">Create Organization</a>
             <a href="#features" className="hover:text-white transition-colors">Features</a>
             <a href="#business-types" className="hover:text-white transition-colors">Industries</a>
           </div>
