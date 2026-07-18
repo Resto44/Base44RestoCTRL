@@ -210,7 +210,7 @@ CREATE POLICY "employees_branch_isolation"
   USING (
     is_owner_or_gm()
     OR branch_id = auth_user_branch_id()
-    OR branch_id IN (SELECT branch_id FROM branch_assignments WHERE user_id = auth.uid() AND is_active = true)
+    OR branch_id IN (SELECT branch_id FROM branch_assignments WHERE user_id = auth.uid() AND active = true)
   );
 
 -- Delivery orders: enforce branch isolation
@@ -222,7 +222,7 @@ CREATE POLICY "delivery_orders_branch_isolation"
   USING (
     is_owner_or_gm()
     OR branch_id = auth_user_branch_id()
-    OR branch_id IN (SELECT branch_id FROM branch_assignments WHERE user_id = auth.uid() AND is_active = true)
+    OR branch_id IN (SELECT branch_id FROM branch_assignments WHERE user_id = auth.uid() AND active = true)
   );
 
 -- ── 10. Grant permissions ─────────────────────────────────────────────────────
