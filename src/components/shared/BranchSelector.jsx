@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
-import { Button } from '@/components/ui/button';
 import { Building2, GitBranch, ChevronRight, Loader2 } from 'lucide-react';
 
 /**
  * BranchSelector — shown after login when a manager/employee is assigned to multiple branches.
  * Stores the selected branch in sessionStorage so the app can use it for RLS filtering.
+ *
+ * Resolution order:
+ *   1. branch_assignments (active=true) with branches join
+ *   2. profiles.branch_id with branches join (fallback when join is blocked by RLS)
+ *   3. Direct branches fetch by profile.branch_id (last resort)
  */
 export default function BranchSelector({ onSelect }) {
   const { user } = useAuth();
@@ -14,39 +18,67 @@ export default function BranchSelector({ onSelect }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadAssignedBranches();
+    if (user?.id) {
+      setLoading(true);
+      loadAssignedBranches();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   const loadAssignedBranches = async () => {
-    if (!user?.id) return;
     try {
-      // First check branch_assignments
+      // ── Step 1: branch_assignments (active only) ──────────────────────────────
       const { data: assignments } = await supabase
         .from('branch_assignments')
         .select('branch_id, branches(id, name, restaurant_id, restaurants(name))')
-        .eq('user_id', user.id);
+        .eq('user_id', user.id)
+        .eq('active', true);
 
-      if (assignments?.length > 0) {
-        const branchList = assignments
-          .map(a => a.branches)
-          .filter(Boolean);
+      // Filter out rows where the branches join returned null (RLS edge case)
+      const branchList = (assignments || [])
+        .map(a => a.branches)
+        .filter(Boolean);
+
+      if (branchList.length > 0) {
         setBranches(branchList);
-        // Auto-select if only one branch
         if (branchList.length === 1) {
           handleSelect(branchList[0]);
-          return;
         }
-      } else {
-        // Fall back to profile branch_id
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('branch_id, branches(id, name, restaurant_id, restaurants(name))')
-          .eq('id', user.id)
+        return;
+      }
+
+      // ── Step 2: profile branch_id with join ───────────────────────────────────
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('branch_id, restaurant_id, organization_id, branches(id, name, restaurant_id, restaurants(name))')
+        .eq('id', user.id)
+        .single();
+
+      if (profile?.branches) {
+        setBranches([profile.branches]);
+        handleSelect(profile.branches);
+        return;
+      }
+
+      // ── Step 3: direct branch fetch by profile.branch_id ─────────────────────
+      if (profile?.branch_id) {
+        const { data: branch } = await supabase
+          .from('branches')
+          .select('id, name, restaurant_id, restaurants(name)')
+          .eq('id', profile.branch_id)
           .single();
 
-        if (profile?.branches) {
-          setBranches([profile.branches]);
-          handleSelect(profile.branches);
+        if (branch) {
+          // Attach restaurant_id from profile if missing on the branch row
+          const enriched = {
+            ...branch,
+            restaurant_id: branch.restaurant_id
+              || profile.organization_id
+              || profile.restaurant_id
+              || '',
+          };
+          setBranches([enriched]);
+          handleSelect(enriched);
           return;
         }
       }
@@ -59,7 +91,7 @@ export default function BranchSelector({ onSelect }) {
 
   const handleSelect = (branch) => {
     sessionStorage.setItem('erp_active_branch_id', branch.id);
-    sessionStorage.setItem('erp_active_branch_name', branch.name);
+    sessionStorage.setItem('erp_active_branch_name', branch.name || '');
     sessionStorage.setItem('erp_active_restaurant_id', branch.restaurant_id || '');
     onSelect?.(branch);
   };

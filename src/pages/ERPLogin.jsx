@@ -110,10 +110,21 @@ export default function ERPLogin() {
         try {
           const { data: profile } = await supabase
             .from('profiles')
-            .select('role, approval_status')
+            .select('role, approval_status, branch_id, restaurant_id, organization_id')
             .eq('id', session.user.id)
             .single();
           if (profile?.role && profile.approval_status === 'approved') {
+            // Pre-populate sessionStorage so dashboard opens on the correct branch
+            if (profile.branch_id && profile.role !== ROLES.OWNER) {
+              const orgId = profile.organization_id || profile.restaurant_id || '';
+              if (!sessionStorage.getItem('erp_active_branch_id')) {
+                const { data: branchRow } = await supabase
+                  .from('branches').select('name').eq('id', profile.branch_id).single();
+                sessionStorage.setItem('erp_active_branch_id', profile.branch_id);
+                sessionStorage.setItem('erp_active_branch_name', branchRow?.name || '');
+                sessionStorage.setItem('erp_active_restaurant_id', orgId);
+              }
+            }
             const home = ROLE_HOME[profile.role] || '/owner-command-center';
             navigate(home, { replace: true });
           }
@@ -142,10 +153,10 @@ export default function ERPLogin() {
         return;
       }
 
-      // Fetch profile to validate role and approval status
+      // Fetch profile to validate role and approval status, and to pre-populate branch sessionStorage
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('role, approval_status, full_name')
+        .select('role, approval_status, full_name, branch_id, restaurant_id, organization_id')
         .eq('id', data.user.id)
         .single();
 
@@ -217,6 +228,22 @@ export default function ERPLogin() {
       }
 
       const home = ROLE_HOME[profile.role] || '/owner-command-center';
+
+      // Pre-populate sessionStorage with the assigned branch so the dashboard
+      // skips BranchSelector and opens directly on the correct branch.
+      if (profile.branch_id && profile.role !== ROLES.OWNER) {
+        const orgId = profile.organization_id || profile.restaurant_id || '';
+        // Fetch branch name for the session label
+        const { data: branchRow } = await supabase
+          .from('branches')
+          .select('name')
+          .eq('id', profile.branch_id)
+          .single();
+        sessionStorage.setItem('erp_active_branch_id', profile.branch_id);
+        sessionStorage.setItem('erp_active_branch_name', branchRow?.name || '');
+        sessionStorage.setItem('erp_active_restaurant_id', orgId);
+      }
+
       toast.success(`Welcome back, ${profile.full_name || email}!`);
       navigate(home, { replace: true });
     } catch (err) {
