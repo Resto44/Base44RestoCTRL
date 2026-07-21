@@ -64,7 +64,7 @@ import {
   Scale, Target, Zap, ChevronRight, ArrowUpRight, ArrowDownRight,
   CheckCircle2, XCircle, AlertCircle,
   LayoutDashboard, Layers, Clock, MapPin, Globe, ChevronDown,
-  Building2, ShieldCheck,
+  Building2,
 } from 'lucide-react';
 import {
   format, startOfMonth, startOfWeek, startOfYear,

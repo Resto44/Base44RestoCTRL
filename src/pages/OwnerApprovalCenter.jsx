@@ -7,11 +7,12 @@ import {
   Building2, Users, UserCheck, User, ChefHat, Truck, Package,
   CheckCircle2, XCircle, Clock, ShieldCheck, ShieldOff,
   RefreshCw, Search, Eye, Phone, Mail, Calendar, GitBranch,
-  AlertCircle, Loader2, ArrowLeft
+  AlertCircle, Loader2, ArrowLeft, Link2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
+import OwnerStaffProvisioning from '@/components/owner/OwnerStaffProvisioning';
 
 const ROLE_META = {
   owner:           { label: 'Owner',           color: 'bg-violet-500/20 text-violet-300 border-violet-500/30', icon: Building2 },
@@ -202,9 +203,8 @@ function DetailModal({ membership, branches, onClose }) {
   );
 }
 
-export default function OwnerApprovalCenter() {
-  const navigate = useNavigate();
-  const { user } = useAuth();
+// ── Approval Center Tab ────────────────────────────────────────────────────────
+function ApprovalCenterTab() {
   const [memberships, setMemberships] = useState([]);
   const [branches, setBranches] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -256,8 +256,6 @@ export default function OwnerApprovalCenter() {
     setActionLoading(true);
     try {
       if (action === 'suspended') {
-        // Suspension: directly update erp_memberships and profiles
-        // erp_decide_membership only handles pending->approved/rejected transitions
         const suspendReason = reason || 'Account suspended by owner';
         const { error: memErr } = await supabase
           .from('erp_memberships')
@@ -268,7 +266,6 @@ export default function OwnerApprovalCenter() {
           })
           .eq('id', membership.id);
         if (memErr) throw memErr;
-        // Also update profiles
         await supabase
           .from('profiles')
           .update({
@@ -281,7 +278,6 @@ export default function OwnerApprovalCenter() {
         setActionModal(null);
         await loadData(true);
       } else {
-        // approved or rejected: use erp_decide_membership RPC
         const { error } = await supabase.rpc('erp_decide_membership', {
           p_membership_id: membership.id,
           p_decision: action,
@@ -323,23 +319,9 @@ export default function OwnerApprovalCenter() {
   const pendingCount = stats.pending;
 
   return (
-    <div className="space-y-5 pb-28 max-w-2xl mx-auto">
-      <div className="flex items-center justify-between pt-2">
-        <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/owner-command-center')} className="text-slate-400 hover:text-white transition-colors">
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div>
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="w-5 h-5 text-violet-400" />
-              <h1 className="text-xl font-black text-foreground tracking-tight">Approval Center</h1>
-              {pendingCount > 0 && (
-                <span className="bg-amber-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">{pendingCount}</span>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground mt-0.5 ml-7">Manage staff registration requests</p>
-          </div>
-        </div>
+    <div className="space-y-5">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-muted-foreground">Review and manage staff registration requests</p>
         <Button onClick={() => loadData(true)} disabled={refreshing} variant="outline" size="sm"
           className="border-white/10 text-slate-300 hover:text-white gap-2">
           <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
@@ -499,6 +481,72 @@ export default function OwnerApprovalCenter() {
           onClose={() => setDetailModal(null)}
         />
       )}
+    </div>
+  );
+}
+
+// ── Request Center Tab ─────────────────────────────────────────────────────────
+function RequestCenterTab() {
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-muted-foreground">
+        Create and manage secure one-time invitations for your organization staff.
+      </p>
+      <OwnerStaffProvisioning />
+    </div>
+  );
+}
+
+// ── Main Component ─────────────────────────────────────────────────────────────
+export default function OwnerApprovalCenter() {
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState('approvals');
+
+  const tabs = [
+    { id: 'approvals',       label: 'Approval Center', icon: ShieldCheck },
+    { id: 'request_center',  label: 'Request Center',  icon: Link2 },
+  ];
+
+  return (
+    <div className="space-y-5 pb-28 max-w-2xl mx-auto">
+      {/* Header */}
+      <div className="flex items-center gap-3 pt-2">
+        <button onClick={() => navigate('/owner-command-center')} className="text-slate-400 hover:text-white transition-colors">
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <div>
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="w-5 h-5 text-violet-400" />
+            <h1 className="text-xl font-black text-foreground tracking-tight">Approval Center</h1>
+          </div>
+          <p className="text-xs text-muted-foreground mt-0.5 ml-7">Manage approvals and staff invitations</p>
+        </div>
+      </div>
+
+      {/* Tab Bar */}
+      <div className="flex gap-1 bg-white/5 border border-white/10 rounded-xl p-1">
+        {tabs.map(tab => {
+          const Icon = tab.icon;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-semibold transition-all ${
+                activeTab === tab.id
+                  ? 'bg-violet-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Icon className="w-4 h-4 shrink-0" />
+              <span className="truncate">{tab.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === 'approvals' && <ApprovalCenterTab />}
+      {activeTab === 'request_center' && <RequestCenterTab />}
     </div>
   );
 }

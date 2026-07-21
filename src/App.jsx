@@ -96,6 +96,7 @@ const RestaurantManager   = lazy(() => import('@/pages/RestaurantManager'));
 
 const EnterpriseCategoryManager = lazy(() => import('@/components/categories/CategoryManager'));
 const ApprovalPolicy      = lazy(() => import('@/pages/ApprovalPolicy'));
+const OwnerApprovalCenter = lazy(() => import('@/pages/OwnerApprovalCenter'));
 const SalesSources        = lazy(() => import('@/pages/SalesSources'));
 const TelegramSettings    = lazy(() => import('@/pages/TelegramSettings'));
 const Billing             = lazy(() => import('@/pages/Billing'));
@@ -320,7 +321,7 @@ const SubscribedRoutes = () => {
         <Route path="/branch-management" element={<RoleGuard permission="viewBrandSettings"><BranchManagement /></RoleGuard>} />
 
         <Route path="/approval-policy" element={<RoleGuard permission="viewBrandSettings"><ApprovalPolicy /></RoleGuard>} />
-        <Route path="/approval-center" element={<Navigate to="/owner-command-center" replace />} />
+        <Route path="/approval-center" element={<Navigate to="/erp-approval-center" replace />} />
         <Route path="/sales-sources" element={<RoleGuard permission="viewBrandSettings"><SalesSources /></RoleGuard>} />
         <Route path="/telegram-settings" element={<RoleGuard permission="viewBrandSettings"><TelegramSettings /></RoleGuard>} />
         <Route path="/billing" element={<RoleGuard permission="viewBilling"><Billing /></RoleGuard>} />
@@ -337,7 +338,7 @@ const SubscribedRoutes = () => {
         <Route path="/driver-dashboard" element={<ERPRoleGuard allowedRoles={['driver']}><DriverDashboardERP /></ERPRoleGuard>} />
         <Route path="/kitchen-dashboard" element={<ERPRoleGuard allowedRoles={['kitchen']}><KitchenDashboardERP /></ERPRoleGuard>} />
         <Route path="/supplier-portal" element={<ERPRoleGuard allowedRoles={['supplier']}><SupplierPortalERP /></ERPRoleGuard>} />
-        <Route path="/erp-approval-center" element={<Navigate to="/owner-command-center" replace />} />
+        <Route path="/erp-approval-center" element={<RoleGuard permission="manageSettings"><OwnerApprovalCenter /></RoleGuard>} />
         {/* ── Legacy role portals — redirect to new ERP dashboards ── */}
         <Route path="/employee-portal" element={<Navigate to="/employee-dashboard" replace />} />
         <Route path="/driver-portal" element={<Navigate to="/driver-dashboard" replace />} />
