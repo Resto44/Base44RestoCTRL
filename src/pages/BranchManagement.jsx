@@ -155,7 +155,7 @@ const UI = {
 
 const EMPTY_BRANCH = { key: '', label: '', address: '', phone: '', working_hours: '', manager_email: '', manager_name: '', is_active: true };
 
-function BranchForm({ initial, onSubmit, onCancel, u, allBranches }) {
+function BranchForm({ initial, onSubmit, onCancel, u, saving }) {
   const [form, setForm] = useState(initial || EMPTY_BRANCH);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
   const isEdit = !!initial?.key;
@@ -197,7 +197,7 @@ function BranchForm({ initial, onSubmit, onCancel, u, allBranches }) {
         <Label>{form.is_active !== false ? u.active : u.inactive}</Label>
       </div>
       <div className="flex gap-2 pt-2">
-        <Button className="flex-1" onClick={() => form.label.trim() && onSubmit(form)} disabled={!form.label.trim()}>{u.save}</Button>
+        <Button className="flex-1" onClick={() => form.label.trim() && onSubmit(form)} disabled={saving || !form.label.trim()}>{u.save}</Button>
         <Button variant="outline" onClick={onCancel}>{u.cancel}</Button>
       </div>
     </div>
@@ -269,33 +269,52 @@ export default function BranchManagement() {
 
   const handleSaveBranch = async (form) => {
     setSaving(true);
-    const key = form.key || form.label.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
-    if (editing) {
-      const updated = allBranches.map(b => b.key === editing.key ? { ...b, ...form, key: b.key } : b);
-      await updateRestaurantBranches(updated);
-      toast.success(u.edit_branch);
-    } else {
-      if (allBranches.find(b => b.key === key)) {
-        toast.error('Branch key already exists. Use a different name.');
-        setSaving(false);
-        return;
+    try {
+      const key = form.key || form.label.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+      if (editing) {
+        const updated = allBranches.map(b => b.key === editing.key ? { ...b, ...form, key: b.key } : b);
+        await updateRestaurantBranches(updated);
+        toast.success(u.edit_branch);
+      } else {
+        if (allBranches.find(b => b.key === key)) {
+          toast.error('Branch key already exists. Use a different name.');
+          return;
+        }
+        await updateRestaurantBranches([...allBranches, { ...form, key }]);
+        toast.success(u.add_branch);
       }
-      await updateRestaurantBranches([...allBranches, { ...form, key }]);
-      toast.success(u.add_branch);
+      setShowForm(false);
+      setEditing(null);
+    } catch (error) {
+      console.error('[BranchManagement] branch save failed', error);
+      toast.error(error.message || 'Unable to save this branch.');
+    } finally {
+      setSaving(false);
     }
-    setShowForm(false);
-    setEditing(null);
-    setSaving(false);
   };
 
   const handleDelete = async () => {
-    await updateRestaurantBranches(allBranches.filter(b => b.key !== deleting.key));
-    setDeleting(null);
-    toast.success(u.delete_branch);
+    if (!deleting) return;
+    setSaving(true);
+    try {
+      await updateRestaurantBranches(allBranches.filter(b => b.key !== deleting.key));
+      setDeleting(null);
+      toast.success(u.delete_branch);
+    } catch (error) {
+      console.error('[BranchManagement] branch delete failed', error);
+      toast.error(error.message || 'Unable to delete this branch.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleToggle = async (branchKey) => {
-    await updateRestaurantBranches(allBranches.map(b => b.key === branchKey ? { ...b, is_active: !b.is_active } : b));
+    try {
+      await updateRestaurantBranches(allBranches.map(b => b.key === branchKey ? { ...b, is_active: !b.is_active } : b));
+    } catch (error) {
+      console.error('[BranchManagement] branch status update failed', error);
+      toast.error(error.message || 'Unable to update this branch.');
+    }
   };
 
   if (role !== 'owner') {
@@ -559,8 +578,8 @@ export default function BranchManagement() {
           </DialogHeader>
           <BranchForm
             initial={editing}
-            allBranches={allBranches}
             u={u}
+            saving={saving}
             onSubmit={handleSaveBranch}
             onCancel={() => { setShowForm(false); setEditing(null); }}
           />
@@ -576,7 +595,7 @@ export default function BranchManagement() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{u.cancel}</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete}>{u.delete_branch}</AlertDialogAction>
+            <AlertDialogAction onClick={handleDelete} disabled={saving}>{u.delete_branch}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

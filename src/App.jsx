@@ -106,6 +106,7 @@ const Tasks               = lazy(() => import('@/pages/Tasks'));
 const Alerts              = lazy(() => import('@/pages/Alerts'));
 const NotificationCenter  = lazy(() => import('@/pages/NotificationCenter'));
 const StaffUpload         = lazy(() => import('@/pages/StaffUpload'));
+const StaffInvitations    = lazy(() => import('@/pages/StaffInvitations'));
 
 const Onboarding          = lazy(() => import('@/pages/Onboarding'));
 
@@ -256,6 +257,7 @@ const SubscribedRoutes = () => {
         <Route path="/executive-command-center" element={<RoleGuard permission="viewDashboard"><ExecutiveCommandCenter /></RoleGuard>} />
 
         <Route path="/staff-upload" element={<RoleGuard permission="uploadSales"><StaffUpload /></RoleGuard>} />
+        <Route path="/staff-invitations" element={<RoleGuard permission="viewBrandSettings"><StaffInvitations /></RoleGuard>} />
 
         {/* ── Core Operations ── */}
         <Route path="/sales" element={<RoleGuard permission="viewSales"><Sales /></RoleGuard>} />

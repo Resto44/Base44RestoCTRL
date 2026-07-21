@@ -138,9 +138,60 @@ export function TenantProvider({ children }) {
     } catch { return []; }
   }, [activeRestaurant]);
 
-  // Use DB branches if available, fall back to JSON
-  const allBranches = branchesFromDB.length > 0 ? branchesFromDB : branchesFromJSON;
+  // Merge canonical database branches with legacy JSON metadata. Database rows remain
+  // authoritative for identity and active status, while legacy metadata stays available.
+  const allBranches = React.useMemo(() => {
+    const legacyByKey = new Map(
+      branchesFromJSON
+        .filter(branch => branch?.key || branch?.branch_key)
+        .map(branch => [branch.key || branch.branch_key, branch]),
+    );
+    const databaseKeys = new Set();
+    const databaseBranches = branchesFromDB.map((branch) => {
+      const key = branch.branch_key || branch.key;
+      const legacy = legacyByKey.get(key) || {};
+      databaseKeys.add(key);
+      return {
+        ...legacy,
+        ...branch,
+        key,
+        label: branch.name || legacy.label || key,
+        address: branch.location || legacy.address || '',
+      };
+    });
+
+    // Existing organizations may still have legacy JSON-only branches. Keep them
+    // visible until the next branch save synchronizes them into the table.
+    return [
+      ...databaseBranches,
+      ...branchesFromJSON.filter(branch => {
+        const key = branch?.key || branch?.branch_key;
+        return key && !databaseKeys.has(key);
+      }),
+    ];
+  }, [branchesFromDB, branchesFromJSON]);
   const branches = allBranches.filter(b => b.is_active !== false);
+
+  // Keep branch selectors, dashboards, and invitation flows synchronized when a
+  // branch changes in another active client.
+  useEffect(() => {
+    if (!activeRestaurant?.id) return undefined;
+
+    const restaurantId = activeRestaurant.id;
+    const channel = supabase
+      .channel(`tenant-branches-${restaurantId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'branches', filter: `restaurant_id=eq.${restaurantId}` },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['branches', restaurantId] });
+          queryClient.invalidateQueries({ queryKey: ['restaurants'] });
+        },
+      )
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  }, [activeRestaurant?.id, queryClient]);
 
   const createRestaurant = useCallback(async (data) => {
     const { data: r, error } = await supabase
@@ -167,9 +218,86 @@ export function TenantProvider({ children }) {
   }, [refetchRestaurants, queryClient]);
 
   const updateRestaurantBranches = useCallback(async (branchesArr) => {
-    if (!activeRestaurant) return;
-    await updateRestaurant(activeRestaurant.id, { branches: JSON.stringify(branchesArr) });
-  }, [activeRestaurant, updateRestaurant]);
+    if (!activeRestaurant?.id) {
+      throw new Error('Select a business before managing branches.');
+    }
+
+    const restaurantId = activeRestaurant.id;
+    const now = new Date().toISOString();
+    const normalizedBranches = (branchesArr || []).map((branch) => {
+      const key = String(branch?.key || branch?.branch_key || '').trim();
+      const label = String(branch?.label || branch?.name || key).trim();
+      if (!key || !label) {
+        throw new Error('Every branch needs a name and unique branch key.');
+      }
+      return {
+        ...branch,
+        key,
+        label,
+        address: branch?.address ?? branch?.location ?? '',
+        is_active: branch?.is_active !== false,
+      };
+    });
+
+    const branchKeys = normalizedBranches.map(branch => branch.key);
+    if (new Set(branchKeys).size !== branchKeys.length) {
+      throw new Error('Branch keys must be unique within a business.');
+    }
+
+    const { data: existingBranches, error: existingError } = await supabase
+      .from('branches')
+      .select('id, branch_key')
+      .eq('restaurant_id', restaurantId);
+    if (existingError) throw existingError;
+
+    const existingByKey = new Map((existingBranches || []).map(branch => [branch.branch_key, branch]));
+    const desiredKeys = new Set(branchKeys);
+    const toBranchPayload = (branch, includeCreatedBy = false) => ({
+      restaurant_id: restaurantId,
+      branch_key: branch.key,
+      name: branch.label,
+      location: branch.address || null,
+      is_active: branch.is_active !== false,
+      business_mode: branch.business_mode || activeRestaurant.business_mode || null,
+      updated_date: now,
+      ...(includeCreatedBy ? { created_by: user?.email || null } : {}),
+    });
+
+    const inserts = normalizedBranches.filter(branch => !existingByKey.has(branch.key));
+    if (inserts.length > 0) {
+      const { error } = await supabase
+        .from('branches')
+        .insert(inserts.map(branch => toBranchPayload(branch, true)));
+      if (error) throw error;
+    }
+
+    const updates = normalizedBranches.filter(branch => existingByKey.has(branch.key));
+    await Promise.all(updates.map(async (branch) => {
+      const { error } = await supabase
+        .from('branches')
+        .update(toBranchPayload(branch))
+        .eq('id', existingByKey.get(branch.key).id)
+        .eq('restaurant_id', restaurantId);
+      if (error) throw error;
+    }));
+
+    const deleteIds = (existingBranches || [])
+      .filter(branch => !desiredKeys.has(branch.branch_key))
+      .map(branch => branch.id);
+    if (deleteIds.length > 0) {
+      const { error } = await supabase
+        .from('branches')
+        .delete()
+        .in('id', deleteIds);
+      if (error) throw error;
+    }
+
+    // Retain the legacy restaurant JSON for existing consumers while the canonical
+    // branches table drives all current reads and secure invitation RPCs.
+    await updateRestaurant(restaurantId, { branches: JSON.stringify(normalizedBranches) });
+    await queryClient.invalidateQueries({ queryKey: ['branches', restaurantId] });
+    await queryClient.invalidateQueries({ queryKey: ['restaurants'] });
+  }, [activeRestaurant, queryClient, updateRestaurant, user?.email]);
 
   // org_id filter for all data queries — always scope to current user's org
   const orgFilter = { org_id: user?.email || '' };

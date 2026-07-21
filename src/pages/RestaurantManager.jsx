@@ -85,22 +85,44 @@ export default function RestaurantManager() {
 
   const handleAddBranch = async () => {
     if (!branchForm.label) { toast.error('Branch name is required'); return; }
-    const key = branchForm.key || branchForm.label.toLowerCase().replace(/\s+/g, '_');
-    const updated = [...allBranches, { ...branchForm, key, is_active: true }];
-    await updateRestaurantBranches(updated);
-    setBranchForm({ key: '', label: '', manager_email: '' });
-    toast.success('Branch added!');
+    setSaving(true);
+    try {
+      const key = branchForm.key || branchForm.label.toLowerCase().replace(/\s+/g, '_');
+      const updated = [...allBranches, { ...branchForm, key, is_active: true }];
+      await updateRestaurantBranches(updated);
+      setBranchForm({ key: '', label: '', manager_email: '' });
+      setShowBranchManager(false);
+      toast.success('Branch added!');
+    } catch (error) {
+      console.error('[RestaurantManager] branch create failed', error);
+      toast.error(error.message || 'Unable to add this branch.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleToggleBranch = async (branchKey) => {
-    const updated = allBranches.map(b => b.key === branchKey ? { ...b, is_active: !b.is_active } : b);
-    await updateRestaurantBranches(updated);
+    try {
+      const updated = allBranches.map(b => b.key === branchKey ? { ...b, is_active: !b.is_active } : b);
+      await updateRestaurantBranches(updated);
+    } catch (error) {
+      console.error('[RestaurantManager] branch status update failed', error);
+      toast.error(error.message || 'Unable to update this branch.');
+    }
   };
 
   const handleDeleteBranch = async (branchKey) => {
-    const updated = allBranches.filter(b => b.key !== branchKey);
-    await updateRestaurantBranches(updated);
-    toast.success('Branch removed!');
+    setSaving(true);
+    try {
+      const updated = allBranches.filter(b => b.key !== branchKey);
+      await updateRestaurantBranches(updated);
+      toast.success('Branch removed!');
+    } catch (error) {
+      console.error('[RestaurantManager] branch delete failed', error);
+      toast.error(error.message || 'Unable to remove this branch.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleDeleteRestaurant = async (id) => {
@@ -323,7 +345,7 @@ export default function RestaurantManager() {
               />
             </div>
             <div className="flex gap-2 pt-1">
-              <Button className="flex-1" onClick={handleAddBranch}>Add Branch</Button>
+              <Button className="flex-1" onClick={handleAddBranch} disabled={saving || !branchForm.label}>Add Branch</Button>
               <Button variant="outline" className="flex-1" onClick={() => setShowBranchManager(false)}>Cancel</Button>
             </div>
           </div>

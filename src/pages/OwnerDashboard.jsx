@@ -49,7 +49,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Skeleton } from '@/components/ui/skeleton';
 // SalesForm removed to enforce single ERP workspace entry point
 import PriceChangesWidget from '@/components/dashboard/PriceChangesWidget';
-import OwnerStaffProvisioning from '@/components/owner/OwnerStaffProvisioning';
 import { toast } from 'sonner';
 import {
   generateSalesInvoiceNumber,
@@ -1025,10 +1024,6 @@ export default function OwnerDashboard() {
         </div>
       </div>
 
-      {/* ══════════════════════════════════════════════════════════════════════
-          SECTION 0.5 — OWNER-ONLY STAFF PROVISIONING
-      ══════════════════════════════════════════════════════════════════════ */}
-      <OwnerStaffProvisioning />
       {/* ══════════════════════════════════════════════════════════════════════
           SECTION 1 — EXECUTIVE SUMMARY
       ══════════════════════════════════════════════════════════════════════ */}
