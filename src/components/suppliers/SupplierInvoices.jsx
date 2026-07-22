@@ -24,7 +24,7 @@ const emptyForm = { invoice_number: '', date: format(new Date(), 'yyyy-MM-dd'), 
 
 export default function SupplierInvoices({ supplier, onBack, embedded = false }) {
   const { lang, currency } = useLanguage();
-  const { branches } = useTenant();
+  const { branches, activeRestaurantId } = useTenant();
   const m = ui[lang] || ui.en;
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
@@ -39,7 +39,18 @@ export default function SupplierInvoices({ supplier, onBack, embedded = false })
   const saveMutation = useMutation({
     mutationFn: (data) => editing
       ? base44.entities.SupplierInvoice.update(editing.id, data)
-      : base44.entities.SupplierInvoice.create({ ...data, supplier_id: supplier.id, supplier_name: supplier.name }),
+      : base44.entities.SupplierInvoice.create({
+          ...data,
+          supplier_id: supplier.id,
+          supplier_name: supplier.name,
+          // BUG 1 FIX: explicitly pass restaurant_id and branch_id so the
+          // erp_can_write_scope_text RLS check can match the owner's org.
+          restaurant_id: supplier.restaurant_id || activeRestaurantId,
+          branch_id: supplier.branch_id || null,
+          // BUG 2 FIX: stamp supplier_email so the supplier can see this
+          // invoice in their dashboard via the RLS self-select policy.
+          supplier_email: supplier.email || null,
+        }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['supplier_invoices', supplier.id] }); qc.invalidateQueries({ queryKey: ['all_invoices'] }); setShowForm(false); setEditing(null); },
   });
 
