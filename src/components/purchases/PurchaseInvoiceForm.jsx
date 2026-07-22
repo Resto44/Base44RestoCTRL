@@ -234,7 +234,7 @@ function PurchaseInvoiceItemRow({
 
 export default function PurchaseInvoiceForm({ invoice = null, onSuccess, onCancel }) {
   const { currency: currencySymbol, lang } = useLanguage();
-  const { ownerFilter } = useTenant();
+  const { ownerFilter, branches, activeRestaurantId: restaurantId } = useTenant();
   const { user } = useAuth();
   const qc = useQueryClient();
 
@@ -268,15 +268,15 @@ export default function PurchaseInvoiceForm({ invoice = null, onSuccess, onCance
   const [attachments, setAttachments] = useState(invoice?.attachment_urls || []);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
-  const { activeRestaurantId } = useTenant();
+  // activeRestaurantId already destructured above as restaurantId
 
   // ── Auto-numbering ─────────────────────────────────────────────────────
   useEffect(() => {
-    if (!isEdit && !form.invoice_number && activeRestaurantId) {
+    if (!isEdit && !form.invoice_number && restaurantId) {
       const fetchNumber = async () => {
         try {
           const { data, error } = await supabase.rpc('generate_purchase_invoice_number', {
-            p_restaurant_id: activeRestaurantId,
+            p_restaurant_id: restaurantId,
             p_date: form.date
           });
           if (!error && data) {
@@ -288,13 +288,26 @@ export default function PurchaseInvoiceForm({ invoice = null, onSuccess, onCance
       };
       fetchNumber();
     }
-  }, [isEdit, activeRestaurantId, form.date]);
+  }, [isEdit, restaurantId, form.date]);
 
   // ── Data fetches ───────────────────────────────────────────────────────
+  // Use get_org_suppliers() RPC to load ALL suppliers for this organization:
+  // both manually-created (created_by = owner email) and approved suppliers
+  // from Request Center (created_by = owner email via erp_decide_membership).
+  // This is the unified supplier source — no separate sources.
   const { data: suppliers = [] } = useQuery({
-    queryKey: ['suppliers', ownerFilter],
-    queryFn: () => base44.entities.Supplier.filter(ownerFilter || {}, 'name', 500),
-    enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
+    queryKey: ['suppliers_org', restaurantId],
+    queryFn: async () => {
+      if (!restaurantId) return [];
+      const { data, error } = await supabase.rpc('get_org_suppliers');
+      if (error) {
+        console.warn('[PurchaseInvoiceForm] get_org_suppliers error:', error.message);
+        // Fallback to created_by filter for backward compat
+        return base44.entities.Supplier.filter(ownerFilter || {}, 'name', 500);
+      }
+      return data || [];
+    },
+    enabled: !!restaurantId,
   });
 
   // Use hierarchical categories hook
@@ -402,11 +415,18 @@ export default function PurchaseInvoiceForm({ invoice = null, onSuccess, onCance
       }));
       const cleanCosts = additionalCosts.map(({ _id, ...c }) => c);
 
+      // Resolve branch_id UUID from branch key string
+      const selectedBranch = branches.find(b => b.key === form.branch || b.branch_key === form.branch);
+      const branchId = selectedBranch?.id || null;
+
       const invoicePayload = {
         ...form,
         supplier_id: supplierId, // Sanitize: ensure "" becomes null for UUID column
         supplier_name: supplierName || form.supplier_name,
         attachment_urls: attachments,
+        // Always include restaurant_id and branch_id so RLS erp_scope_insert passes
+        restaurant_id: restaurantId || null,
+        branch_id: branchId,
       };
 
       let savedInvoice;
