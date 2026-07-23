@@ -10,13 +10,14 @@ import { base44 } from '@/api/supabaseClient';
 import { useTenant } from '@/lib/TenantContext';
 
 export function useSalesSources({ branchKey } = {}) {
-  const { ownerFilter, managerBranch } = useTenant();
+  const { activeRestaurant, managerBranch } = useTenant();
+  const activeRestaurantId = activeRestaurant?.id ? String(activeRestaurant.id) : null;
 
   // Determine effective branch key: explicit prop > manager branch
   const effectiveBranch = branchKey || managerBranch || null;
 
   const { data: allSources = [], isLoading, error, refetch } = useQuery({
-    queryKey: ['sales_sources_active'],
+    queryKey: ['sales_sources_active', activeRestaurantId],
     queryFn: async () => {
       const all = await base44.entities.SalesSource.list('sort_order', 200);
       // Return: system sources (created_by IS NULL) + current restaurant/tenant sources + current user created sources
@@ -24,6 +25,7 @@ export function useSalesSources({ branchKey } = {}) {
       return all;
     },
     staleTime: 60000,
+    enabled: !!activeRestaurantId,
   });
 
   // Filter: active only, and respect branch scoping

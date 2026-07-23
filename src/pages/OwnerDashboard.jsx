@@ -68,7 +68,7 @@ import {
 } from 'lucide-react';
 import {
   format, startOfMonth, startOfWeek, startOfYear,
-  subDays, subWeeks, subMonths, getDaysInMonth,
+  subDays, subWeeks, subMonths, getDaysInMonth, differenceInCalendarDays,
 } from 'date-fns';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -322,35 +322,51 @@ export default function OwnerDashboard() {
   const notif = useNotify();
   const qc = useQueryClient();
   const { autoSettle } = useNetworkSettlement({ orgId, user, currency });
-  const { revenueSources } = useSalesSources();
 
   // ── BRANCH SELECTION STATE ────────────────────────────────────────────────
-  // 'all' means aggregate all branches; any other value is a branch key/id
+  // 'all' means aggregate all active branches; any other value is a branch key/id.
   const [selectedBranch, setSelectedBranch] = useState('all');
 
-  // Build the effective filter: owner-scoped + optional branch filter
-  // When 'all' is selected: use ownerFilter as-is (all branches)
-  // When a branch is selected: add branch key to the filter
+  const activeBranchKeys = useMemo(
+    () => (branches || [])
+      .map(branch => String(branch.key || branch.branch_key || branch.id || '').trim())
+      .filter(Boolean),
+    [branches],
+  );
+  const activeBranchSignature = useMemo(() => activeBranchKeys.join('|'), [activeBranchKeys]);
+  const selectedBranchKey = useMemo(() => {
+    if (selectedBranch === 'all') return null;
+    const branchObj = (branches || []).find(branch => (branch.key || branch.id) === selectedBranch);
+    return String(branchObj?.key || branchObj?.branch_key || selectedBranch || '').trim() || null;
+  }, [branches, selectedBranch]);
+  const isRecordInActiveBranchScope = useCallback((record, field = 'branch') => {
+    const recordBranch = String(record?.[field] || '').trim();
+    return Boolean(recordBranch)
+      && activeBranchKeys.includes(recordBranch)
+      && (selectedBranch === 'all' || recordBranch === selectedBranchKey);
+  }, [activeBranchKeys, selectedBranch, selectedBranchKey]);
+
+  // Sales-source configuration is branch-aware as well, so revenue inclusion is
+  // evaluated against the selected branch rather than a stale owner-wide source list.
+  const { revenueSources } = useSalesSources({
+    branchKey: selectedBranch === 'all' ? undefined : selectedBranchKey,
+  });
+
+  // Build the effective filter: active restaurant + optional selected branch.
   const branchFilter = useMemo(() => {
     if (!activeRestaurant?.id) return null;
     const baseFilter = { restaurant_id: activeRestaurant.id };
     if (selectedBranch === 'all') return baseFilter;
-    // Map internal branch ID to the 'branch' text field in daily_sales
-    const branchObj = (branches || []).find(b => (b.key || b.id) === selectedBranch);
-    const branchKey = branchObj?.key || selectedBranch;
-    return { ...baseFilter, branch: branchKey };
-  }, [activeRestaurant, selectedBranch, branches]);
+    return { ...baseFilter, branch: selectedBranchKey };
+  }, [activeRestaurant?.id, selectedBranch, selectedBranchKey]);
 
-  // EXPENSE-SPECIFIC branch filter: expenses table uses 'branch_key' (not 'branch')
-  // This is the root cause fix for Task 1 — DO NOT merge with branchFilter
+  // Expenses store their branch key in `branch_key`, unlike sales and purchases.
   const expenseBranchFilter = useMemo(() => {
     if (!activeRestaurant?.id) return null;
     const baseFilter = { restaurant_id: activeRestaurant.id };
     if (selectedBranch === 'all') return baseFilter;
-    const branchObj = (branches || []).find(b => (b.key || b.id) === selectedBranch);
-    const branchKey = branchObj?.key || selectedBranch;
-    return { ...baseFilter, branch_key: branchKey };
-  }, [activeRestaurant, selectedBranch, branches]);
+    return { ...baseFilter, branch_key: selectedBranchKey };
+  }, [activeRestaurant?.id, selectedBranch, selectedBranchKey]);
 
   // Branch display info for the badge
   const selectedBranchLabel = useMemo(() => {
@@ -371,6 +387,8 @@ export default function OwnerDashboard() {
 
   const fmt = useCallback((n) =>
     `${currency}${(n || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`, [currency]);
+  const fmtDecimal = useCallback((n) =>
+    `${currency}${(Number(n) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, [currency]);
   const fmtPct = useCallback((n) =>
     `${n >= 0 ? '+' : ''}${(n || 0).toFixed(1)}%`, []);
 
@@ -378,97 +396,116 @@ export default function OwnerDashboard() {
   // This ensures React Query invalidates and refetches when branch changes.
 
   const { data: todaySales = [], isLoading: loadingSales } = useQuery({
-    queryKey: ['sales_today', branchFilter, today, selectedBranch],
+    queryKey: ['sales_today', branchFilter, today, selectedBranch, activeBranchSignature],
     queryFn: () => base44.entities.DailySales.filter({ ...(branchFilter || {}), date: today }, '-date', 100),
     staleTime: 15000,
     enabled,
+    select: (data) => data.filter(sale => isRecordInActiveBranchScope(sale, 'branch')),
   });
 
   const { data: yesterdaySales = [] } = useQuery({
-    queryKey: ['sales_yesterday', branchFilter, yesterday, selectedBranch],
+    queryKey: ['sales_yesterday', branchFilter, yesterday, selectedBranch, activeBranchSignature],
     queryFn: () => base44.entities.DailySales.filter({ ...(branchFilter || {}), date: yesterday }, '-date', 100),
     staleTime: 60000,
     enabled,
+    select: (data) => data.filter(sale => isRecordInActiveBranchScope(sale, 'branch')),
   });
 
   const { data: weekSales = [] } = useQuery({
-    queryKey: ['sales_week', branchFilter, weekStart, selectedBranch],
+    queryKey: ['sales_week', branchFilter, weekStart, selectedBranch, activeBranchSignature],
     queryFn: () => base44.entities.DailySales.filter(branchFilter || {}, '-date', 500),
     staleTime: 60000,
     enabled,
-    select: (d) => d.filter(s => s.date >= weekStart),
+    select: (data) => data.filter(sale => sale.date >= weekStart && isRecordInActiveBranchScope(sale, 'branch')),
   });
 
   const { data: monthSales = [] } = useQuery({
-    queryKey: ['sales_month', branchFilter, monthStart, selectedBranch],
+    queryKey: ['sales_month', branchFilter, monthStart, selectedBranch, activeBranchSignature],
     queryFn: () => base44.entities.DailySales.filter(branchFilter || {}, '-date', 1000),
     staleTime: 60000,
     enabled,
-    select: (d) => d.filter(s => s.date >= monthStart),
+    select: (data) => data.filter(sale => sale.date >= monthStart && isRecordInActiveBranchScope(sale, 'branch')),
   });
 
   const { data: yearSales = [] } = useQuery({
-    queryKey: ['sales_year', branchFilter, yearStart, selectedBranch],
+    queryKey: ['sales_year', branchFilter, yearStart, selectedBranch, activeBranchSignature],
     queryFn: () => base44.entities.DailySales.filter(branchFilter || {}, '-date', 5000),
     staleTime: 120000,
     enabled,
-    select: (d) => d.filter(s => s.date >= yearStart),
+    select: (data) => data.filter(sale => sale.date >= yearStart && isRecordInActiveBranchScope(sale, 'branch')),
   });
 
   const { data: prevWeekSales = [] } = useQuery({
-    queryKey: ['sales_prev_week', branchFilter, prevWeekStart, weekStart, selectedBranch],
+    queryKey: ['sales_prev_week', branchFilter, prevWeekStart, weekStart, selectedBranch, activeBranchSignature],
     queryFn: () => base44.entities.DailySales.filter(branchFilter || {}, '-date', 500),
     staleTime: 120000,
     enabled,
-    select: (d) => d.filter(s => s.date >= prevWeekStart && s.date < weekStart),
+    select: (data) => data.filter(sale => sale.date >= prevWeekStart && sale.date < weekStart && isRecordInActiveBranchScope(sale, 'branch')),
   });
 
   const { data: prevMonthSales = [] } = useQuery({
-    queryKey: ['sales_prev_month', branchFilter, prevMonthStart, monthStart, selectedBranch],
+    queryKey: ['sales_prev_month', branchFilter, prevMonthStart, monthStart, selectedBranch, activeBranchSignature],
     queryFn: () => base44.entities.DailySales.filter(branchFilter || {}, '-date', 1000),
     staleTime: 120000,
     enabled,
-    select: (d) => d.filter(s => s.date >= prevMonthStart && s.date < monthStart),
+    select: (data) => data.filter(sale => sale.date >= prevMonthStart && sale.date < monthStart && isRecordInActiveBranchScope(sale, 'branch')),
   });
 
   const { data: weekPurchases = [] } = useQuery({
-    queryKey: ['purchases_week', branchFilter, weekStart, selectedBranch],
+    queryKey: ['purchases_week', branchFilter, weekStart, selectedBranch, activeBranchSignature],
     queryFn: () => base44.entities.Purchase.filter(branchFilter || {}, '-date', 500),
     staleTime: 60000,
     enabled,
-    select: (d) => d.filter(p => p.date >= weekStart),
+    select: (data) => data.filter(purchase => purchase.date >= weekStart && isRecordInActiveBranchScope(purchase, 'branch')),
   });
 
   const { data: monthPurchases = [] } = useQuery({
-    queryKey: ['purchases_month', branchFilter, monthStart, selectedBranch],
+    queryKey: ['purchases_month', branchFilter, monthStart, selectedBranch, activeBranchSignature],
     queryFn: () => base44.entities.Purchase.filter(branchFilter || {}, '-date', 1000),
     staleTime: 60000,
     enabled,
-    select: (d) => d.filter(p => p.date >= monthStart),
+    select: (data) => data.filter(purchase => purchase.date >= monthStart && isRecordInActiveBranchScope(purchase, 'branch')),
   });
 
   const { data: todayExpenses = [] } = useQuery({
-    queryKey: ['expenses_today', expenseBranchFilter, today, selectedBranch],
+    queryKey: ['expenses_today', expenseBranchFilter, today, selectedBranch, activeBranchSignature],
     queryFn: () => base44.entities.Expense.filter({ ...(expenseBranchFilter || {}), date: today }, '-date', 200),
     staleTime: 15000,
     enabled,
+    select: (data) => data.filter(expense => isRecordInActiveBranchScope(expense, 'branch_key')),
   });
 
-  const { data: monthExpenses = [] } = useQuery({
-    queryKey: ['expenses_month', expenseBranchFilter, monthStart, selectedBranch],
+  const { data: yesterdayExpenses = [] } = useQuery({
+    queryKey: ['expenses_yesterday', expenseBranchFilter, yesterday, selectedBranch, activeBranchSignature],
+    queryFn: () => base44.entities.Expense.filter({ ...(expenseBranchFilter || {}), date: yesterday }, '-date', 200),
+    staleTime: 60000,
+    enabled,
+    select: (data) => data.filter(expense => isRecordInActiveBranchScope(expense, 'branch_key')),
+  });
+
+  const { data: weekExpenses = [] } = useQuery({
+    queryKey: ['expenses_week', expenseBranchFilter, weekStart, today, selectedBranch, activeBranchSignature],
     queryFn: () => base44.entities.Expense.filter(expenseBranchFilter || {}, '-date', 500),
     staleTime: 60000,
     enabled,
-    select: (d) => d.filter(e => e.date >= monthStart),
+    select: (data) => data.filter(expense => expense.date >= weekStart && expense.date <= today && isRecordInActiveBranchScope(expense, 'branch_key')),
+  });
+
+  const { data: monthExpenses = [] } = useQuery({
+    queryKey: ['expenses_month', expenseBranchFilter, monthStart, selectedBranch, activeBranchSignature],
+    queryFn: () => base44.entities.Expense.filter(expenseBranchFilter || {}, '-date', 500),
+    staleTime: 60000,
+    enabled,
+    select: (data) => data.filter(expense => expense.date >= monthStart && isRecordInActiveBranchScope(expense, 'branch_key')),
   });
 
   // Previous month expenses — needed for Product Consumption Analytics
   const { data: prevMonthExpenses = [] } = useQuery({
-    queryKey: ['expenses_prev_month', expenseBranchFilter, prevMonthStart, monthStart, selectedBranch],
+    queryKey: ['expenses_prev_month', expenseBranchFilter, prevMonthStart, monthStart, selectedBranch, activeBranchSignature],
     queryFn: () => base44.entities.Expense.filter(expenseBranchFilter || {}, '-date', 500),
     staleTime: 120000,
     enabled,
-    select: (d) => d.filter(e => e.date >= prevMonthStart && e.date < monthStart),
+    select: (data) => data.filter(expense => expense.date >= prevMonthStart && expense.date < monthStart && isRecordInActiveBranchScope(expense, 'branch_key')),
   });
 
   // Expense categories — needed to tag fixed vs variable expenses
@@ -486,16 +523,20 @@ export default function OwnerDashboard() {
   });
 
   const { data: supplierInvoices = [] } = useQuery({
-    queryKey: ['supplier_invoices', ownerFilter],
+    queryKey: ['supplier_invoices', activeRestaurant?.id, selectedBranch, activeBranchSignature],
     queryFn: async () => {
-      let q = supabase.from('supplier_invoices').select('*').order('date', { ascending: false }).limit(5000);
-      if (ownerFilter?.created_by) q = q.eq('created_by', ownerFilter.created_by);
-      const { data, error } = await q;
+      if (!activeRestaurant?.id) return [];
+      const { data, error } = await supabase
+        .from('supplier_invoices')
+        .select('*')
+        .eq('restaurant_id', activeRestaurant.id)
+        .order('date', { ascending: false })
+        .limit(5000);
       if (error) { console.warn('[OwnerDashboard] supplier_invoices fetch error:', error.message); return []; }
-      return data || [];
+      return (data || []).filter(invoice => isRecordInActiveBranchScope(invoice, 'branch'));
     },
     staleTime: 15000,
-    enabled: !!(ownerFilter?.created_by || ownerFilter?.branch),
+    enabled,
   });
 
   const { data: customerDebts = [] } = useQuery({
@@ -566,6 +607,96 @@ export default function OwnerDashboard() {
   const sumPurchaseCost = useCallback((arr) =>
      (arr || []).reduce((s, p) => s + ((p.qty || 0) * (p.used_price || p.current_price || 0)), 0), []);
 
+  // ── Expense and Net-Profit Inputs ─────────────────────────────────────────────
+  // Expenses are intentionally computed without reference to sales or purchases.
+  // Fixed expenses are allocated once per period; variable expenses are summed only
+  // from records in that period.
+  const expenseSummary = useMemo(() => {
+    const categoryById = new Map(
+      (expenseCategories || []).map(category => [category.id, category]),
+    );
+    const isFixedExpense = (expense) => Boolean(
+      expense?._is_fixed
+      || expense?.is_fixed
+      || categoryById.get(expense?.category_id)?.is_fixed
+      || categoryById.get(expense?.expense_category_id)?.is_fixed,
+    );
+    const amountOf = (expense) => Number(expense?.amount) || 0;
+    const variableTotal = (expenses) => (expenses || [])
+      .filter(expense => !isFixedExpense(expense))
+      .reduce((total, expense) => total + amountOf(expense), 0);
+    const fixedTotal = (expenses) => (expenses || [])
+      .filter(expense => isFixedExpense(expense))
+      .reduce((total, expense) => total + amountOf(expense), 0);
+
+    const daysInMonth = getDaysInMonth(new Date());
+    const monthlyFixed = fixedTotal(monthExpenses);
+    const monthlyVariable = variableTotal(monthExpenses);
+    const dailyFixedAllocation = monthlyFixed / daysInMonth;
+    const weekDaysElapsed = Math.min(7, Math.max(1, differenceInCalendarDays(new Date(), startOfWeek(new Date(), { weekStartsOn: 6 })) + 1));
+
+    return {
+      daysInMonth,
+      monthlyFixed,
+      monthlyVariable,
+      monthlyTotal: monthlyFixed + monthlyVariable,
+      dailyFixedAllocation,
+      dailyExpense: (monthlyFixed + monthlyVariable) / daysInMonth,
+      todayVariable: variableTotal(todayExpenses),
+      yesterdayVariable: variableTotal(yesterdayExpenses),
+      weekVariable: variableTotal(weekExpenses),
+      weekFixedAllocation: dailyFixedAllocation * weekDaysElapsed,
+      weekDaysElapsed,
+    };
+  }, [expenseCategories, monthExpenses, todayExpenses, yesterdayExpenses, weekExpenses]);
+
+  const periodProfit = useMemo(() => {
+    const isApprovedInvoice = (invoice) => (
+      ['approved', 'auto_approved'].includes(invoice.approval_status)
+      || ['approved', 'paid', 'partial', 'unpaid'].includes(invoice.status)
+      || !invoice.approval_status
+    );
+    const sumApprovedInvoices = (startDate, endDate) => (supplierInvoices || [])
+      .filter(invoice => isApprovedInvoice(invoice) && invoice.date >= startDate && invoice.date <= endDate)
+      .reduce((total, invoice) => total + (Number(invoice.total_amount || invoice.amount) || 0), 0);
+    const createPeriod = (sales, purchases, variableExpenses, fixedAllocation) => ({
+      sales,
+      purchases,
+      variableExpenses,
+      fixedAllocation,
+      grossProfit: sales - purchases,
+      expenses: variableExpenses + fixedAllocation,
+      netProfit: sales - purchases - variableExpenses - fixedAllocation,
+    });
+
+    return {
+      today: createPeriod(
+        sumSales(todaySales),
+        sumApprovedInvoices(today, today),
+        expenseSummary.todayVariable,
+        expenseSummary.dailyFixedAllocation,
+      ),
+      yesterday: createPeriod(
+        sumSales(yesterdaySales),
+        sumApprovedInvoices(yesterday, yesterday),
+        expenseSummary.yesterdayVariable,
+        expenseSummary.dailyFixedAllocation,
+      ),
+      week: createPeriod(
+        sumSales(weekSales),
+        sumApprovedInvoices(weekStart, today),
+        expenseSummary.weekVariable,
+        expenseSummary.weekFixedAllocation,
+      ),
+      month: createPeriod(
+        sumSales(monthSales),
+        sumApprovedInvoices(monthStart, today),
+        expenseSummary.monthlyVariable,
+        expenseSummary.monthlyFixed,
+      ),
+    };
+  }, [expenseSummary, monthSales, monthStart, sumSales, supplierInvoices, today, todaySales, weekSales, weekStart, yesterday, yesterdaySales]);
+
   // ── Section 1: Executive Summary ──────────────────────────────────────────────
   const execSummary = useMemo(() => {
     const todayRevenue = (todaySales || []).reduce((acc, r) => {
@@ -585,61 +716,18 @@ export default function OwnerDashboard() {
     const customSalesToday = todayRevenue.custom;
     const salesToday = todayRevenue.total;
 
-    // Today's Purchases = approved supplier invoices for today (filtered by branch)
-    const branchObj = (branches || []).find(b => (b.key || b.id) === selectedBranch);
-    const branchKey = branchObj?.key || selectedBranch;
-
-    const purchasesToday = supplierInvoices
-      .filter(inv => {
-        const isApproved = ['approved', 'auto_approved'].includes(inv.approval_status) || ['approved', 'paid', 'partial', 'unpaid'].includes(inv.status) || !inv.approval_status;
-        const isToday = inv.date === today;
-        const isBranchMatch = selectedBranch === 'all' || inv.branch === branchKey;
-        return isApproved && isToday && isBranchMatch;
-      })
-      .reduce((s, inv) => s + (Number(inv.total_amount || inv.amount) || 0), 0);
-
-    // ── EXPENSE SEPARATION: Fixed Monthly vs Daily Operating ──────────────────
-    // Build category lookup map
-    const catMap = {};
-    (expenseCategories || []).forEach(c => { catMap[c.id] = c; });
-
-    const realDaysInMonth = getDaysInMonth(new Date());
-
-    // FIXED MONTHLY EXPENSES: sourced from monthExpenses (rent/salary entered once per month)
-    // Tag month expenses with _is_fixed flag
-    const taggedMonthExpenses = (monthExpenses || []).map(e => ({
-      ...e,
-      _is_fixed: !!(catMap[e.category_id]?.is_fixed || catMap[e.expense_category_id]?.is_fixed),
-    }));
-    const fixedMonthExpenses = taggedMonthExpenses.filter(e => e._is_fixed);
-    // Total monthly fixed = full amount (rent + salaries for the whole month)
-    // Filtered by branch in monthExpenses already, but ensuring it matches selectedBranch
-    // branchObj and branchKey are already declared above for purchasesToday
-
-    // DB query already filters by branch_key via expenseBranchFilter;
-    // no additional in-memory branch filter needed here.
-    const filteredFixedMonthExpenses = fixedMonthExpenses;
-
-    const totalMonthlyFixed = filteredFixedMonthExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
-    // Daily fixed allocation = monthly fixed / real calendar days in month
-    const dailyFixedAllocation = totalMonthlyFixed > 0 ? totalMonthlyFixed / realDaysInMonth : 0;
-
-
-    // DAILY OPERATING EXPENSES: only non-fixed expenses entered today
-    const taggedTodayExpenses = (todayExpenses || []).map(e => ({
-      ...e,
-      _is_fixed: !!(catMap[e.category_id]?.is_fixed || catMap[e.expense_category_id]?.is_fixed),
-    }));
-    const variableTodayExpenses = taggedTodayExpenses.filter(e => !e._is_fixed);
-    const totalVariableToday = variableTodayExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
-
-    // TODAY TOTAL EXPENSE = daily variable + prorated daily fixed allocation
-    const expensesToday = totalVariableToday + dailyFixedAllocation;
-    const expensesTodayRaw = (todayExpenses || []).reduce((s, e) => s + (Number(e.amount) || 0), 0);
-
-    // KPI FIX: Net Profit = (Cash + Network + Credit) - Purchases - Expenses
-    const grossProfit = salesToday - purchasesToday;
-    const netProfit   = salesToday - purchasesToday - expensesToday;
+    // Use the same selected-branch period calculation for the executive cards.
+    const purchasesToday = periodProfit.today.purchases;
+    const expensesToday = periodProfit.today.expenses;
+    const expensesTodayRaw = (todayExpenses || []).reduce((sum, expense) => sum + (Number(expense.amount) || 0), 0);
+    const {
+      dailyFixedAllocation,
+      monthlyFixed: totalMonthlyFixed,
+      todayVariable: totalVariableToday,
+      daysInMonth: realDaysInMonth,
+    } = expenseSummary;
+    const grossProfit = periodProfit.today.grossProfit;
+    const netProfit = periodProfit.today.netProfit;
 
     const latestSale = todaySales.length > 0
       ?  (todaySales || []).reduce((latest, s) =>
@@ -670,12 +758,8 @@ export default function OwnerDashboard() {
     const inventoryValue =  (inventory || []).reduce((s, item) =>
       s + ((item.quantity || 0) * (item.unit_cost || item.avg_cost || item.cost_price || 0)), 0);
 
-    // USE EXACT SAME HELPER AS PROCUREMENT DASHBOARD FOR PAYABLES
-    // branchObj and branchKey already defined above in this memo
-    const branchFilteredForPayables = selectedBranch === 'all' 
-      ? supplierInvoices 
-      : supplierInvoices.filter(inv => inv.branch === branchKey);
-    const payablesKpis = computeProcurementKPIs(branchFilteredForPayables, []);
+    // `supplierInvoices` is already restricted to the selected active-branch scope.
+    const payablesKpis = computeProcurementKPIs(supplierInvoices, []);
     const supplierPayables = payablesKpis.outstandingPayables;
     
 
@@ -693,12 +777,13 @@ export default function OwnerDashboard() {
       salesToday, cashSalesToday, networkSalesToday, creditSalesToday, customSalesToday,
       purchasesToday, expensesToday, expensesTodayRaw,
       dailyFixedAllocation, totalVariableToday, totalMonthlyFixed, realDaysInMonth,
+      monthlyExpenses: expenseSummary.monthlyTotal, dailyExpense: expenseSummary.dailyExpense,
       grossProfit, netProfit,
       cashInRegister, networkBalance, networkToday, networkYesterday, networkMonth, customerCredit,
       inventoryValue, supplierPayables,
       ownerCapitalToday, cashShortageToday, cashOverageToday,
     };
-  }, [todaySales, yesterdaySales, todayExpenses, monthExpenses, expenseCategories, supplierInvoices, customerDebts, inventory, today, monthSales, walletTransactions, monthStart, selectedBranch, revenueSources]);
+  }, [todaySales, yesterdaySales, todayExpenses, customerDebts, inventory, monthSales, supplierInvoices, revenueSources, expenseSummary, periodProfit]);
 
   // ── Section 2: Operating Result (NEVER REMOVE) ───────────────────────────────
   const operatingResult = useMemo(() => {
@@ -754,44 +839,14 @@ export default function OwnerDashboard() {
   }, [execSummary, yesterdaySales, weekSales, monthSales, yearSales, prevWeekSales, prevMonthSales, revenueSources]);
 
   // ── Monthly Expenses (Fixed + Variable) ──────────────────────────────────────
-  // Total Monthly Expenses = Full monthly fixed expenses + all daily expenses in current month
-  const totalMonthlyExpenses = useMemo(() => {
-    const catMap = {};
-    (expenseCategories || []).forEach(c => { catMap[c.id] = c; });
-
-    // DB query already filters by branch_key via expenseBranchFilter;
-    // no additional in-memory branch filter needed here.
-
-    // Tag each expense with is_fixed from its category
-    const tagged = (monthExpenses || []).map(e => ({
-      ...e,
-      _is_fixed: !!(catMap[e.category_id]?.is_fixed),
-    }));
-
-    // Fixed monthly expenses: use FULL amount (not prorated) for monthly total
-    const fixedExpenses = tagged.filter(e => e._is_fixed);
-    const variableExpenses = tagged.filter(e => !e._is_fixed);
-    const totalFixed = fixedExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
-    const totalVariable = variableExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
-    // Total Monthly Expenses = Full fixed expenses + all variable/daily expenses
-    const total = totalFixed + totalVariable;
-
-    // Monthly Net Profit = Month Sales - Month Purchases - Total Monthly Expenses
-    const monthSalesAmt = salesAnalytics.monthAmt;
-    const branchPurchObj = (branches || []).find(b => (b.key || b.id) === selectedBranch);
-    const branchPurchKey = branchPurchObj?.key || selectedBranch;
-
-    const monthPurchasesAmt = supplierInvoices
-      .filter(inv => {
-        const isApproved = ['approved', 'auto_approved'].includes(inv.approval_status) || ['approved', 'paid', 'partial', 'unpaid'].includes(inv.status) || !inv.approval_status;
-        const isBranchMatch = selectedBranch === 'all' || inv.branch === branchPurchKey;
-        return isApproved && isBranchMatch && inv.date >= monthStart && inv.date <= today;
-      })
-      .reduce((s, inv) => s + (Number(inv.total_amount || inv.amount) || 0), 0);
-    const monthNetProfit = monthSalesAmt - monthPurchasesAmt - total;
-
-    return { total, totalFixed, totalVariable, monthNetProfit, monthPurchasesAmt };
-  }, [monthExpenses, expenseCategories, salesAnalytics.monthAmt, supplierInvoices, selectedBranch, monthStart, today]);
+  // This display model shares the canonical expense and month net-profit inputs.
+  const totalMonthlyExpenses = useMemo(() => ({
+    total: expenseSummary.monthlyTotal,
+    totalFixed: expenseSummary.monthlyFixed,
+    totalVariable: expenseSummary.monthlyVariable,
+    monthNetProfit: periodProfit.month.netProfit,
+    monthPurchasesAmt: periodProfit.month.purchases,
+  }), [expenseSummary, periodProfit]);
 
   // ── Additional Sales Sources (dynamic, no hardcoded names) ───────────────────
   const additionalSources = useMemo(() => {
@@ -1039,28 +1094,27 @@ export default function OwnerDashboard() {
               <MetricCard title="Today's Sales"      value={fmt(execSummary.salesToday)}       subtitle={`Cash ${fmt(execSummary.cashSalesToday)} · Net ${fmt(execSummary.networkSalesToday)} · Credit ${fmt(execSummary.creditSalesToday)}`} icon={DollarSign}   color="green"  large onClick={() => navigate('/sales')} />
               <MetricCard title="Today's Purchases"  value={fmt(execSummary.purchasesToday)}   subtitle="Approved invoices"          icon={ShoppingCart}  color="amber"  large onClick={() => navigate('/enterprise-purchases')} />
               <MetricCard title="Gross Profit"       value={fmt(execSummary.grossProfit)}      subtitle="Sales − Purchases"          icon={execSummary.grossProfit >= 0 ? TrendingUp : TrendingDown} color={execSummary.grossProfit >= 0 ? 'green' : 'red'} onClick={() => navigate('/profit-loss')} />
-              <MetricCard title="Net Profit"         value={fmt(execSummary.netProfit)}        subtitle="Sales − Purchases − Expenses" icon={execSummary.netProfit >= 0 ? TrendingUp : TrendingDown} color={execSummary.netProfit >= 0 ? 'green' : 'red'} onClick={() => navigate('/profit-loss')} />
+              <MetricCard title="Today's Net Profit" value={fmt(periodProfit.today.netProfit)} subtitle="Sales − Purchases − Variable − Daily Fixed" icon={periodProfit.today.netProfit >= 0 ? TrendingUp : TrendingDown} color={periodProfit.today.netProfit >= 0 ? 'green' : 'red'} onClick={() => navigate('/profit-loss')} />
               <MetricCard title="Cash in Register"   value={fmt(execSummary.cashInRegister)}   subtitle="Latest closing cash"        icon={Banknote}      color="blue"   onClick={() => navigate('/sales')} />
-              {/* DAILY EXPENSES KPI — variable + prorated daily fixed */}
               <MetricCard
                 title="Daily Expenses"
-                value={fmt(execSummary.expensesToday || 0)}
-                subtitle={execSummary.dailyFixedAllocation > 0
-                  ? `Variable Today + Daily Fixed Allocation`
-                  : 'Daily operating expenses'}
+                value={fmtDecimal(expenseSummary.dailyExpense)}
+                subtitle="Monthly Expenses ÷ Calendar Days"
                 icon={Receipt}
                 color="amber"
                 onClick={() => navigate('/expenses')}
               />
-              {/* TOTAL MONTHLY EXPENSES — full fixed + all variable */}
               <MetricCard
                 title="Monthly Expenses"
-                value={fmt(execSummary.totalMonthlyFixed)}
-                subtitle={`Total Monthly Fixed Expenses`}
+                value={fmt(expenseSummary.monthlyTotal)}
+                subtitle={`Fixed ${fmt(expenseSummary.monthlyFixed)} + Variable ${fmt(expenseSummary.monthlyVariable)}`}
                 icon={Receipt}
-                color={execSummary.totalMonthlyFixed > 0 ? 'red' : 'green'}
+                color={expenseSummary.monthlyTotal > 0 ? 'red' : 'green'}
                 onClick={() => navigate('/expenses')}
               />
+              <MetricCard title="Yesterday Net Profit" value={fmt(periodProfit.yesterday.netProfit)} subtitle="Sales − Purchases − Variable − Daily Fixed" icon={periodProfit.yesterday.netProfit >= 0 ? TrendingUp : TrendingDown} color={periodProfit.yesterday.netProfit >= 0 ? 'green' : 'red'} onClick={() => navigate('/profit-loss')} />
+              <MetricCard title="Weekly Net Profit" value={fmt(periodProfit.week.netProfit)} subtitle="Sales − Purchases − Variable − Weekly Fixed" icon={periodProfit.week.netProfit >= 0 ? TrendingUp : TrendingDown} color={periodProfit.week.netProfit >= 0 ? 'green' : 'red'} onClick={() => navigate('/profit-loss')} />
+              <MetricCard title="Monthly Net Profit" value={fmt(periodProfit.month.netProfit)} subtitle="Sales − Purchases − Variable − Fixed" icon={periodProfit.month.netProfit >= 0 ? TrendingUp : TrendingDown} color={periodProfit.month.netProfit >= 0 ? 'green' : 'red'} onClick={() => navigate('/profit-loss')} />
               {/* NETWORK BALANCE — 3-column row: Today / Yesterday / Month */}
               <div className="col-span-2 grid grid-cols-3 gap-2">
                 <MetricCard title="Network Today"     value={fmt(execSummary.networkToday)}     subtitle="POS/Network today"          icon={Wifi}  color="cyan"   onClick={() => navigate('/network-management')} />
@@ -1218,15 +1272,6 @@ export default function OwnerDashboard() {
               icon={AlertTriangle}
               color={purchaseAnalytics.overduePayables > 0 ? 'red' : 'green'}
               onClick={() => navigate('/enterprise-purchases')}
-            />
-            {/* Monthly Net Profit = Month Sales − Month Purchases − Monthly Expenses */}
-            <MetricCard
-              title="Month Net Profit"
-              value={fmt(totalMonthlyExpenses.monthNetProfit)}
-              subtitle="Sales − Purch − Exp"
-              icon={totalMonthlyExpenses.monthNetProfit >= 0 ? TrendingUp : TrendingDown}
-              color={totalMonthlyExpenses.monthNetProfit >= 0 ? 'green' : 'red'}
-              onClick={() => navigate('/reports')}
             />
           </div>
           {purchaseAnalytics.supplierRanking.length > 0 && (

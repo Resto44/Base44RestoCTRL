@@ -270,6 +270,10 @@ function SourceFormDialog({ open, onClose, initial, onSave, isSaving }) {
       toast.error('English name is required');
       return;
     }
+    if (!form.is_global && !String(form.branch_id || '').trim()) {
+      toast.error('Select a branch for a branch-scoped sales source');
+      return;
+    }
     onSave(form);
   };
 
@@ -515,23 +519,61 @@ function SourceFormDialog({ open, onClose, initial, onSave, isSaving }) {
 export default function SalesSourcesManager() {
   const { user } = useAuth();
   const { lang } = useLanguage();
-  const { ownerFilter, branches } = useTenant();
+  const { activeRestaurant } = useTenant();
   const qc = useQueryClient();
+  const activeRestaurantId = activeRestaurant?.id ? String(activeRestaurant.id) : null;
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
 
   // ── Fetch ───────────────────────────────────────────────────────────────
+  const sourceQueryKeys = [
+    ['sales_sources', activeRestaurantId],
+    ['sales_sources_active', activeRestaurantId],
+  ];
+  const invalidateSourceCaches = () => Promise.all([
+    qc.invalidateQueries({ queryKey: ['sales_sources'] }),
+    qc.invalidateQueries({ queryKey: ['sales_sources_active'] }),
+  ]);
+  const cancelSourceCaches = () => Promise.all(
+    sourceQueryKeys.map(queryKey => qc.cancelQueries({ queryKey })),
+  );
+  const snapshotSourceCaches = () => sourceQueryKeys.map(queryKey => ({
+    queryKey,
+    data: qc.getQueryData(queryKey),
+  }));
+  const restoreSourceCaches = (snapshots = []) => snapshots.forEach(({ queryKey, data }) => {
+    qc.setQueryData(queryKey, data);
+  });
+  const updateSourceCaches = (updater) => sourceQueryKeys.forEach(queryKey => {
+    qc.setQueryData(queryKey, (current = []) => updater(Array.isArray(current) ? current : []));
+  });
+  const normalizeSourcePayload = (source) => {
+    const name_en = String(source?.name_en || '').trim();
+    const is_global = source?.is_global !== false;
+    const branch_id = is_global ? null : String(source?.branch_id || '').trim();
+    if (!activeRestaurantId) throw new Error('Select an active restaurant before saving a sales source');
+    if (!name_en) throw new Error('English name is required');
+    if (!is_global && !branch_id) throw new Error('Select a branch for a branch-scoped sales source');
+    return {
+      ...source,
+      name_en,
+      name_ar: String(source?.name_ar || '').trim() || null,
+      name_fa: String(source?.name_fa || '').trim() || null,
+      description: String(source?.description || '').trim() || null,
+      is_global,
+      branch_id,
+      restaurant_id: activeRestaurantId,
+      created_by: user?.email || null,
+    };
+  };
+
   const { data: sources = [], isLoading, refetch } = useQuery({
-    queryKey: ['sales_sources'],
-    queryFn: async () => {
-      // Fetch all sources: system sources (created_by IS NULL) + current restaurant/tenant sources + current user created sources
-      const all = await base44.entities.SalesSource.list('sort_order', 200);
-      return all;
-    },
+    queryKey: ['sales_sources', activeRestaurantId],
+    queryFn: () => base44.entities.SalesSource.list('sort_order', 200),
     staleTime: 30000,
-    enabled: !!user?.email,
+    enabled: !!(user?.email && activeRestaurantId),
   });
 
   const sorted = useMemo(() =>
@@ -541,34 +583,83 @@ export default function SalesSourcesManager() {
 
   // ── Mutations ──────────────────────────────────────────────────────────────
   const createMut = useMutation({
-    mutationFn: (data) => base44.entities.SalesSource.create({ ...data, created_by: user?.email }),
-    onSuccess: async () => { 
-      await qc.invalidateQueries({ queryKey: ['sales_sources'] }); 
-      await refetch();
-      toast.success('Sales source created'); 
-      setDialogOpen(false); 
+    mutationFn: (data) => base44.entities.SalesSource.create(data),
+    onMutate: async (data) => {
+      await cancelSourceCaches();
+      const snapshots = snapshotSourceCaches();
+      const optimisticId = `sales-source-pending-${Date.now()}`;
+      const optimisticSource = { ...data, id: optimisticId, _optimistic: true };
+      updateSourceCaches(current => [...current, optimisticSource]);
+      return { snapshots, optimisticId };
     },
-    onError: (e) => toast.error(`Failed to create: ${e.message}`),
+    onSuccess: (source, _data, context) => {
+      updateSourceCaches(current => {
+        const hasOptimistic = current.some(item => item.id === context?.optimisticId);
+        const replaced = current.map(item => item.id === context?.optimisticId ? source : item);
+        return hasOptimistic ? replaced : [...current, source];
+      });
+      toast.success('Sales source created');
+      setDialogOpen(false);
+      setEditing(null);
+    },
+    onError: (error, _data, context) => {
+      restoreSourceCaches(context?.snapshots);
+      toast.error(`Failed to create: ${error.message}`);
+    },
+    onSettled: invalidateSourceCaches,
   });
 
   const updateMut = useMutation({
     mutationFn: ({ id, data }) => base44.entities.SalesSource.update(id, data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['sales_sources'] }); toast.success('Sales source updated'); setDialogOpen(false); },
-    onError: (e) => toast.error(`Failed to update: ${e.message}`),
+    onMutate: async ({ id, data }) => {
+      await cancelSourceCaches();
+      const snapshots = snapshotSourceCaches();
+      updateSourceCaches(current => current.map(item => item.id === id ? { ...item, ...data, _optimistic: true } : item));
+      return { snapshots };
+    },
+    onSuccess: (source, { id }) => {
+      updateSourceCaches(current => current.map(item => item.id === id ? source : item));
+      toast.success('Sales source updated');
+      setDialogOpen(false);
+      setEditing(null);
+    },
+    onError: (error, _variables, context) => {
+      restoreSourceCaches(context?.snapshots);
+      toast.error(`Failed to update: ${error.message}`);
+    },
+    onSettled: invalidateSourceCaches,
   });
 
   const deleteMut = useMutation({
     mutationFn: (id) => base44.entities.SalesSource.delete(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['sales_sources'] }); toast.success('Sales source deleted'); setDeleteConfirm(null); },
-    onError: (e) => toast.error(`Failed to delete: ${e.message}`),
+    onMutate: async (id) => {
+      await cancelSourceCaches();
+      const snapshots = snapshotSourceCaches();
+      updateSourceCaches(current => current.filter(item => item.id !== id));
+      return { snapshots };
+    },
+    onSuccess: () => {
+      toast.success('Sales source deleted');
+      setDeleteConfirm(null);
+    },
+    onError: (error, _id, context) => {
+      restoreSourceCaches(context?.snapshots);
+      toast.error(`Failed to delete: ${error.message}`);
+    },
+    onSettled: invalidateSourceCaches,
   });
 
   // ── Handlers ───────────────────────────────────────────────────────────────
   const handleSave = (formData) => {
-    if (editing?.id) {
-      updateMut.mutate({ id: editing.id, data: formData });
-    } else {
-      createMut.mutate(formData);
+    try {
+      const payload = normalizeSourcePayload(formData);
+      if (editing?.id) {
+        updateMut.mutate({ id: editing.id, data: payload });
+      } else {
+        createMut.mutate(payload);
+      }
+    } catch (error) {
+      toast.error(error.message);
     }
   };
 
